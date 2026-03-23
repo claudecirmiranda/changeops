@@ -3,7 +3,7 @@
 #  Usage: make <target>
 # ─────────────────────────────────────────────────────────────────────────────
 
-.PHONY: help up down clean restart logs \\
+.PHONY: help up down clean restart logs \
         build build-backend build-frontend \
         test test-backend test-frontend \
         lint lint-backend lint-frontend \
