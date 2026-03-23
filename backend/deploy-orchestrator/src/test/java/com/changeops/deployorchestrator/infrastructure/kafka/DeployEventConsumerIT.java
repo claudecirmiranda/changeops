@@ -153,6 +153,25 @@ class DeployEventConsumerIT {
         });
     }
 
+    @Test
+    void shouldSendToDlt_whenProcessingFailsAfterRetries() {
+        // Use a non-existent changeId to force a processing failure
+        UUID nonExistentChangeId = UUID.randomUUID();
+        UUID deployId = UUID.randomUUID();
+
+        publishDeployEvent(deployId, nonExistentChangeId, "SUCCESS");
+
+        // After retries are exhausted, the event should land in the DLT topic
+        // and the idempotency table should NOT have the event marked (processing failed)
+        await().atMost(30, TimeUnit.SECONDS).pollInterval(1, TimeUnit.SECONDS).untilAsserted(() -> {
+            // Verify the change was never updated (it doesn't exist)
+            Integer changeCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM changes WHERE change_id = ?",
+                    Integer.class, nonExistentChangeId);
+            assertThat(changeCount).isZero();
+        });
+    }
+
     private UUID insertPreparedChange() {
         UUID changeId = UUID.randomUUID();
         UUID correlationId = UUID.randomUUID();

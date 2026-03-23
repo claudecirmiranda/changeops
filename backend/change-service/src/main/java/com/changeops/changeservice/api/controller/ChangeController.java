@@ -10,6 +10,7 @@ import com.changeops.changeservice.application.port.in.GetChangeEventsUseCase;
 import com.changeops.changeservice.application.port.in.GetChangeUseCase;
 import com.changeops.changeservice.application.port.in.ListChangesUseCase;
 import com.changeops.changeservice.domain.valueobject.ChangeStatus;
+import io.micrometer.core.annotation.Timed;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -32,6 +33,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/changes")
 @Tag(name = "Changes", description = "Change Management API")
+@Timed(value = "api_request_duration_ms", description = "API request duration")
 public class ChangeController {
 
     private final CreateChangeUseCase createChangeUseCase;
