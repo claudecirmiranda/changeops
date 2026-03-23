@@ -7,6 +7,7 @@ import com.changeops.changeservice.application.port.out.SaveChangePort;
 import com.changeops.changeservice.domain.event.ChangePreparedEvent;
 import com.changeops.changeservice.domain.model.Change;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -48,7 +49,7 @@ class CreateChangeServiceTest {
         meterRegistry = new SimpleMeterRegistry();
         service = new CreateChangeService(
                 saveChangePort, publishEventPort, saveChangeEventPort,
-                new ObjectMapper(), meterRegistry);
+                new ObjectMapper().registerModule(new JavaTimeModule()), meterRegistry);
     }
 
     @Test

@@ -188,6 +188,6 @@ CREATE TABLE audit_log (
 
 1. **No Outbox pattern** — event loss risk if Kafka is down during write (see Phase 2.1)
 2. **PostDeployChecklist is fully simulated** — must be replaced with real integration points
-3. **No rate limiting** on `POST /changes` endpoint — add Spring Boot `bucket4j` integration
+3. ~~**No rate limiting** on `POST /changes` endpoint~~ — ✅ Resolved: `RateLimitFilter` with Bucket4j (100 req/min per IP)
 4. **Frontend auth is dev-only** — `localStorage.getItem('access_token')` is a placeholder
 5. **V2 seed migration** — should be guarded by Spring profile, not always-run Flyway migration

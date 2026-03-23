@@ -51,6 +51,7 @@ describe('ChangeForm', () => {
 
     render(<ChangeForm />)
     await userEvent.type(screen.getByLabelText(/component id/i), 'payment-service')
+    await userEvent.type(screen.getByLabelText(/scheduled at/i), '2099-12-01T10:00')
     await userEvent.click(screen.getByRole('button', { name: /create change/i }))
 
     await waitFor(() =>

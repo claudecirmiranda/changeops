@@ -50,49 +50,46 @@ class ProcessDeployResultServiceTest {
     @Test
     void shouldMarkCompleted_andPublishEvent_whenDeploySucceeds() {
         DeployFinishedEvent event = buildEvent("SUCCESS");
-        when(idempotencyPort.isAlreadyProcessed(event.payload().deployId())).thenReturn(false);
+        when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString())).thenReturn(true);
 
         service.execute(event);
 
         verify(updateChangeStatusPort).markCompleted(event.payload().changeId());
-        verify(idempotencyPort).markAsProcessed(eq(event.payload().deployId()), anyString());
         verify(publishResultEventPort).publish(argThat(r -> r.isSuccess()));
     }
 
     @Test
     void shouldMarkFailed_andPublishEvent_whenDeployFails() {
         DeployFinishedEvent event = buildEvent("FAILURE");
-        when(idempotencyPort.isAlreadyProcessed(event.payload().deployId())).thenReturn(false);
+        when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString())).thenReturn(true);
 
         service.execute(event);
 
         verify(updateChangeStatusPort).markFailed(event.payload().changeId());
-        verify(idempotencyPort).markAsProcessed(eq(event.payload().deployId()), anyString());
         verify(publishResultEventPort).publish(argThat(r -> !r.isSuccess()));
     }
 
     @Test
     void shouldDiscardEvent_whenDeployIdAlreadyProcessed() {
         DeployFinishedEvent event = buildEvent("SUCCESS");
-        when(idempotencyPort.isAlreadyProcessed(event.payload().deployId())).thenReturn(true);
+        when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString())).thenReturn(false);
 
         service.execute(event);
 
         verifyNoInteractions(updateChangeStatusPort);
         verifyNoInteractions(publishResultEventPort);
-        verify(idempotencyPort, never()).markAsProcessed(any(), any());
     }
 
     @Test
     void shouldNotMarkCompleted_whenSameEventDeliveredTwice() {
         DeployFinishedEvent event = buildEvent("SUCCESS");
 
-        // First delivery
-        when(idempotencyPort.isAlreadyProcessed(event.payload().deployId())).thenReturn(false);
-        service.execute(event);
+        // First delivery — not yet processed
+        when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString()))
+                .thenReturn(true)   // first call
+                .thenReturn(false); // second call
 
-        // Second delivery — simulate already processed
-        when(idempotencyPort.isAlreadyProcessed(event.payload().deployId())).thenReturn(true);
+        service.execute(event);
         service.execute(event);
 
         // markCompleted should only be called once
@@ -102,7 +99,7 @@ class ProcessDeployResultServiceTest {
     @Test
     void shouldSaveChangeEvent_whenDeploySucceeds() {
         DeployFinishedEvent event = buildEvent("SUCCESS");
-        when(idempotencyPort.isAlreadyProcessed(event.payload().deployId())).thenReturn(false);
+        when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString())).thenReturn(true);
 
         service.execute(event);
 
