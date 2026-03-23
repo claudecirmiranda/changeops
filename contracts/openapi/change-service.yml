@@ -180,14 +180,15 @@ components:
     ChangeDetail:
       allOf:
         - $ref: '#/components/schemas/ChangeDto'
-      properties:
-        description:
-          type: string
-        requestedBy:
-          type: string
-        scheduledAt:
-          type: string
-          format: date-time
+        - type: object
+          properties:
+            description:
+              type: string
+            requestedBy:
+              type: string
+            scheduledAt:
+              type: string
+              format: date-time
 
     ChangeDto:
       type: object

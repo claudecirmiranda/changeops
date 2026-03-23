@@ -41,7 +41,6 @@ describe('ChangeList', () => {
       page: null,
       currentPage: 0,
       selectedChangeId: null,
-      isPolling: false,
     })
   })
 
