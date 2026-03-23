@@ -1,0 +1,185 @@
+asyncapi: "2.6.0"
+
+info:
+  title: ChangeOps — Event Contracts
+  version: "1.0.0"
+  description: |
+    Asynchronous event contracts for the ChangeOps Dashboard.
+    All events are wrapped in an IntegrationEvent envelope containing
+    eventType, version, correlationId, occurredAt and payload.
+
+defaultContentType: application/json
+
+servers:
+  local:
+    url: localhost:9092
+    protocol: kafka
+    description: Local Kafka broker (Docker)
+
+channels:
+
+  changeops.change.prepared:
+    description: Published by change-service after a change is persisted with PREPARED status.
+    subscribe:
+      operationId: onChangePrepared
+      summary: Notifies downstream systems that a change is ready for deploy.
+      message:
+        $ref: '#/components/messages/ChangePreparedEvent'
+
+  changeops.deploy.finished:
+    description: Published by an external deploy system when a deploy concludes.
+    publish:
+      operationId: publishDeployFinished
+      summary: Signals the result of a deploy execution.
+      message:
+        $ref: '#/components/messages/DeployFinishedEvent'
+
+  changeops.change.result:
+    description: Published by deploy-orchestrator after processing a deploy result.
+    subscribe:
+      operationId: onChangeResult
+      summary: Notifies of the final status of a change (COMPLETED or FAILED).
+      message:
+        oneOf:
+          - $ref: '#/components/messages/ChangeCompletedEvent'
+          - $ref: '#/components/messages/ChangeFailedEvent'
+
+  changeops.change.result-dlt:
+    description: Dead-letter queue — receives events that failed all retry attempts.
+    subscribe:
+      operationId: onDlt
+      summary: Events that could not be processed after maximum retries.
+      message:
+        $ref: '#/components/messages/ChangeFailedEvent'
+
+components:
+
+  messages:
+
+    ChangePreparedEvent:
+      name: ChangePreparedEvent
+      title: Change Prepared
+      payload:
+        $ref: '#/components/schemas/IntegrationEnvelope'
+      examples:
+        - payload:
+            eventType: ChangePreparedEvent
+            version: "1.0"
+            correlationId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            occurredAt: "2026-03-19T10:00:00Z"
+            payload:
+              changeId: "11111111-1111-1111-1111-111111111111"
+              componentId: "payment-service"
+              requestedBy: "user-001"
+              scheduledAt: "2026-06-01T02:00:00Z"
+
+    DeployFinishedEvent:
+      name: DeployFinishedEvent
+      title: Deploy Finished
+      payload:
+        $ref: '#/components/schemas/IntegrationEnvelope'
+      examples:
+        - payload:
+            eventType: DeployFinishedEvent
+            version: "1.0"
+            correlationId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            occurredAt: "2026-03-19T12:00:00Z"
+            payload:
+              deployId: "dep-00000000-0000-0000-0000-000000000001"
+              changeId: "11111111-1111-1111-1111-111111111111"
+              result: "SUCCESS"
+              executedAt: "2026-03-19T12:00:00Z"
+
+    ChangeCompletedEvent:
+      name: ChangeCompletedEvent
+      title: Change Completed
+      payload:
+        $ref: '#/components/schemas/IntegrationEnvelope'
+      examples:
+        - payload:
+            eventType: ChangeCompletedEvent
+            version: "1.0"
+            correlationId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+            occurredAt: "2026-03-19T12:05:00Z"
+            payload:
+              changeId: "11111111-1111-1111-1111-111111111111"
+              deployId: "dep-00000000-0000-0000-0000-000000000001"
+              completedAt: "2026-03-19T12:05:00Z"
+
+    ChangeFailedEvent:
+      name: ChangeFailedEvent
+      title: Change Failed
+      payload:
+        $ref: '#/components/schemas/IntegrationEnvelope'
+      examples:
+        - payload:
+            eventType: ChangeFailedEvent
+            version: "1.0"
+            correlationId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+            occurredAt: "2026-03-19T12:05:00Z"
+            payload:
+              changeId: "22222222-2222-2222-2222-222222222222"
+              deployId: "dep-00000000-0000-0000-0000-000000000002"
+              reason: "Healthcheck failed after deploy"
+              failedAt: "2026-03-19T12:05:00Z"
+
+  schemas:
+
+    IntegrationEnvelope:
+      type: object
+      required: [eventType, version, correlationId, occurredAt, payload]
+      properties:
+        eventType:
+          type: string
+          description: Discriminator for the event type
+          example: ChangePreparedEvent
+        version:
+          type: string
+          example: "1.0"
+        correlationId:
+          type: string
+          format: uuid
+          description: End-to-end tracing identifier — propagated across all services and logs
+        occurredAt:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          description: Event-specific data — see individual message schemas
+
+    ChangePreparedPayload:
+      type: object
+      required: [changeId, componentId, requestedBy, scheduledAt]
+      properties:
+        changeId: { type: string, format: uuid }
+        componentId: { type: string }
+        requestedBy: { type: string }
+        scheduledAt: { type: string, format: date-time }
+
+    DeployFinishedPayload:
+      type: object
+      required: [deployId, changeId, result, executedAt]
+      properties:
+        deployId: { type: string, format: uuid }
+        changeId: { type: string, format: uuid }
+        result:
+          type: string
+          enum: [SUCCESS, FAILURE]
+        executedAt: { type: string, format: date-time }
+
+    ChangeCompletedPayload:
+      type: object
+      required: [changeId, deployId, completedAt]
+      properties:
+        changeId: { type: string, format: uuid }
+        deployId: { type: string, format: uuid }
+        completedAt: { type: string, format: date-time }
+
+    ChangeFailedPayload:
+      type: object
+      required: [changeId, deployId, reason, failedAt]
+      properties:
+        changeId: { type: string, format: uuid }
+        deployId: { type: string, format: uuid }
+        reason: { type: string }
+        failedAt: { type: string, format: date-time }

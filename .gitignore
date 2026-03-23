@@ -1,0 +1,87 @@
+# =========================
+# Sistema
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+
+# =========================
+# Java / Maven
+# =========================
+target/
+*.class
+out/
+
+# Pastas do Maven Wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# =========================
+# IDEs
+# =========================
+.idea/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+
+# =========================
+# Spring config local (cuidado!)
+# =========================
+# Se você NÃO versiona application.yml/properties, pode manter:
+application*.yml
+application*.yaml
+application*.properties
+# Se você versiona configurações base, me diga que eu ajusto.
+
+# =========================
+# Variáveis de ambiente (se usar)
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Node / React
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build do frontend
+build/
+dist/
+coverage/
+
+# Cache
+.eslintcache
+stylelint-cache
+
+# React/Frameworks (se aplicável)
+.next/
+.nuxt/
+.nuxt/   # (remova se não usar)
+
+# Map files
+public/*.map
+src/**/*.map
+
+# =========================
+# Docker (opcional)
+# =========================
+docker-compose.override.yml
+
+# =========================
+# Arquivos temporários
+# =========================
+*.swp
+*~
+*.tmp

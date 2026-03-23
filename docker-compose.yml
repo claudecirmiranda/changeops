@@ -1,0 +1,207 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────
+#  ChangeOps Dashboard — Local Stack
+#  Usage: make up | docker compose up -d
+# ─────────────────────────────────────────────────
+
+networks:
+  changeops-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  kafka-data:
+  prometheus-data:
+  grafana-data:
+
+services:
+
+  # ── PostgreSQL ─────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: changeops-postgres
+    restart: unless-stopped
+    networks: [changeops-net]
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: changeops
+      POSTGRES_USER: changeops
+      POSTGRES_PASSWORD: changeops
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U changeops -d changeops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Zookeeper ──────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: changeops-zookeeper
+    restart: unless-stopped
+    networks: [changeops-net]
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      retries: 5
+
+  # ── Kafka ──────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: changeops-kafka
+    restart: unless-stopped
+    networks: [changeops-net]
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  # ── Kafka UI ───────────────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: changeops-kafka-ui
+    restart: unless-stopped
+    networks: [changeops-net]
+    ports:
+      - "8090:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: changeops-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
+  # ── change-service ─────────────────────────────
+  change-service:
+    build:
+      context: ./backend/change-service
+      dockerfile: Dockerfile
+    container_name: changeops-change-service
+    restart: unless-stopped
+    networks: [changeops-net]
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: changeops
+      DB_USER: changeops
+      DB_PASS: changeops
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_ISSUER_URI: http://keycloak:8080/realms/changeops
+      JWT_JWK_SET_URI: http://keycloak:8080/realms/changeops/protocol/openid-connect/certs
+      SERVER_PORT: 8080
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ── deploy-orchestrator ─────────────────────────────
+  deploy-orchestrator:
+      build:
+        context: ./backend/deploy-orchestrator
+        dockerfile: Dockerfile
+      container_name: changeops-deploy-orchestrator
+      restart: unless-stopped
+      networks: [changeops-net]
+      ports:
+        - "8081:8081"
+      depends_on:
+        postgres:
+          condition: service_healthy
+        kafka:
+          condition: service_healthy
+        change-service:          # ← dentro do depends_on
+          condition: service_healthy
+      environment:
+        SPRING_PROFILES_ACTIVE: local
+        DB_HOST: postgres
+        DB_PORT: 5432
+        DB_NAME: changeops
+        DB_USER: changeops
+        DB_PASS: changeops
+        KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+        SERVER_PORT: 8081
+      healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+        interval: 30s
+        timeout: 10s
+        retries: 5
+        start_period: 60s
+
+  # ── Prometheus ─────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.50.1
+    container_name: changeops-prometheus
+    restart: unless-stopped
+    networks: [changeops-net]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      retries: 3
+
+  # ── Grafana ────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.3.3
+    container_name: changeops-grafana
+    restart: unless-stopped
+    networks: [changeops-net]
+    ports:
+      - "3001:3000"
+    depends_on: [prometheus]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: changeops
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/changeops.json
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro

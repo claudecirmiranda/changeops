@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+  <springProperty scope="context" name="APP_NAME"  source="spring.application.name" defaultValue="change-service"/>
+  <springProperty scope="context" name="APP_ENV"   source="spring.profiles.active"  defaultValue="local"/>
+
+  <appender name="JSON_STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <provider class="net.logstash.logback.composite.loggingevent.LoggingEventPatternJsonProvider">
+        <pattern>
+          {
+            "service":        "${APP_NAME}",
+            "env":            "${APP_ENV}",
+            "correlation_id": "%mdc{correlation_id}",
+            "change_id":      "%mdc{change_id}",
+            "deploy_id":      "%mdc{deploy_id}",
+            "trace_id":       "%mdc{traceId}",
+            "span_id":        "%mdc{spanId}"
+          }
+        </pattern>
+      </provider>
+      <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+        <maxDepthPerCause>10</maxDepthPerCause>
+        <rootCauseFirst>true</rootCauseFirst>
+      </throwableConverter>
+    </encoder>
+  </appender>
+
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} [%X{correlation_id:-NO_CORR}] [%X{service:-change-service}] %-5level %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
+
+  <springProfile name="local,test">
+    <root level="INFO">
+      <appender-ref ref="STDOUT"/>
+    </root>
+    <logger name="com.changeops" level="DEBUG"/>
+  </springProfile>
+
+  <springProfile name="prod,staging">
+    <root level="INFO">
+      <appender-ref ref="JSON_STDOUT"/>
+    </root>
+    <logger name="com.changeops" level="INFO"/>
+  </springProfile>
+</configuration>

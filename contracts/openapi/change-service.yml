@@ -1,0 +1,251 @@
+openapi: "3.1.0"
+info:
+  title: ChangeOps — Change Service API
+  description: |
+    REST API for creating and querying technical change requests.
+    All endpoints require Bearer JWT authentication (except health/metrics).
+  version: "1.0.0"
+  contact:
+    name: ChangeOps Team
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Changes
+    description: Change lifecycle management
+
+paths:
+  /changes:
+    post:
+      tags: [Changes]
+      operationId: createChange
+      summary: Create a new change request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChangeRequest'
+            example:
+              title: "Deploy payment-service v3.0"
+              description: "Major version upgrade with new payment gateway"
+              componentId: "payment-service"
+              requestedBy: "user-001"
+              scheduledAt: "2026-06-01T02:00:00Z"
+      responses:
+        "201":
+          description: Change created successfully
+          headers:
+            Location:
+              schema: { type: string }
+              description: URL of the created change
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateChangeResponse'
+        "400":
+          $ref: '#/components/responses/ValidationError'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      tags: [Changes]
+      operationId: listChanges
+      summary: List changes with optional filters
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ChangeStatus'
+        - name: componentId
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: sort
+          in: query
+          schema: { type: string, default: "createdAt,desc" }
+      responses:
+        "200":
+          description: Paginated list of changes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageOfChanges'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /changes/{changeId}/events:
+    get:
+      tags: [Changes]
+      operationId: getChangeEvents
+      summary: Get the event timeline for a change
+      parameters:
+        - name: changeId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Ordered list of domain events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChangeEvent'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    CreateChangeRequest:
+      type: object
+      required: [title, componentId, requestedBy, scheduledAt]
+      properties:
+        title:
+          type: string
+          maxLength: 255
+          example: "Deploy payment-service v3.0"
+        description:
+          type: string
+          maxLength: 2000
+        componentId:
+          type: string
+          maxLength: 100
+          example: "payment-service"
+        requestedBy:
+          type: string
+          maxLength: 100
+          example: "user-001"
+        scheduledAt:
+          type: string
+          format: date-time
+          example: "2026-06-01T02:00:00Z"
+
+    CreateChangeResponse:
+      type: object
+      properties:
+        changeId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/ChangeStatus'
+        correlationId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+
+    ChangeDto:
+      type: object
+      properties:
+        changeId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        componentId:
+          type: string
+        status:
+          $ref: '#/components/schemas/ChangeStatus'
+        correlationId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ChangeEvent:
+      type: object
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        changeId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          example: "ChangePreparedEvent"
+        payload:
+          type: string
+          description: JSON-encoded event payload
+        occurredAt:
+          type: string
+          format: date-time
+
+    ChangeStatus:
+      type: string
+      enum: [DRAFT, PREPARED, COMPLETED, FAILED, CANCELLED]
+
+    PageOfChanges:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChangeDto'
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+        number:
+          type: integer
+        size:
+          type: integer
+        first:
+          type: boolean
+        last:
+          type: boolean
+
+    ProblemDetail:
+      type: object
+      properties:
+        title: { type: string }
+        detail: { type: string }
+        status: { type: integer }
+        type: { type: string, format: uri }
+        fields:
+          type: object
+          additionalProperties: { type: string }
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    ValidationError:
+      description: Validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    Unauthorized:
+      description: Authentication required
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
