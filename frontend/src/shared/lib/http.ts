@@ -8,11 +8,15 @@ export const http = axios.create({
   timeout: 10_000,
 })
 
-// Inject auth token if present
+// SECURITY PLACEHOLDER: localStorage-based auth is intentionally simplified for this POC.
+// In production, replace with httpOnly cookie session managed by the OAuth2 PKCE flow
+// described in ROADMAP.md § 2.2 (Full JWT / OAuth2 Integration).
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  // dev convenience: X-User-Id header
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  // X-User-Id is a dev-only fallback resolved by the backend when no JWT is present (local profile).
   const userId = localStorage.getItem('user_id') ?? 'dev-user-001'
   config.headers['X-User-Id'] = userId
   return config

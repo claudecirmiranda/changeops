@@ -20,15 +20,18 @@ public class CustomJwtAuthenticationConverter implements Converter<Jwt, Abstract
         return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
     }
 
-    @SuppressWarnings("unchecked")
     private Collection<GrantedAuthority> extractRoles(Jwt jwt) {
         Map<String, Object> realmAccess = jwt.getClaim("realm_access");
         if (realmAccess == null) {
             return List.of(new SimpleGrantedAuthority("ROLE_OPERATOR"));
         }
-        List<String> roles = (List<String>) realmAccess.getOrDefault("roles", List.of());
-        return roles.stream()
-                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()))
+        Object rolesObj = realmAccess.get("roles");
+        if (!(rolesObj instanceof List<?> rawList)) {
+            return List.of(new SimpleGrantedAuthority("ROLE_OPERATOR"));
+        }
+        return rawList.stream()
+                .filter(String.class::isInstance)
+                .map(r -> new SimpleGrantedAuthority("ROLE_" + ((String) r).toUpperCase()))
                 .collect(Collectors.toList());
     }
 }

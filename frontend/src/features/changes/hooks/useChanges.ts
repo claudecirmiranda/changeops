@@ -11,7 +11,7 @@ export function useChanges() {
   const [error, setError] = useState<ApiError | null>(null)
   const [pollError, setPollError] = useState(false)
 
-  const fetch = useCallback(async (pageNum: number = currentPage) => {
+  const fetch = useCallback(async (pageNum: number) => {
     try {
       const data = await changeService.list({ page: pageNum, size: 20 })
       setPage(data)
@@ -20,7 +20,7 @@ export function useChanges() {
       setError(e as ApiError)
       setPollError(true)
     }
-  }, [currentPage]) // eslint-disable-line
+  }, [setPage])
 
   // Initial load
   const load = useCallback(async () => {
@@ -47,7 +47,7 @@ export function useChanges() {
     }
   }, [setCurrentPage, setPage])
 
-  // Background poll (silent refresh, no loading spinner)
+  // Background poll: passes the current page explicitly to avoid stale closure
   usePolling(() => fetch(currentPage), { interval: 5_000, enabled: !!page })
 
   return { changes: page?.content ?? [], page, loading, error, pollError, load, goToPage }

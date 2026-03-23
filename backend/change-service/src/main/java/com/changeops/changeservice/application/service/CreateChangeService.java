@@ -24,6 +24,7 @@ public class CreateChangeService implements CreateChangeUseCase {
     private final SaveChangeEventPort saveChangeEventPort;
     private final ObjectMapper objectMapper;
     private final Counter changesCreatedCounter;
+    private final Counter timelineFailuresCounter;
 
     public CreateChangeService(
             SaveChangePort saveChangePort,
@@ -37,6 +38,9 @@ public class CreateChangeService implements CreateChangeUseCase {
         this.objectMapper = objectMapper;
         this.changesCreatedCounter = Counter.builder("changes_created_total")
                 .description("Total changes created")
+                .register(meterRegistry);
+        this.timelineFailuresCounter = Counter.builder("timeline_persistence_failures_total")
+                .description("Number of times event timeline persistence failed")
                 .register(meterRegistry);
     }
 
@@ -83,6 +87,7 @@ public class CreateChangeService implements CreateChangeUseCase {
                     event.occurredAt());
         } catch (Exception e) {
             log.warn("Failed to persist event to timeline: changeId={}", change.getChangeId(), e);
+            timelineFailuresCounter.increment();
         }
     }
 }

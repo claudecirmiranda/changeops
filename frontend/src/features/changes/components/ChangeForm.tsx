@@ -7,6 +7,8 @@ interface Props {
   onSuccess?: (changeId: string) => void
 }
 
+// requestedBy is pre-filled from localStorage in local/dev mode.
+// In production this will be populated from the authenticated JWT subject (see ROADMAP.md § 2.2).
 const EMPTY: CreateChangePayload = {
   title: '',
   description: '',
