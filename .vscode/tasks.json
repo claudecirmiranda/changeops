@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "test-all-backend",
+			"type": "shell",
+			"command": "cd backend/change-service && mvn test && cd ../deploy-orchestrator && mvn test",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}

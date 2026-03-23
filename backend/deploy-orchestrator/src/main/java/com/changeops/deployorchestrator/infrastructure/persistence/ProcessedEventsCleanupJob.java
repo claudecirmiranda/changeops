@@ -20,9 +20,9 @@ public class ProcessedEventsCleanupJob {
     @Scheduled(cron = "0 0 3 * * *")
     @Transactional
     public void cleanupOldProcessedEvents() {
-        // int deleted = repository.deleteOlderThan(90);
-        // if (deleted > 0) {
-        //     log.info("Cleaned up {} processed events older than 90 days", deleted);
-        // }
+        int deleted = repository.deleteOlderThan(90);
+        if (deleted > 0) {
+            log.info("Cleaned up {} processed events older than 90 days", deleted);
+        }
     }
 }
