@@ -178,8 +178,8 @@ CREATE TABLE audit_log (
 | Extract `PostDeployChecklistService` to separate adapter | Pluggable checklist implementations (webhook, script, metric check) | High |
 | Replace polling with SSE in frontend | Lower backend load at scale | Medium |
 | Add OpenTelemetry to Kafka consumer | Trace correlation across service boundary | Medium |
-| Implement `GET /changes/{id}` single-resource endpoint | Needed for detail page routing | Low |
-| Add pagination controls to frontend | Currently loads page 0 only | Low |
+| ~~Implement `GET /changes/{id}` single-resource endpoint~~ | ~~Needed for detail page routing~~ | ✅ Resolved |
+| ~~Add pagination controls to frontend~~ | ~~Currently loads page 0 only~~ | ✅ Resolved |
 | Add `CANCELLED` status transition with reason | Needed for operational workflows | Low |
 
 ---
@@ -190,4 +190,4 @@ CREATE TABLE audit_log (
 2. **PostDeployChecklist is fully simulated** — must be replaced with real integration points
 3. ~~**No rate limiting** on `POST /changes` endpoint~~ — ✅ Resolved: `RateLimitFilter` with Bucket4j (100 req/min per IP)
 4. **Frontend auth is dev-only** — `localStorage.getItem('access_token')` is a placeholder
-5. **V2 seed migration** — should be guarded by Spring profile, not always-run Flyway migration
+5. ~~**V2 seed migration** — should be guarded by Spring profile, not always-run Flyway migration~~ — ✅ Resolved: moved to `src/test/resources/db/migration/` (only runs in test context)
