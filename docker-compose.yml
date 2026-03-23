@@ -127,13 +127,8 @@ services:
       JWT_ISSUER_URI: http://keycloak:8080/realms/changeops
       JWT_JWK_SET_URI: http://keycloak:8080/realms/changeops/protocol/openid-connect/certs
       SERVER_PORT: 8080
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
-        reservations:
-          memory: 256M
+    mem_limit: 512m
+    cpus: "1.0"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
       interval: 30s
@@ -167,13 +162,8 @@ services:
         DB_PASS: changeops
         KAFKA_BOOTSTRAP_SERVERS: kafka:29092
         SERVER_PORT: 8081
-      deploy:
-        resources:
-          limits:
-            cpus: "1.0"
-            memory: 512M
-          reservations:
-            memory: 256M
+      mem_limit: 512m
+      cpus: "1.0"
       healthcheck:
         test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/actuator/health"]
         interval: 30s

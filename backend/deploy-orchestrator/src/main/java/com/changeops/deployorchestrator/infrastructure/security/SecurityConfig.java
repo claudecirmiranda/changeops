@@ -14,7 +14,7 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     @Bean
-    @Profile("local")
+    @Profile("local | test")
     public SecurityFilterChain localFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -24,7 +24,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    @Profile("!local")
+    @Profile("!(local | test)")
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)

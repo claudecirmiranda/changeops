@@ -15,7 +15,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -40,19 +41,19 @@ public class ChangeController {
     private final ListChangesUseCase listChangesUseCase;
     private final GetChangeUseCase getChangeUseCase;
     private final GetChangeEventsUseCase getChangeEventsUseCase;
-    private final String activeProfile;
+    private final Environment environment;
 
     public ChangeController(
             CreateChangeUseCase createChangeUseCase,
             ListChangesUseCase listChangesUseCase,
             GetChangeUseCase getChangeUseCase,
             GetChangeEventsUseCase getChangeEventsUseCase,
-            @Value("${spring.profiles.active:}") String activeProfile) {
+            Environment environment) {
         this.createChangeUseCase = createChangeUseCase;
         this.listChangesUseCase = listChangesUseCase;
         this.getChangeUseCase = getChangeUseCase;
         this.getChangeEventsUseCase = getChangeEventsUseCase;
-        this.activeProfile = activeProfile;
+        this.environment = environment;
     }
 
     @PostMapping
@@ -121,7 +122,7 @@ public class ChangeController {
 
     private String resolveRequestedBy(String userId, Jwt jwt, String fallback) {
         if (jwt != null && jwt.getSubject() != null) return jwt.getSubject();
-        if ("local".equals(activeProfile) && userId != null) return userId;
+        if (environment.acceptsProfiles(Profiles.of("local")) && userId != null) return userId;
         return fallback;
     }
 }
