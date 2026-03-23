@@ -26,10 +26,10 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-changeops}
+      POSTGRES_USER: ${POSTGRES_USER:-changeops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeops}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:-changeops_app_pass}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
@@ -121,8 +121,8 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: changeops
-      DB_USER: ${DB_USER}
-      DB_PASS: ${DB_PASS}
+      DB_USER: ${DB_USER:-changeops}
+      DB_PASS: ${DB_PASS:-changeops}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_ISSUER_URI: http://keycloak:8080/realms/changeops
       JWT_JWK_SET_URI: http://keycloak:8080/realms/changeops/protocol/openid-connect/certs
@@ -203,8 +203,8 @@ services:
       - "3001:3000"
     depends_on: [prometheus]
     environment:
-      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
-      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/changeops.json
     volumes:

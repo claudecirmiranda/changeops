@@ -87,6 +87,27 @@ class ChangeTest {
                 .isInstanceOf(InvalidChangeStateException.class);
     }
 
+    @Test
+    void cancel_shouldTransitionToCancelled_whenPrepared() {
+        Change change = createValidChange();
+        change.pullDomainEvents();
+        change.cancel();
+
+        assertThat(change.getStatus()).isEqualTo(ChangeStatus.CANCELLED);
+        assertThat(change.getUpdatedAt()).isAfterOrEqualTo(change.getCreatedAt());
+    }
+
+    @Test
+    void cancel_shouldThrow_whenNotPrepared() {
+        Change change = createValidChange();
+        change.pullDomainEvents();
+        change.complete();
+
+        assertThatThrownBy(change::cancel)
+                .isInstanceOf(InvalidChangeStateException.class)
+                .hasMessageContaining("COMPLETED");
+    }
+
     private Change createValidChange() {
         return Change.create(
                 "Deploy payment-service",
