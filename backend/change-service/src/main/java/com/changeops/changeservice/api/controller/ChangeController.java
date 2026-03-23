@@ -2,10 +2,12 @@ package com.changeops.changeservice.api.controller;
 
 import com.changeops.changeservice.api.dto.CreateChangeRequest;
 import com.changeops.changeservice.api.dto.CreateChangeResponse;
+import com.changeops.changeservice.api.dto.ChangeDetailDto;
 import com.changeops.changeservice.api.dto.ChangeDto;
 import com.changeops.changeservice.api.dto.ChangeEventDto;
 import com.changeops.changeservice.application.port.in.CreateChangeUseCase;
 import com.changeops.changeservice.application.port.in.GetChangeEventsUseCase;
+import com.changeops.changeservice.application.port.in.GetChangeUseCase;
 import com.changeops.changeservice.application.port.in.ListChangesUseCase;
 import com.changeops.changeservice.domain.valueobject.ChangeStatus;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,16 +36,19 @@ public class ChangeController {
 
     private final CreateChangeUseCase createChangeUseCase;
     private final ListChangesUseCase listChangesUseCase;
+    private final GetChangeUseCase getChangeUseCase;
     private final GetChangeEventsUseCase getChangeEventsUseCase;
     private final String activeProfile;
 
     public ChangeController(
             CreateChangeUseCase createChangeUseCase,
             ListChangesUseCase listChangesUseCase,
+            GetChangeUseCase getChangeUseCase,
             GetChangeEventsUseCase getChangeEventsUseCase,
             @Value("${spring.profiles.active:}") String activeProfile) {
         this.createChangeUseCase = createChangeUseCase;
         this.listChangesUseCase = listChangesUseCase;
+        this.getChangeUseCase = getChangeUseCase;
         this.getChangeEventsUseCase = getChangeEventsUseCase;
         this.activeProfile = activeProfile;
     }
@@ -90,6 +95,16 @@ public class ChangeController {
         return ResponseEntity.ok(results.map(r -> new ChangeDto(
                 r.changeId(), r.title(), r.componentId(),
                 r.status(), r.correlationId(), r.createdAt(), r.updatedAt())));
+    }
+
+    @GetMapping("/{changeId}")
+    @Operation(summary = "Get a change by ID")
+    public ResponseEntity<ChangeDetailDto> getById(@PathVariable UUID changeId) {
+        GetChangeUseCase.Result r = getChangeUseCase.execute(changeId);
+        return ResponseEntity.ok(new ChangeDetailDto(
+                r.changeId(), r.title(), r.description(), r.componentId(),
+                r.requestedBy(), r.status(), r.correlationId(),
+                r.scheduledAt(), r.createdAt(), r.updatedAt()));
     }
 
     @GetMapping("/{changeId}/events")

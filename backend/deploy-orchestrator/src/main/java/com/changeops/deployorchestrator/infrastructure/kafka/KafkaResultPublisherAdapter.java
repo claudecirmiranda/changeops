@@ -7,9 +7,14 @@ import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @Component
@@ -38,19 +43,26 @@ public class KafkaResultPublisherAdapter implements PublishResultEventPort {
         IntegrationEvent envelope = buildEnvelope(result);
         String key = result.getChangeId().toString();
 
-        kafkaTemplate.send(changeResultTopic, key, envelope)
-                .whenComplete((sendResult, ex) -> {
-                    if (ex != null) {
-                        log.error("Failed to publish result event after retries — sending to DLQ: " +
-                                        "changeId={}, correlationId={}",
-                                result.getChangeId(), result.getCorrelationId(), ex);
-                        sendToDlq(key, envelope);
-                    } else {
-                        eventsPublishedCounter.increment();
-                        log.info("Result event published: eventType={}, changeId={}, correlationId={}",
-                                envelope.eventType(), result.getChangeId(), result.getCorrelationId());
-                    }
-                });
+        try {
+            SendResult<String, IntegrationEvent> sendResult =
+                    kafkaTemplate.send(changeResultTopic, key, envelope).get(10, TimeUnit.SECONDS);
+            eventsPublishedCounter.increment();
+            log.info("Result event published: eventType={}, changeId={}, correlationId={}",
+                    envelope.eventType(), result.getChangeId(), result.getCorrelationId());
+        } catch (ExecutionException e) {
+            log.error("Failed to publish result event — sending to DLQ: changeId={}, correlationId={}",
+                    result.getChangeId(), result.getCorrelationId(), e.getCause());
+            sendToDlq(key, envelope);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Interrupted publishing result event — sending to DLQ: changeId={}",
+                    result.getChangeId());
+            sendToDlq(key, envelope);
+        } catch (TimeoutException e) {
+            log.error("Timeout publishing result event — sending to DLQ: changeId={}",
+                    result.getChangeId());
+            sendToDlq(key, envelope);
+        }
     }
 
     private void sendToDlq(String key, IntegrationEvent envelope) {

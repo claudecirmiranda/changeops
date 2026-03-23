@@ -12,6 +12,9 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @Component
@@ -57,18 +60,25 @@ public class KafkaEventPublisherAdapter implements PublishEventPort {
         CompletableFuture<SendResult<String, IntegrationEvent>> future =
                 kafkaTemplate.send(changePreparedTopic, event.changeId().toString(), envelope);
 
-        future.whenComplete((result, ex) -> {
-            if (ex != null) {
-                log.error("Failed to publish ChangePreparedEvent: correlationId={}, changeId={}",
-                        event.correlationId(), event.changeId(), ex);
-            } else {
-                eventsPublishedCounter.increment();
-                log.info("ChangePreparedEvent published: correlationId={}, changeId={}, partition={}, offset={}",
-                        event.correlationId(), event.changeId(),
-                        result.getRecordMetadata().partition(),
-                        result.getRecordMetadata().offset());
-            }
-        });
+        try {
+            SendResult<String, IntegrationEvent> result = future.get(10, TimeUnit.SECONDS);
+            eventsPublishedCounter.increment();
+            log.info("ChangePreparedEvent published: correlationId={}, changeId={}, partition={}, offset={}",
+                    event.correlationId(), event.changeId(),
+                    result.getRecordMetadata().partition(),
+                    result.getRecordMetadata().offset());
+        } catch (ExecutionException e) {
+            log.error("Failed to publish ChangePreparedEvent: correlationId={}, changeId={}",
+                    event.correlationId(), event.changeId(), e.getCause());
+            throw new RuntimeException("Failed to publish event to Kafka", e.getCause());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while publishing event to Kafka", e);
+        } catch (TimeoutException e) {
+            log.error("Timeout publishing ChangePreparedEvent: correlationId={}, changeId={}",
+                    event.correlationId(), event.changeId());
+            throw new RuntimeException("Timeout publishing event to Kafka", e);
+        }
     }
 
     public record ChangePreparedPayload(

@@ -3,7 +3,7 @@
 #  Usage: make <target>
 # ─────────────────────────────────────────────────────────────────────────────
 
-.PHONY: help up down restart logs \
+.PHONY: help up down clean restart logs \\
         build build-backend build-frontend \
         test test-backend test-frontend \
         lint lint-backend lint-frontend \
@@ -36,7 +36,10 @@ up: ## Start the full local stack (infra + services)
 	@echo "  Grafana             → http://localhost:3001  (admin/changeops)"
 	@echo ""
 
-down: ## Stop and remove all containers
+down: ## Stop and remove all containers (preserves data volumes)
+	docker compose down
+
+clean: ## Stop and remove everything INCLUDING data volumes
 	docker compose down -v
 
 restart: ## Restart all services

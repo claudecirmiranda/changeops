@@ -31,8 +31,18 @@ public class IdempotencyAdapter implements IdempotencyPort {
                     .build());
             log.debug("Event marked as processed: eventId={}", eventId);
         } catch (DataIntegrityViolationException e) {
-            // Race condition: another instance already processed this event
             log.warn("Concurrent idempotency conflict for eventId={} — already processed", eventId);
         }
+    }
+
+    @Override
+    public boolean tryMarkAsProcessed(UUID eventId, String serviceName) {
+        int inserted = repository.insertIfAbsent(eventId, serviceName);
+        if (inserted == 0) {
+            log.debug("Event already processed (atomic check): eventId={}", eventId);
+            return false;
+        }
+        log.debug("Event atomically marked as processed: eventId={}", eventId);
+        return true;
     }
 }

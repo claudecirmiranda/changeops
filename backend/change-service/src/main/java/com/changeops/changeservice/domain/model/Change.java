@@ -101,6 +101,15 @@ public class Change {
         this.updatedAt = Instant.now();
     }
 
+    public void cancel() {
+        if (this.status != ChangeStatus.PREPARED) {
+            throw new InvalidChangeStateException(
+                    "Cannot cancel change in status: " + this.status);
+        }
+        this.status = ChangeStatus.CANCELLED;
+        this.updatedAt = Instant.now();
+    }
+
     public List<DomainEvent> pullDomainEvents() {
         List<DomainEvent> events = Collections.unmodifiableList(new ArrayList<>(this.domainEvents));
         this.domainEvents.clear();

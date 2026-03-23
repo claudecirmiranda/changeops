@@ -25,6 +25,9 @@ public class KafkaConfig {
     @Value("${changeops.kafka.topics.change-prepared}")
     private String changePreparedTopic;
 
+    @Value("${changeops.kafka.default-replication-factor:1}")
+    private int replicationFactor;
+
     @Bean
     public ProducerFactory<String, IntegrationEvent> producerFactory() {
         Map<String, Object> props = new HashMap<>();
@@ -48,7 +51,7 @@ public class KafkaConfig {
     public NewTopic changePreparedTopic() {
         return TopicBuilder.name(changePreparedTopic)
                 .partitions(3)
-                .replicas(1)
+                .replicas(replicationFactor)
                 .build();
     }
 }
