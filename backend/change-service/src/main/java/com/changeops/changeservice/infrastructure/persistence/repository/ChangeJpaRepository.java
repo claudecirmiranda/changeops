@@ -12,6 +12,8 @@ import java.util.UUID;
 
 public interface ChangeJpaRepository extends JpaRepository<ChangeEntity, UUID> {
 
+    long countByStatus(ChangeStatus status);
+
     @Query("""
             SELECT c FROM ChangeEntity c
             WHERE (:status IS NULL OR c.status = :status)

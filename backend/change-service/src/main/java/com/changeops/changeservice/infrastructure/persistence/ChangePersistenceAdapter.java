@@ -1,5 +1,7 @@
 package com.changeops.changeservice.infrastructure.persistence;
 
+import com.changeops.changeservice.application.port.out.ChangeExistsPort;
+import com.changeops.changeservice.application.port.out.LoadChangeEventsPort;
 import com.changeops.changeservice.application.port.out.LoadChangesPort;
 import com.changeops.changeservice.application.port.out.SaveChangeEventPort;
 import com.changeops.changeservice.application.port.out.SaveChangePort;
@@ -15,12 +17,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
-public class ChangePersistenceAdapter implements SaveChangePort, LoadChangesPort, SaveChangeEventPort {
+public class ChangePersistenceAdapter
+        implements SaveChangePort, LoadChangesPort, SaveChangeEventPort,
+                   ChangeExistsPort, LoadChangeEventsPort {
 
     private final ChangeJpaRepository changeJpaRepository;
     private final ChangeEventJpaRepository changeEventJpaRepository;
@@ -71,6 +76,25 @@ public class ChangePersistenceAdapter implements SaveChangePort, LoadChangesPort
     }
 
     private Change toDomain(ChangeEntity e) {
-        return Change.fromEntity(e);
+        return Change.reconstitute(
+                e.getChangeId(), e.getTitle(), e.getDescription(),
+                e.getComponentId(), e.getRequestedBy(), e.getScheduledAt(),
+                e.getStatus(), e.getCorrelationId(),
+                e.getCreatedAt(), e.getUpdatedAt());
+    }
+
+    @Override
+    public boolean existsById(UUID changeId) {
+        return changeJpaRepository.existsById(changeId);
+    }
+
+    @Override
+    public List<LoadChangeEventsPort.ChangeEventResult> findByChangeId(UUID changeId) {
+        return changeEventJpaRepository.findByChangeIdOrderByOccurredAtAsc(changeId)
+                .stream()
+                .map(e -> new LoadChangeEventsPort.ChangeEventResult(
+                        e.getEventId(), e.getChangeId(),
+                        e.getEventType(), e.getPayload(), e.getOccurredAt()))
+                .toList();
     }
 }

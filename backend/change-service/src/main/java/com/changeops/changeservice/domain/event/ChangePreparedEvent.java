@@ -10,4 +10,4 @@ public record ChangePreparedEvent(
         Instant scheduledAt,
         UUID correlationId,
         Instant occurredAt
-) {}
+) implements DomainEvent {}

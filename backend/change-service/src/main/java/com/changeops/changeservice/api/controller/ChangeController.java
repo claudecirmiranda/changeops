@@ -11,8 +11,8 @@ import com.changeops.changeservice.domain.valueobject.ChangeStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -29,13 +29,24 @@ import java.util.UUID;
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/changes")
-@RequiredArgsConstructor
 @Tag(name = "Changes", description = "Change Management API")
 public class ChangeController {
 
     private final CreateChangeUseCase createChangeUseCase;
     private final ListChangesUseCase listChangesUseCase;
     private final GetChangeEventsUseCase getChangeEventsUseCase;
+    private final String activeProfile;
+
+    public ChangeController(
+            CreateChangeUseCase createChangeUseCase,
+            ListChangesUseCase listChangesUseCase,
+            GetChangeEventsUseCase getChangeEventsUseCase,
+            @Value("${spring.profiles.active:}") String activeProfile) {
+        this.createChangeUseCase = createChangeUseCase;
+        this.listChangesUseCase = listChangesUseCase;
+        this.getChangeEventsUseCase = getChangeEventsUseCase;
+        this.activeProfile = activeProfile;
+    }
 
     @PostMapping
     @Operation(summary = "Create a new change request")
@@ -92,8 +103,8 @@ public class ChangeController {
     }
 
     private String resolveRequestedBy(String userId, Jwt jwt, String fallback) {
-        if (userId != null) return userId;
         if (jwt != null && jwt.getSubject() != null) return jwt.getSubject();
+        if ("local".equals(activeProfile) && userId != null) return userId;
         return fallback;
     }
 }
