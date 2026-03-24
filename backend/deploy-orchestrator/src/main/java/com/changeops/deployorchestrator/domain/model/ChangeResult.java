@@ -33,10 +33,8 @@ public class ChangeResult {
     }
 
     public void withChecklistFailure(String reason) {
-        if (this.result == DeployResult.SUCCESS) {
-            this.result = DeployResult.FAILURE;
-            this.failureReason = reason;
-        }
+        this.result = DeployResult.FAILURE;
+        this.failureReason = reason;
     }
 
     public void markFinished() {
