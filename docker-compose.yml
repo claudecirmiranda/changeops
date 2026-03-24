@@ -1,5 +1,3 @@
-version: "3.9"
-
 # ─────────────────────────────────────────────────
 #  ChangeOps Dashboard — Local Stack
 #  Usage: make up | docker compose up -d
