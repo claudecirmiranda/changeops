@@ -1,6 +1,12 @@
+Índice
+------
+
+- [Diagrama 1 - Solução de Ingestão - Mermaid](#diagrama-1-solução-de-ingestão-mermaid)
+- [Diagrama 2 - Solução de Ingestão - Mermaid](#diagrama-2-solução-de-ingestão-mermaid)
+
 # Diagrama 1 - Solução de Ingestão - Mermaid
 
-``` 
+```mermaid 
 flowchart TB
  subgraph Platform["Ingestão de Dados"]
         DataIngest["Solução de Ingestão<br><br>Valida, transforma e roteia dados<br>de diversas fontes de forma assíncrona"]
@@ -24,7 +30,7 @@ flowchart TB
 
 # Diagrama 2 - Solução de Ingestão - Mermaid
 
-``` 
+```mermaid 
 flowchart TB
  subgraph K8s["Solução de Ingestão de Dados"]
         IngestAPI["API de Ingestão<br>[Container: .NET 8]<br><br>Validação de Schema & Segurança.<br>Publica eventos brutos."]
