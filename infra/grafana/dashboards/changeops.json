@@ -136,6 +136,31 @@
       "title": "Changes by Status",
       "type": "piechart",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "COMPLETED" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "FAILED" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "PREPARED" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "CANCELLED" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "DRAFT" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "gray" } }]
+          }
+        ]
+      },
       "targets": [{
         "expr": "sum by (status) (changes_by_status)",
         "legendFormat": "{{status}}"
