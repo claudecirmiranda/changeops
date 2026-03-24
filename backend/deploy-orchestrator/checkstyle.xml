@@ -15,16 +15,16 @@
   <!-- Every file must end with a newline -->
   <module name="NewlineAtEndOfFile"/>
 
+  <!-- Line length: 150 to accommodate annotation-heavy Spring/JPA code -->
+  <module name="LineLength">
+    <property name="max" value="150"/>
+  </module>
+
   <module name="TreeWalker">
 
     <!-- Imports -->
     <module name="UnusedImports"/>
     <module name="AvoidStarImport"/>
-
-    <!-- Line length: 150 to accommodate annotation-heavy Spring/JPA code -->
-    <module name="LineLength">
-      <property name="max" value="150"/>
-    </module>
 
     <!-- Whitespace: allow empty constructors/methods/types/lambdas (common in Spring/records) -->
     <module name="WhitespaceAround">
