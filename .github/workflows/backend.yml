@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: backend/change-service  # ← aponta pro pom.xml correto
+        working-directory: backend/change-service
 
     steps:
       - uses: actions/checkout@v4
