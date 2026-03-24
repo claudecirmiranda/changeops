@@ -1,7 +1,9 @@
 package com.changeops.deployorchestrator.domain.model;
 
-import com.changeops.deployorchestrator.domain.exception.InvalidOrchestratorStateException;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
 
 import java.time.Instant;
 import java.util.UUID;
