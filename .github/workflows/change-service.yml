@@ -49,13 +49,13 @@ jobs:
           cache: maven
 
       - name: Run unit tests
-        run: mvn test -pl . -Dtest="**/*Test" -DfailIfNoTests=false
+        run: mvn test -Dtest="**/*Test" -DfailIfNoTests=false
 
       - name: Run integration tests
-        run: mvn test -pl . -Dtest="**/*IT" -DfailIfNoTests=false
+        run: mvn test -Dtest="**/*IT" -DfailIfNoTests=false
         env:
           SPRING_PROFILES_ACTIVE: test
-
+          
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -82,7 +82,8 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
           cache: maven
-
+          cache-dependency-path: backend/change-service/pom.xml
+          
       - name: Build JAR
         run: mvn clean package -DskipTests
 
