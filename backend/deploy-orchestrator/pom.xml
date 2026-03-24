@@ -48,6 +48,14 @@
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
         <version>0.8.11</version>
+        <configuration>
+          <!-- Infrastructure classes require integration tests (Kafka + Postgres);
+               exclude them so the 70% threshold applies only to domain/application code. -->
+          <excludes>
+            <exclude>com/changeops/deployorchestrator/DeployOrchestratorApplication.class</exclude>
+            <exclude>com/changeops/deployorchestrator/infrastructure/**/*.class</exclude>
+          </excludes>
+        </configuration>
         <executions>
           <execution>
             <id>prepare-agent</id>
