@@ -3,11 +3,11 @@
 #  Usage: make <target>
 # ─────────────────────────────────────────────────────────────────────────────
 
-.PHONY: help up down restart logs \
+.PHONY: help up down clean-stack clean-artifacts restart logs \
         build build-backend build-frontend \
         test test-backend test-frontend \
         lint lint-backend lint-frontend \
-        clean db-shell kafka-shell \
+        db-shell kafka-shell \
         smoke publish-deploy-event
 
 # ── Colours ───────────────────────────────────────────────────────────────────
@@ -36,7 +36,10 @@ up: ## Start the full local stack (infra + services)
 	@echo "  Grafana             → http://localhost:3001  (admin/changeops)"
 	@echo ""
 
-down: ## Stop and remove all containers
+down: ## Stop and remove all containers (preserves data volumes)
+	docker compose down
+
+clean-stack: ## Stop and remove everything INCLUDING data volumes
 	docker compose down -v
 
 restart: ## Restart all services
@@ -148,9 +151,9 @@ publish-deploy-event: ## Publish a DeployFinishedEvent (SUCCESS) to Kafka
 	echo "Published deployId=$$DEPLOY_ID for changeId=$$CHANGE_ID"
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
-clean: ## Remove build artifacts
+clean-artifacts: ## Remove build artifacts
 	cd backend/change-service      && mvn clean -q
 	cd backend/deploy-orchestrator && mvn clean -q
 	rm -rf frontend/dist frontend/node_modules/.vite
 
-clean-all: clean down ## Remove build artifacts and stop containers
+clean-all: clean-artifacts clean-stack ## Remove build artifacts and stop containers

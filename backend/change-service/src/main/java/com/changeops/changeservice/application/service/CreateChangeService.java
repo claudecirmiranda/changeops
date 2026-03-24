@@ -4,7 +4,7 @@ import com.changeops.changeservice.application.port.in.CreateChangeUseCase;
 import com.changeops.changeservice.application.port.out.PublishEventPort;
 import com.changeops.changeservice.application.port.out.SaveChangeEventPort;
 import com.changeops.changeservice.application.port.out.SaveChangePort;
-import com.changeops.changeservice.domain.event.ChangePreparedEvent;
+import com.changeops.changeservice.domain.event.DomainEvent;
 import com.changeops.changeservice.domain.model.Change;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
@@ -24,6 +24,7 @@ public class CreateChangeService implements CreateChangeUseCase {
     private final SaveChangeEventPort saveChangeEventPort;
     private final ObjectMapper objectMapper;
     private final Counter changesCreatedCounter;
+    private final Counter timelineFailuresCounter;
 
     public CreateChangeService(
             SaveChangePort saveChangePort,
@@ -37,6 +38,9 @@ public class CreateChangeService implements CreateChangeUseCase {
         this.objectMapper = objectMapper;
         this.changesCreatedCounter = Counter.builder("changes_created_total")
                 .description("Total changes created")
+                .register(meterRegistry);
+        this.timelineFailuresCounter = Counter.builder("timeline_persistence_failures_total")
+                .description("Number of times event timeline persistence failed")
                 .register(meterRegistry);
     }
 
@@ -55,7 +59,7 @@ public class CreateChangeService implements CreateChangeUseCase {
 
         Change saved = saveChangePort.save(change);
 
-        List<Object> events = saved.pullDomainEvents();
+        List<DomainEvent> events = saved.pullDomainEvents();
         events.forEach(event -> {
             publishEventPort.publish(event);
             persistEventToTimeline(saved, event);
@@ -73,16 +77,17 @@ public class CreateChangeService implements CreateChangeUseCase {
                 saved.getCreatedAt());
     }
 
-    private void persistEventToTimeline(Change change, Object event) {
+    private void persistEventToTimeline(Change change, DomainEvent event) {
         try {
             String payload = objectMapper.writeValueAsString(event);
             saveChangeEventPort.save(
                     change.getChangeId(),
                     event.getClass().getSimpleName(),
                     payload,
-                    ((ChangePreparedEvent) event).occurredAt());
+                    event.occurredAt());
         } catch (Exception e) {
             log.warn("Failed to persist event to timeline: changeId={}", change.getChangeId(), e);
+            timelineFailuresCounter.increment();
         }
     }
 }

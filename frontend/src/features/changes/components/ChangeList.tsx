@@ -6,7 +6,7 @@ import { useChanges } from '../hooks/useChanges'
 import { useChangesStore } from '../store/useChangesStore'
 
 export function ChangeList() {
-  const { changes, page, loading, error, pollError, load } = useChanges()
+  const { changes, page, loading, error, pollError, load, goToPage } = useChanges()
   const { selectedChangeId, setSelectedChangeId } = useChangesStore()
 
   useEffect(() => {
@@ -108,6 +108,22 @@ export function ChangeList() {
           <span>
             {page.totalElements} changes — Page {page.number + 1} of {page.totalPages}
           </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => goToPage(page.number - 1)}
+              disabled={page.first || loading}
+              className="px-3 py-1 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ← Prev
+            </button>
+            <button
+              onClick={() => goToPage(page.number + 1)}
+              disabled={page.last || loading}
+              className="px-3 py-1 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next →
+            </button>
+          </div>
         </div>
       )}
     </div>

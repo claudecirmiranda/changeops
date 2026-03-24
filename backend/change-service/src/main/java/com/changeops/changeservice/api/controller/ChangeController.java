@@ -2,17 +2,21 @@ package com.changeops.changeservice.api.controller;
 
 import com.changeops.changeservice.api.dto.CreateChangeRequest;
 import com.changeops.changeservice.api.dto.CreateChangeResponse;
+import com.changeops.changeservice.api.dto.ChangeDetailDto;
 import com.changeops.changeservice.api.dto.ChangeDto;
 import com.changeops.changeservice.api.dto.ChangeEventDto;
 import com.changeops.changeservice.application.port.in.CreateChangeUseCase;
 import com.changeops.changeservice.application.port.in.GetChangeEventsUseCase;
+import com.changeops.changeservice.application.port.in.GetChangeUseCase;
 import com.changeops.changeservice.application.port.in.ListChangesUseCase;
 import com.changeops.changeservice.domain.valueobject.ChangeStatus;
+import io.micrometer.core.annotation.Timed;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -29,13 +33,28 @@ import java.util.UUID;
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/changes")
-@RequiredArgsConstructor
 @Tag(name = "Changes", description = "Change Management API")
+@Timed(value = "api_request_duration", description = "API request duration")
 public class ChangeController {
 
     private final CreateChangeUseCase createChangeUseCase;
     private final ListChangesUseCase listChangesUseCase;
+    private final GetChangeUseCase getChangeUseCase;
     private final GetChangeEventsUseCase getChangeEventsUseCase;
+    private final Environment environment;
+
+    public ChangeController(
+            CreateChangeUseCase createChangeUseCase,
+            ListChangesUseCase listChangesUseCase,
+            GetChangeUseCase getChangeUseCase,
+            GetChangeEventsUseCase getChangeEventsUseCase,
+            Environment environment) {
+        this.createChangeUseCase = createChangeUseCase;
+        this.listChangesUseCase = listChangesUseCase;
+        this.getChangeUseCase = getChangeUseCase;
+        this.getChangeEventsUseCase = getChangeEventsUseCase;
+        this.environment = environment;
+    }
 
     @PostMapping
     @Operation(summary = "Create a new change request")
@@ -81,6 +100,16 @@ public class ChangeController {
                 r.status(), r.correlationId(), r.createdAt(), r.updatedAt())));
     }
 
+    @GetMapping("/{changeId}")
+    @Operation(summary = "Get a change by ID")
+    public ResponseEntity<ChangeDetailDto> getById(@PathVariable UUID changeId) {
+        GetChangeUseCase.Result r = getChangeUseCase.execute(changeId);
+        return ResponseEntity.ok(new ChangeDetailDto(
+                r.changeId(), r.title(), r.description(), r.componentId(),
+                r.requestedBy(), r.status(), r.correlationId(),
+                r.scheduledAt(), r.createdAt(), r.updatedAt()));
+    }
+
     @GetMapping("/{changeId}/events")
     @Operation(summary = "Get the event timeline for a change")
     public ResponseEntity<List<ChangeEventDto>> getEvents(@PathVariable UUID changeId) {
@@ -92,8 +121,8 @@ public class ChangeController {
     }
 
     private String resolveRequestedBy(String userId, Jwt jwt, String fallback) {
-        if (userId != null) return userId;
         if (jwt != null && jwt.getSubject() != null) return jwt.getSubject();
+        if (environment.acceptsProfiles(Profiles.of("local")) && userId != null) return userId;
         return fallback;
     }
 }

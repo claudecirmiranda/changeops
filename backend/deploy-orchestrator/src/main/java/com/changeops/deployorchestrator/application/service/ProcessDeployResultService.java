@@ -64,8 +64,8 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             log.info("DeployFinishedEvent received: deployId={}, changeId={}, result={}",
                     payload.deployId(), payload.changeId(), payload.result());
 
-            // ── Step 1: Idempotency check ──────────────────────────────
-            if (idempotencyPort.isAlreadyProcessed(payload.deployId())) {
+            // ── Step 1: Atomic idempotency check + mark ──────────────
+            if (!idempotencyPort.tryMarkAsProcessed(payload.deployId(), "deploy-orchestrator")) {
                 log.warn("Event already processed, discarding: deployId={}", payload.deployId());
                 return;
             }
@@ -111,8 +111,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                         Instant.now());
             }
 
-            // ── Step 5: Mark as processed (idempotency) ────────────────
-            idempotencyPort.markAsProcessed(payload.deployId(), "deploy-orchestrator");
+            // ── Step 5: Idempotency already marked in Step 1 ─────────
 
             // ── Step 6: Publish result event ───────────────────────────
             changeResult.markFinished();

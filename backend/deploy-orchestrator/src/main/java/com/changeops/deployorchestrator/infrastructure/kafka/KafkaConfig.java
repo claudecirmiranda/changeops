@@ -34,6 +34,9 @@ public class KafkaConfig {
     @Value("${changeops.kafka.topics.change-result}")
     private String changeResultTopic;
 
+    @Value("${changeops.kafka.default-replication-factor:1}")
+    private int replicationFactor;
+
     // ── Consumer ──────────────────────────────────────────────────────────────
 
     @Bean
@@ -86,16 +89,16 @@ public class KafkaConfig {
 
     @Bean
     public NewTopic deployFinishedTopic() {
-        return TopicBuilder.name(deployFinishedTopic).partitions(3).replicas(1).build();
+        return TopicBuilder.name(deployFinishedTopic).partitions(3).replicas(replicationFactor).build();
     }
 
     @Bean
     public NewTopic changeResultTopic() {
-        return TopicBuilder.name(changeResultTopic).partitions(3).replicas(1).build();
+        return TopicBuilder.name(changeResultTopic).partitions(3).replicas(replicationFactor).build();
     }
 
     @Bean
     public NewTopic changeResultDltTopic() {
-        return TopicBuilder.name(changeResultTopic + "-dlt").partitions(1).replicas(1).build();
+        return TopicBuilder.name(changeResultTopic + "-dlt").partitions(1).replicas(replicationFactor).build();
     }
 }

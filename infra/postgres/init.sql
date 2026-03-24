@@ -1,16 +1,8 @@
 -- Shared ChangeOps database initialisation
--- Runs once on container first boot
+-- NOTICE: Role creation with password is handled by init.sh (reads POSTGRES_APP_PASSWORD env var).
+-- This file handles only privilege grants that do not require credentials.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
--- Create application role with least privilege
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'changeops_app') THEN
-    CREATE ROLE changeops_app LOGIN PASSWORD 'changeops';
-  END IF;
-END
-$$;
 
 GRANT CONNECT ON DATABASE changeops TO changeops_app;
 GRANT USAGE ON SCHEMA public TO changeops_app;

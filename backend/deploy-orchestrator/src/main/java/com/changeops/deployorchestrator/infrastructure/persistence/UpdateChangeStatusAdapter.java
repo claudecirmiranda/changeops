@@ -1,6 +1,7 @@
 package com.changeops.deployorchestrator.infrastructure.persistence;
 
 import com.changeops.deployorchestrator.application.port.out.UpdateChangeStatusPort;
+import com.changeops.deployorchestrator.domain.exception.InvalidOrchestratorStateException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -18,7 +19,8 @@ public class UpdateChangeStatusAdapter implements UpdateChangeStatusPort {
     public void markCompleted(UUID changeId) {
         int updated = repository.markCompleted(changeId);
         if (updated == 0) {
-            log.warn("markCompleted: no change found for changeId={}", changeId);
+            throw new InvalidOrchestratorStateException(
+                "Cannot mark COMPLETED: change not found or already in a terminal state. changeId=" + changeId);
         }
     }
 
@@ -26,7 +28,8 @@ public class UpdateChangeStatusAdapter implements UpdateChangeStatusPort {
     public void markFailed(UUID changeId) {
         int updated = repository.markFailed(changeId);
         if (updated == 0) {
-            log.warn("markFailed: no change found for changeId={}", changeId);
+            throw new InvalidOrchestratorStateException(
+                "Cannot mark FAILED: change not found or already in a terminal state. changeId=" + changeId);
         }
     }
 }

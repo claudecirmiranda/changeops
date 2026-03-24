@@ -71,7 +71,7 @@ export function ChangeTimeline({ changeId, onClose }: Props) {
 
         {!loading && events.length > 0 && (
           <ol className="relative border-l border-gray-200 space-y-6 ml-2">
-            {events.map((event, idx) => {
+            {events.map((event) => {
               const dotColor = eventColors[event.eventType] ?? 'bg-gray-400'
               const icon = eventIcons[event.eventType] ?? '🔵'
               let parsed: Record<string, unknown> | null = null

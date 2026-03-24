@@ -1,6 +1,7 @@
 package com.changeops.changeservice.domain;
 
 import com.changeops.changeservice.domain.event.ChangePreparedEvent;
+import com.changeops.changeservice.domain.event.DomainEvent;
 import com.changeops.changeservice.domain.exception.InvalidChangeStateException;
 import com.changeops.changeservice.domain.model.Change;
 import com.changeops.changeservice.domain.valueobject.ChangeStatus;
@@ -27,7 +28,7 @@ class ChangeTest {
     @Test
     void create_shouldRaiseDomainEvent() {
         Change change = createValidChange();
-        List<Object> events = change.pullDomainEvents();
+        List<DomainEvent> events = change.pullDomainEvents();
 
         assertThat(events).hasSize(1);
         assertThat(events.get(0)).isInstanceOf(ChangePreparedEvent.class);
@@ -84,6 +85,27 @@ class ChangeTest {
 
         assertThatThrownBy(change::fail)
                 .isInstanceOf(InvalidChangeStateException.class);
+    }
+
+    @Test
+    void cancel_shouldTransitionToCancelled_whenPrepared() {
+        Change change = createValidChange();
+        change.pullDomainEvents();
+        change.cancel();
+
+        assertThat(change.getStatus()).isEqualTo(ChangeStatus.CANCELLED);
+        assertThat(change.getUpdatedAt()).isAfterOrEqualTo(change.getCreatedAt());
+    }
+
+    @Test
+    void cancel_shouldThrow_whenNotPrepared() {
+        Change change = createValidChange();
+        change.pullDomainEvents();
+        change.complete();
+
+        assertThatThrownBy(change::cancel)
+                .isInstanceOf(InvalidChangeStateException.class)
+                .hasMessageContaining("COMPLETED");
     }
 
     private Change createValidChange() {
