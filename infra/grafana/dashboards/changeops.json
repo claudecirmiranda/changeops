@@ -22,8 +22,11 @@
       "title": "Events Published (total)",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "decimals": 0 }
+      },
       "targets": [{
-        "expr": "sum(events_published_total)",
+        "expr": "sum(increase(events_published_total[$__range]))",
         "legendFormat": "Published"
       }]
     },
@@ -32,8 +35,11 @@
       "title": "Events Consumed (total)",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "decimals": 0 }
+      },
       "targets": [{
-        "expr": "sum(events_consumed_total)",
+        "expr": "sum(increase(events_consumed_total[$__range]))",
         "legendFormat": "Consumed"
       }]
     },
@@ -43,10 +49,10 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
       "fieldConfig": {
-        "defaults": { "color": { "fixedColor": "red", "mode": "fixed" } }
+        "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "decimals": 0 }
       },
       "targets": [{
-        "expr": "sum(events_failed_total)",
+        "expr": "sum(increase(events_failed_total[$__range]))",
         "legendFormat": "Failed"
       }]
     },
