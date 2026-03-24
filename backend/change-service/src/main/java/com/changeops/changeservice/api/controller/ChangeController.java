@@ -34,7 +34,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/changes")
 @Tag(name = "Changes", description = "Change Management API")
-@Timed(value = "api_request_duration_ms", description = "API request duration")
+@Timed(value = "api_request_duration", description = "API request duration")
 public class ChangeController {
 
     private final CreateChangeUseCase createChangeUseCase;

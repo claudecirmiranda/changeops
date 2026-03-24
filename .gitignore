@@ -15,7 +15,7 @@ logs/
 # =========================
 target/
 *.class
-out/
+/out/
 
 # Pastas do Maven Wrapper
 .mvn/wrapper/maven-wrapper.jar

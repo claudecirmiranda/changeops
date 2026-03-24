@@ -2,14 +2,19 @@ package com.changeops.deployorchestrator.infrastructure.kafka;
 
 import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.serializer.JsonSerializer;
@@ -22,7 +27,12 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -159,17 +169,32 @@ class DeployEventConsumerIT {
         UUID nonExistentChangeId = UUID.randomUUID();
         UUID deployId = UUID.randomUUID();
 
+        Map<String, Object> consumerProps = new HashMap<>();
+        consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
+        consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "test-dlt-verifier-" + UUID.randomUUID());
+        consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+
         publishDeployEvent(deployId, nonExistentChangeId, "SUCCESS");
 
-        // After retries are exhausted, the event should land in the DLT topic
-        // and the idempotency table should NOT have the event marked (processing failed)
-        await().atMost(30, TimeUnit.SECONDS).pollInterval(1, TimeUnit.SECONDS).untilAsserted(() -> {
-            // Verify the change was never updated (it doesn't exist)
-            Integer changeCount = jdbcTemplate.queryForObject(
-                    "SELECT COUNT(*) FROM changes WHERE change_id = ?",
-                    Integer.class, nonExistentChangeId);
-            assertThat(changeCount).isZero();
-        });
+        List<ConsumerRecord<String, String>> dltRecords = new ArrayList<>();
+        try (Consumer<String, String> dltConsumer =
+                     new DefaultKafkaConsumerFactory<String, String>(consumerProps).createConsumer()) {
+            dltConsumer.subscribe(Collections.singletonList("changeops.deploy.finished-dlt"));
+
+            // After retries are exhausted the event must land in the DLT topic
+            await().atMost(60, TimeUnit.SECONDS).pollInterval(2, TimeUnit.SECONDS).untilAsserted(() -> {
+                dltConsumer.poll(Duration.ofMillis(500)).forEach(dltRecords::add);
+                assertThat(dltRecords).isNotEmpty();
+            });
+        }
+
+        // The change record must not have been created (non-existent changeId)
+        Integer changeCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM changes WHERE change_id = ?",
+                Integer.class, nonExistentChangeId);
+        assertThat(changeCount).isZero();
     }
 
     private UUID insertPreparedChange() {
