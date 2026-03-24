@@ -66,7 +66,20 @@ class ProcessDeployResultServiceTest {
         service.execute(event);
 
         verify(updateChangeStatusPort).markFailed(event.payload().changeId());
-        verify(publishResultEventPort).publish(argThat(r -> !r.isSuccess()));
+        verify(publishResultEventPort).publish(argThat(r -> !r.isSuccess() && r.getFailureReason() != null));
+    }
+
+    @Test
+    void shouldIncludeFailureReason_inPublishedEvent_whenChecklistFails() {
+        // Verifies that failureReason is populated even when ChangeResult is already FAILURE
+        // (regression guard for withChecklistFailure removing the SUCCESS guard)
+        DeployFinishedEvent event = buildEvent("FAILURE");
+        when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString())).thenReturn(true);
+
+        service.execute(event);
+
+        verify(publishResultEventPort).publish(argThat(r ->
+                !r.isSuccess() && r.getFailureReason() != null && !r.getFailureReason().isBlank()));
     }
 
     @Test
