@@ -13,7 +13,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "targets": [{
-        "expr": "sum(changes_created_total)",
+        "expr": "sum(changes_by_status)",
         "legendFormat": "Total"
       }]
     },
