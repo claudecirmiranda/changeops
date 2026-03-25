@@ -6,6 +6,7 @@ import com.changeops.changeservice.application.port.out.SaveChangeEventPort;
 import com.changeops.changeservice.application.port.out.SaveChangePort;
 import com.changeops.changeservice.domain.event.ChangePreparedEvent;
 import com.changeops.changeservice.domain.model.Change;
+import com.changeops.changeservice.domain.valueobject.ChangeStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.micrometer.core.instrument.Counter;
@@ -64,7 +65,7 @@ class CreateChangeServiceTest {
         CreateChangeUseCase.Result result = service.execute(command);
 
         assertThat(result.changeId()).isNotNull();
-        assertThat(result.status()).isEqualTo("PREPARED");
+        assertThat(result.status()).isEqualTo(ChangeStatus.PREPARED);
         assertThat(result.correlationId()).isNotNull();
         assertThat(result.createdAt()).isNotNull();
 

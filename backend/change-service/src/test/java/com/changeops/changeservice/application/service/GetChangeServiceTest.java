@@ -4,6 +4,7 @@ import com.changeops.changeservice.application.port.in.GetChangeUseCase;
 import com.changeops.changeservice.application.port.out.LoadChangesPort;
 import com.changeops.changeservice.domain.exception.ChangeNotFoundException;
 import com.changeops.changeservice.domain.model.Change;
+import com.changeops.changeservice.domain.valueobject.ChangeStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,7 +54,7 @@ class GetChangeServiceTest {
         assertThat(result.description()).isEqualTo("Version upgrade");
         assertThat(result.componentId()).isEqualTo("payment-service");
         assertThat(result.requestedBy()).isEqualTo("user-001");
-        assertThat(result.status()).isEqualTo("PREPARED");
+        assertThat(result.status()).isEqualTo(ChangeStatus.PREPARED);
         assertThat(result.correlationId()).isEqualTo(change.getCorrelationId());
         assertThat(result.scheduledAt()).isEqualTo(change.getScheduledAt());
         assertThat(result.createdAt()).isEqualTo(change.getCreatedAt());

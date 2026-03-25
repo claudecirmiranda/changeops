@@ -6,6 +6,7 @@ import com.changeops.changeservice.application.port.in.GetChangeUseCase;
 import com.changeops.changeservice.application.port.in.ListChangesUseCase;
 import com.changeops.changeservice.domain.exception.ChangeNotFoundException;
 import com.changeops.changeservice.domain.exception.InvalidChangeStateException;
+import com.changeops.changeservice.domain.valueobject.ChangeStatus;
 import com.changeops.changeservice.infrastructure.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,7 +63,7 @@ class ChangeControllerTest {
         Instant createdAt = Instant.now();
 
         when(createChangeUseCase.execute(any()))
-                .thenReturn(new CreateChangeUseCase.Result(changeId, "PREPARED", correlationId, createdAt));
+                .thenReturn(new CreateChangeUseCase.Result(changeId, ChangeStatus.PREPARED, correlationId, createdAt));
 
         String body = """
                 {
@@ -87,7 +88,7 @@ class ChangeControllerTest {
     void create_shouldUseXUserIdHeader_whenLocalProfileAndNoJwt() throws Exception {
         UUID changeId = UUID.randomUUID();
         when(createChangeUseCase.execute(any()))
-                .thenReturn(new CreateChangeUseCase.Result(changeId, "PREPARED", UUID.randomUUID(), Instant.now()));
+                .thenReturn(new CreateChangeUseCase.Result(changeId, ChangeStatus.PREPARED, UUID.randomUUID(), Instant.now()));
 
         String body = """
                 {
@@ -110,7 +111,7 @@ class ChangeControllerTest {
     void list_shouldReturn200WithPage() throws Exception {
         UUID changeId = UUID.randomUUID();
         ListChangesUseCase.Result result = new ListChangesUseCase.Result(
-                changeId, "Deploy v1", "svc-a", "PREPARED",
+                changeId, "Deploy v1", "svc-a", ChangeStatus.PREPARED,
                 UUID.randomUUID(), Instant.now(), Instant.now());
 
         when(listChangesUseCase.execute(any(), any()))
@@ -142,7 +143,7 @@ class ChangeControllerTest {
         UUID changeId = UUID.randomUUID();
         GetChangeUseCase.Result result = new GetChangeUseCase.Result(
                 changeId, "Deploy v1", "Version upgrade",
-                "svc-a", "user-001", "PREPARED", UUID.randomUUID(),
+                "svc-a", "user-001", ChangeStatus.PREPARED, UUID.randomUUID(),
                 Instant.now().plus(1, ChronoUnit.DAYS), Instant.now(), Instant.now());
 
         when(getChangeUseCase.execute(changeId)).thenReturn(result);

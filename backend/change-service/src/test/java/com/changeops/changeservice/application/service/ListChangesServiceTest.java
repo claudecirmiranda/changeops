@@ -55,7 +55,7 @@ class ListChangesServiceTest {
         ListChangesUseCase.Result r = results.getContent().get(0);
         assertThat(r.changeId()).isEqualTo(change.getChangeId());
         assertThat(r.title()).isEqualTo("Deploy v1");
-        assertThat(r.status()).isEqualTo("PREPARED");
+        assertThat(r.status()).isEqualTo(ChangeStatus.PREPARED);
         verify(loadChangesPort).findAll(null, null, pageable);
     }
 

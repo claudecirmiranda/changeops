@@ -17,7 +17,7 @@ public interface ListChangesUseCase {
             UUID changeId,
             String title,
             String componentId,
-            String status,
+            ChangeStatus status,
             UUID correlationId,
             Instant createdAt,
             Instant updatedAt

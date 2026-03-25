@@ -28,7 +28,7 @@ public class GetChangeService implements GetChangeUseCase {
                 change.getDescription(),
                 change.getComponentId(),
                 change.getRequestedBy(),
-                change.getStatus().name(),
+                change.getStatus(),
                 change.getCorrelationId(),
                 change.getScheduledAt(),
                 change.getCreatedAt(),

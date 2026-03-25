@@ -1,5 +1,7 @@
 package com.changeops.changeservice.application.port.in;
 
+import com.changeops.changeservice.domain.valueobject.ChangeStatus;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -17,7 +19,7 @@ public interface CreateChangeUseCase {
 
     record Result(
             UUID changeId,
-            String status,
+            ChangeStatus status,
             UUID correlationId,
             Instant createdAt
     ) {}

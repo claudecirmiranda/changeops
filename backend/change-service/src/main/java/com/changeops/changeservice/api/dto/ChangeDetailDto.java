@@ -1,5 +1,7 @@
 package com.changeops.changeservice.api.dto;
 
+import com.changeops.changeservice.domain.valueobject.ChangeStatus;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -9,7 +11,7 @@ public record ChangeDetailDto(
         String description,
         String componentId,
         String requestedBy,
-        String status,
+        ChangeStatus status,
         UUID correlationId,
         Instant scheduledAt,
         Instant createdAt,

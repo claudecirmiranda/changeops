@@ -73,7 +73,7 @@ public class CreateChangeService implements CreateChangeUseCase {
 
         return new Result(
                 saved.getChangeId(),
-                saved.getStatus().name(),
+                saved.getStatus(),
                 saved.getCorrelationId(),
                 saved.getCreatedAt());
     }
