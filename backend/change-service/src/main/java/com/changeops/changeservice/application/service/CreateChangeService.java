@@ -57,9 +57,10 @@ public class CreateChangeService implements CreateChangeUseCase {
                 command.requestedBy(),
                 command.scheduledAt());
 
+        List<DomainEvent> events = change.pullDomainEvents();
+
         Change saved = saveChangePort.save(change);
 
-        List<DomainEvent> events = saved.pullDomainEvents();
         events.forEach(event -> {
             publishEventPort.publish(event);
             persistEventToTimeline(saved, event);

@@ -8,6 +8,25 @@
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "test"
+		},
+		{
+			"label": "checkstyle-deploy-orchestrator",
+			"type": "shell",
+			"command": "cd backend/deploy-orchestrator && mvn -B checkstyle:check",
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "checkstyle-deploy-orchestrator",
+			"type": "shell",
+			"command": "cd backend/deploy-orchestrator && mvn -B checkstyle:check",
+			"isBackground": false
+		},
+		{
+			"label": "checkstyle-deploy-orchestrator",
+			"type": "shell",
+			"command": "cd backend/deploy-orchestrator && mvn -B checkstyle:check",
+			"isBackground": false
 		}
 	]
 }

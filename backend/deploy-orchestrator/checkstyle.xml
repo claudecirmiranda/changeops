@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+<!--
+  Checkstyle configuration for deploy-orchestrator.
+  Based on practical rules suitable for a Spring Boot / Lombok project.
+  Sun checks (Javadoc everywhere, FinalParameters, 80-char limit, etc.) are intentionally
+  excluded as they conflict with Spring proxying, Lombok-generated code, and modern Java style.
+-->
+<module name="Checker">
+  <property name="charset" value="UTF-8"/>
+  <property name="fileExtensions" value="java"/>
+
+  <!-- Every file must end with a newline -->
+  <module name="NewlineAtEndOfFile"/>
+
+  <!-- Line length: 150 to accommodate annotation-heavy Spring/JPA code -->
+  <module name="LineLength">
+    <property name="max" value="150"/>
+  </module>
+
+  <module name="TreeWalker">
+
+    <!-- Imports -->
+    <module name="UnusedImports"/>
+    <module name="AvoidStarImport"/>
+
+    <!-- Whitespace: allow empty constructors/methods/types/lambdas (common in Spring/records) -->
+    <module name="WhitespaceAround">
+      <property name="allowEmptyConstructors" value="true"/>
+      <property name="allowEmptyMethods"      value="true"/>
+      <property name="allowEmptyTypes"        value="true"/>
+      <property name="allowEmptyLoops"        value="true"/>
+      <property name="allowEmptyLambdas"      value="true"/>
+    </module>
+
+    <!-- Coding -->
+    <module name="EmptyStatement"/>
+
+    <!-- Miscellaneous -->
+    <module name="UpperEll"/>
+    <module name="ArrayTypeStyle"/>
+
+  </module>
+</module>
