@@ -31,7 +31,7 @@ public class ListChangesService implements ListChangesUseCase {
                 change.getChangeId(),
                 change.getTitle(),
                 change.getComponentId(),
-                change.getStatus().name(),
+                change.getStatus(),
                 change.getCorrelationId(),
                 change.getCreatedAt(),
                 change.getUpdatedAt());

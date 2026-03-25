@@ -20,7 +20,10 @@ A RFP exige idempotência comprovada com testes que evidenciem que o mesmo event
 
 ## Decisão
 
-Adotamos **chave de idempotência persistida em banco de dados** usando a tabela `processed_events` com operação atômica `INSERT ... ON CONFLICT DO NOTHING`.
+Adotamos **estratégia de idempotência em dois níveis**:
+
+1. **Nível de aplicação:** verificação antecipada via `isAlreadyProcessed()` no consumer — retorno imediato sem processamento redundante se o evento já foi processado.
+2. **Nível de banco de dados:** operação atômica `INSERT ... ON CONFLICT DO NOTHING` na tabela `processed_events` — salvaguarda para cenários de concorrência (ex: múltiplas réplicas do serviço).
 
 ### Implementação
 
@@ -41,7 +44,22 @@ CREATE TABLE processed_events (
 int insertIfAbsent(@Param("eventId") UUID eventId, @Param("serviceName") String serviceName);
 ```
 
-O retorno é `1` (inserido, primeiro processamento) ou `0` (já existia, duplicata). O serviço verifica o retorno antes de prosseguir. Em duplicata, apenas um log de `WARN` é emitido e o evento é descartado silenciosamente.
+O retorno é `1` (inserido, primeiro processamento) ou `0` (já existia, duplicata).
+
+**Fluxo completo no consumer:**
+
+```java
+// 1. Check de aplicação (ANTES do banco) — evita processamento redundante
+if (idempotencyPort.isAlreadyProcessed(event.deployId())) {
+    log.warn("Event already processed, discarding: deployId={}", event.deployId());
+    return;
+}
+// 2. Processamento
+processDeployResultService.execute(command);
+// 3. O banco garante via ON CONFLICT DO NOTHING (salvaguarda para concorrência)
+```
+
+Em duplicata detectada no nível de aplicação, apenas um log de `WARN` é emitido e o evento é descartado silenciosamente sem acesso ao banco. O `ON CONFLICT DO NOTHING` na persistência serve como segunda linha de defesa em cenários de alta concorrência (ex: múltiplas réplicas consumindo simultaneamente).
 
 ### Limpeza
 

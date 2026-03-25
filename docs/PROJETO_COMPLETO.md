@@ -637,6 +637,7 @@ class ProcessDeployResultServiceTest {
 - **React 18** + **TypeScript 5**
 - **Vite** (build + dev server)
 - **Zustand** (estado global)
+- **@tanstack/react-query v5** (server-state caching, invalidação automática, background refresh)
 - **Axios** (HTTP client com interceptors)
 - **date-fns** (formatação de datas)
 - **Vitest** + **Testing Library** (testes)
@@ -964,7 +965,7 @@ Insere 3 mudanças de exemplo (PREPARED, COMPLETED, FAILED) com eventos na timel
 |---|---|
 | Autenticação | JWT Bearer (OAuth2 Resource Server) |
 | Autorização | RBAC: `ROLE_OPERATOR` (read+create), `ROLE_ADMIN` (full) |
-| Identidade (dev) | Header `X-User-Id` como fallback → JWT `sub` em produção |
+| Identidade (dev) | Header `X-User-Id` como fallback — **válido somente nos perfis `local` e `test`** (via `@Profile`); fora desses perfis o JWT `sub` é obrigatório |
 | CORS | `localhost:*` + `*.changeops.io`, credentials habilitado |
 | Sessão | Stateless (`SessionCreationPolicy.STATELESS`) |
 | CSRF | Desabilitado (API REST stateless) |

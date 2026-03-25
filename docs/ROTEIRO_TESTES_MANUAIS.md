@@ -1,7 +1,7 @@
 # ChangeOps — Roteiro de Testes Manuais
 
 > **Objetivo:** Validar os cenários esperados do sistema com evidências, de forma objetiva e rápida.  
-> **Pré-requisito:** Stack rodando (`docker compose up --build -d` ou `make up`).  
+> **Pré-requisito:** Stack rodando (`docker compose up --build -d` ou `make up`). Requer `SPRING_PROFILES_ACTIVE=local` (padrão no docker-compose) — o header `X-User-Id` utilizado nos testes só é aceito nesse perfil.  
 > **Ferramenta sugerida:** Postman, Insomnia ou cURL.
 
 ---

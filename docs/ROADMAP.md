@@ -49,9 +49,17 @@ A separate relay process (or Debezium CDC) reads unpublished rows and publishes 
 
 ---
 
-### 2.2 Full JWT / OAuth2 Integration
+### 2.2 Full JWT / OAuth2 Integration *(first priority after POC approval)*
 
-Replace `X-User-Id` dev header with a proper Keycloak / Auth0 integration:
+**POC design decision:** Authentication was intentionally mocked during the POC using an `X-User-Id` request header. This choice was deliberate — it allowed the team to focus on validating the core architectural concerns (event-driven flow, async orchestration, idempotency, observability) without coupling the demo to an external Identity Provider. The production path is fully designed and the codebase is already prepared for it.
+
+**What is already in place (no rework needed):**
+- `spring-boot-starter-oauth2-resource-server` is already a declared dependency
+- `spring.security.oauth2.resourceserver.jwt.issuer-uri` is already present in `application.yml`
+- Role model (`OPERATOR`, `ADMIN`) is already referenced in Spring Security configuration
+- Rate limiting, correlation ID propagation, and structured logging are all auth-agnostic
+
+**What needs to be activated:**
 
 ```yaml
 # docker-compose.yml addition
@@ -65,8 +73,9 @@ keycloak:
 ```
 
 - Import `changeops` realm with `OPERATOR` and `ADMIN` roles
-- Frontend: integrate `oidc-client-ts` for PKCE flow
-- Backend: `spring.security.oauth2.resourceserver.jwt.issuer-uri` already configured
+- Replace `X-User-Id` header extraction with JWT claim (`sub` or custom claim)
+- Frontend: integrate `oidc-client-ts` for PKCE flow (replace `localStorage` token placeholder)
+- Backend: point `issuer-uri` to the running Keycloak instance and enable `@PreAuthorize` annotations already present in the codebase
 
 ---
 
@@ -189,5 +198,5 @@ CREATE TABLE audit_log (
 1. **No Outbox pattern** — event loss risk if Kafka is down during write (see Phase 2.1)
 2. **PostDeployChecklist is fully simulated** — must be replaced with real integration points
 3. ~~**No rate limiting** on `POST /changes` endpoint~~ — ✅ Resolved: `RateLimitFilter` with Bucket4j (100 req/min per IP)
-4. **Frontend auth is dev-only** — `localStorage.getItem('access_token')` is a placeholder
+4. **Auth mocked by design for POC** — Backend uses `X-User-Id` header instead of JWT validation; frontend uses a `localStorage` token placeholder instead of OIDC. This was an explicit scope decision to keep the POC focused on the event-driven core. The OAuth2 resource server dependency is already declared and configured — enabling real auth is Phase 2.2, the first post-approval priority.
 5. ~~**V2 seed migration** — should be guarded by Spring profile, not always-run Flyway migration~~ — ✅ Resolved: moved to `src/test/resources/db/migration/` (only runs in test context)

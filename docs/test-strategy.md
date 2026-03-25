@@ -54,6 +54,9 @@ A estratégia de testes do ChangeOps prioriza **confiança nos fluxos críticos*
 | `ListChangesServiceTest` | Delegação ao port de consulta, mapeamento de resultados, passagem de filtros |
 | `GetChangeEventsServiceTest` | Consulta de timeline, validação de existência do change, tratamento de lista vazia |
 | `CorrelationIdFilterTest` | Propagação de correlation_id via MDC, geração quando ausente, limpeza após request |
+| `ChangeControllerTest` | Endpoints REST via MockMvc: criação com payload válido/inválido, listagem paginada, consulta por ID, consulta de timeline |
+| `GetChangeServiceTest` | Consulta de mudança por ID: delegação ao port, mapeamento de resultado, tratamento de `ChangeNotFoundException` |
+| `RateLimitFilterTest` | Rate limiting: aprovação dentro do limite, rejeição `429` ao exceder 100 req/min por IP, reset de bucket |
 
 **Padrão:** `@ExtendWith(MockitoExtension.class)` com `@Mock` nos ports de saída. Sem contexto Spring.
 

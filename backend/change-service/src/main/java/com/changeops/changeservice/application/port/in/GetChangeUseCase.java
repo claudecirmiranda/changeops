@@ -1,5 +1,7 @@
 package com.changeops.changeservice.application.port.in;
 
+import com.changeops.changeservice.domain.valueobject.ChangeStatus;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -13,7 +15,7 @@ public interface GetChangeUseCase {
             String description,
             String componentId,
             String requestedBy,
-            String status,
+            ChangeStatus status,
             UUID correlationId,
             Instant scheduledAt,
             Instant createdAt,

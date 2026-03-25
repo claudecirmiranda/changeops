@@ -227,7 +227,7 @@ Grafana dashboard pre-provisioned at http://localhost:3001
 
 - JWT Bearer token validation via Spring Security OAuth2 Resource Server
 - RBAC: `ROLE_OPERATOR` (read + create), `ROLE_ADMIN` (full access)
-- `X-User-Id` header accepted as dev fallback (extend to full JWT in production)
+- `X-User-Id` header accepted as dev fallback in `local`/`test` profiles only — full JWT/OAuth2 integration is ready to activate (see [ROADMAP.md](./docs/ROADMAP.md) §2.2)
 - CORS configured for `localhost:*` and `*.changeops.io`
 - No PII logged — correlation IDs only
 
