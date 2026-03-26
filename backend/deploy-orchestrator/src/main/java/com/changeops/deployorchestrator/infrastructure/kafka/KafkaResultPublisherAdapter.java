@@ -11,6 +11,8 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -22,7 +24,8 @@ public class KafkaResultPublisherAdapter implements PublishResultEventPort {
     private final KafkaTemplate<String, IntegrationEvent> kafkaTemplate;
     private final String changeResultTopic;
     private final String dlqTopic;
-    private final Counter eventsPublishedCounter;
+    private final MeterRegistry meterRegistry;
+    private final Map<String, Counter> counterCache = new ConcurrentHashMap<>();
 
     public KafkaResultPublisherAdapter(
             KafkaTemplate<String, IntegrationEvent> kafkaTemplate,
@@ -32,9 +35,7 @@ public class KafkaResultPublisherAdapter implements PublishResultEventPort {
         this.kafkaTemplate = kafkaTemplate;
         this.changeResultTopic = changeResultTopic;
         this.dlqTopic = dlqTopic;
-        this.eventsPublishedCounter = Counter.builder("events_published_total")
-                .description("Total result events published")
-                .register(meterRegistry);
+        this.meterRegistry = meterRegistry;
     }
 
     @Override
@@ -45,9 +46,12 @@ public class KafkaResultPublisherAdapter implements PublishResultEventPort {
         try {
             SendResult<String, IntegrationEvent> sendResult =
                     kafkaTemplate.send(changeResultTopic, key, envelope).get(10, TimeUnit.SECONDS);
-            eventsPublishedCounter.increment();
-            log.info("Result event published: eventType={}, changeId={}, correlationId={}",
-                    envelope.eventType(), result.getChangeId(), result.getCorrelationId());
+            getOrCreateCounter(envelope.eventType()).increment();
+            log.info("Result event published: eventType={}, changeId={}, correlationId={}, topic={}, partition={}, offset={}",
+                    envelope.eventType(), result.getChangeId(), result.getCorrelationId(),
+                    sendResult.getRecordMetadata().topic(),
+                    sendResult.getRecordMetadata().partition(),
+                    sendResult.getRecordMetadata().offset());
         } catch (ExecutionException e) {
             log.error("Failed to publish result event — sending to DLQ: changeId={}, correlationId={}",
                     result.getChangeId(), result.getCorrelationId(), e.getCause());
@@ -73,6 +77,14 @@ public class KafkaResultPublisherAdapter implements PublishResultEventPort {
                         log.error("Event sent to DLQ after max retries: key={}, eventType={}", key, envelope.eventType());
                     }
                 });
+    }
+
+    private Counter getOrCreateCounter(String eventType) {
+        return counterCache.computeIfAbsent(eventType, type ->
+                Counter.builder("events_published_total")
+                        .tag("type", type)
+                        .description("Total number of events published to Kafka")
+                        .register(meterRegistry));
     }
 
     private IntegrationEvent buildEnvelope(ChangeResult result) {

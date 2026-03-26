@@ -101,3 +101,30 @@ Change.create()
 | Consistência | ⚠ Sem Outbox (debt) | ⚠ Sem Outbox (debt) | ⚠ Depende de listener |
 
 **Justificativa:** A separação em domínio/integração é a abordagem recomendada por DDD e pela RFP. O custo adicional é uma classe `IntegrationEvent` e um mapeamento no adapter — complexidade mínima para máximo desacoplamento. O Outbox pattern (Roadmap Phase 2.1) resolverá o gap de consistência eventual.
+
+---
+
+## Padrões de Design Aplicados
+
+### Adapter Pattern (Hexagonal Architecture)
+
+O `KafkaEventPublisherAdapter` implementa a porta `PublishEventPort` do domínio. O domínio conhece apenas a interface; a tradução para `IntegrationEvent` e a publicação no broker são responsabilidade exclusiva do adapter. Isso isola o domínio de qualquer detalhe de infraestrutura.
+
+### Envelope Pattern
+
+`IntegrationEvent` é um envelope que encapsula o payload do evento de domínio com metadados de transporte (`eventType`, `version`, `correlationId`, `occurredAt`). O campo `version` permite versionamento semântico independente do domínio.
+
+### Tag-based Metric Dimensioning
+
+Métricas do tipo counter seguem o padrão de dimensionamento via `tag`: `events_published_total{type="ChangePreparedEvent"}`. Isso permite consultas Prometheus como `sum by (type) (rate(events_published_total[1m]))`, sem proliferação de nomes de métricas distintos por tipo de evento.
+
+---
+
+## Compatibilidade com Versões Anteriores
+
+O campo `version` no envelope `IntegrationEvent` é central para a estratégia de evolução contratual:
+
+- **Breaking changes** (remoção de campos obrigatórios, mudança semântica) requerem bump de versão: `"1.0"` → `"2.0"`.
+- **Non-breaking additions** (campos opcionais via `@JsonInclude(NON_NULL)`) podem ser introduzidos sem mudança de versão.
+- **Consumidores** devem adotar tolerant reader: ignorar campos desconhecidos (`@JsonIgnoreProperties(ignoreUnknown = true)`) para suportar deployments parciais (rolling).
+- O `correlationId` preserva rastreabilidade ponta a ponta mesmo após versionamento do payload.

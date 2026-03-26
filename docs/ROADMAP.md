@@ -200,3 +200,15 @@ CREATE TABLE audit_log (
 3. ~~**No rate limiting** on `POST /changes` endpoint~~ — ✅ Resolved: `RateLimitFilter` with Bucket4j (100 req/min per IP)
 4. **Auth mocked by design for POC** — Backend uses `X-User-Id` header instead of JWT validation; frontend uses a `localStorage` token placeholder instead of OIDC. This was an explicit scope decision to keep the POC focused on the event-driven core. The OAuth2 resource server dependency is already declared and configured — enabling real auth is Phase 2.2, the first post-approval priority.
 5. ~~**V2 seed migration** — should be guarded by Spring profile, not always-run Flyway migration~~ — ✅ Resolved: moved to `src/test/resources/db/migration/` (only runs in test context)
+
+---
+
+## Itens de Processo Pendentes
+
+Os itens abaixo representam processos de engenharia reconhecidos como boas práticas mas descartados do escopo do POC por decisão de foco:
+
+| Item | Motivação | Fase Sugerida |
+|------|-----------|---------------|
+| **Registro formal de defeitos** (DISC-13) | Rastreabilidade de bugs encontrados durante desenvolvimento; atualmente gerenciado ad-hoc nas issues do repositório | Pós-aprovação |
+| **Quadro Kanban com histórico de tarefas** (DISC-19) | Visibilidade de fluxo de trabalho além do ROADMAP.md; sugerido uso de GitHub Projects | Pós-aprovação |
+| **Vídeo de demonstração** (DISC-20) | Material de apresentação do fluxo completo; roteiro disponível em `docs/ROTEIRO_TESTES_MANUAIS.md` | Apresentação |

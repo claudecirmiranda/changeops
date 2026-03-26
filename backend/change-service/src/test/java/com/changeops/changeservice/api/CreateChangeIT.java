@@ -133,6 +133,23 @@ class CreateChangeIT {
     }
 
     @Test
+    void shouldReturn400_whenComponentIdHasInvalidFormat() throws Exception {
+        String invalidPayload = """
+                {
+                  "title": "Some change",
+                  "componentId": "?#@invalid",
+                  "requestedBy": "user-001",
+                  "scheduledAt": "2099-01-01T00:00:00Z"
+                }""";
+
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(invalidPayload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.componentId").isNotEmpty());
+    }
+
+    @Test
     void shouldListChanges_andReturnPaginatedResults() throws Exception {
         mockMvc.perform(get("/api/v1/changes")
                         .param("size", "10")

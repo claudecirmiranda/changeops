@@ -32,6 +32,7 @@ public class KafkaEventPublisherAdapter implements PublishEventPort {
         this.changePreparedTopic = changePreparedTopic;
         this.eventsPublishedCounter = Counter.builder("events_published_total")
                 .description("Total integration events published")
+                .tag("type", "ChangePreparedEvent")
                 .register(meterRegistry);
     }
 

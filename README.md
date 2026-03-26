@@ -92,6 +92,14 @@ curl http://localhost:8080/api/v1/changes | python3 -m json.tool
 
 ---
 
+## Demonstração
+
+> Vídeo de demonstração planejado para a fase de apresentação do projeto (Roadmap: processo pós-aprovação).
+>
+> As etapas do fluxo completo estão documentadas em [`docs/ROTEIRO_TESTES_MANUAIS.md`](docs/ROTEIRO_TESTES_MANUAIS.md) e podem ser executadas manualmente com `make smoke` e `make publish-deploy-event`.
+
+---
+
 ## Repository Structure
 
 ```

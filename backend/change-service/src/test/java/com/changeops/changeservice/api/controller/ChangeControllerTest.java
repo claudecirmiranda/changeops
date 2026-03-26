@@ -233,4 +233,13 @@ class ChangeControllerTest {
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.title").value("Internal Server Error"));
     }
+
+    @Test
+    void create_shouldReturn400_whenBodyIsMalformedJson() throws Exception {
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ this is not valid json }"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Bad Request"));
+    }
 }
