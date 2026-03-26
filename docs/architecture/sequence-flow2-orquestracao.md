@@ -1,64 +1,71 @@
 # Diagrama de Sequência — Fluxo 2: Orquestração de Deploy
 
 ```mermaid
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'14px','actorTextColor':'#E0E7FF','actorBkg':'#4338CA','actorBorder':'#6366F1','activationBorderColor':'#6366F1','signalColor':'#CBD5E1','signalTextColor':'#E2E8F0','noteBkgColor':'#1E293B','noteBorderColor':'#6366F1','noteTextColor':'#E2E8F0','altSectionBkgColor':'#0F172A','labelTextColor':'#A5B4FC'},'sequence':{'mirrorActors':false,'messageFontSize':14,'noteFontSize':13,'actorFontSize':15,'noteMargin':12,'messageMargin':40,'width':220}}}%%
 sequenceDiagram
     autonumber
-    participant ES as Sistema de Deploy (externo)
+    participant ES as Sistema de Deploy
     participant K as Kafka
     participant DO as deploy-orchestrator
     participant DB as PostgreSQL
 
-    ES->>K: Publica DeployFinishedEvent<br/>topic: changeops.deploy.finished<br/>{deployId, changeId, result, executedAt}
+    ES->>K: Publica DeployFinishedEvent
+    Note over ES,K: topic: changeops.deploy.finished<br/>{deployId, changeId, result, executedAt}
 
-    K->>DO: @KafkaListener consome evento<br/>DeployEventConsumer.onDeployFinished()
+    K->>DO: Consome evento via @KafkaListener
 
     Note over DO: MDC.put(correlation_id, change_id, deploy_id)
 
     DO->>DO: events_consumed_total.increment()
 
-    DO->>DB: INSERT INTO processed_events (event_id, service_name)<br/>ON CONFLICT DO NOTHING<br/>[IdempotencyPort.tryMarkAsProcessed()]
+    DO->>DB: INSERT INTO processed_events (ON CONFLICT DO NOTHING)
+    Note over DO,DB: IdempotencyPort.tryMarkAsProcessed()
 
     alt Evento já processado (retorno = 0)
-        DO->>DO: log.warn("Event already processed, discarding")
-        Note over DO: Descarta silenciosamente — sem erro, sem reprocessamento
+        DO->>DO: log.warn("Event already processed")
+        Note over DO: Descarta silenciosamente
     end
 
-    DO->>DO: PostDeployChecklistService.execute(changeId, deployId, result)<br/>→ 4 checks: deploy-result-gate, healthcheck, smoke-test, error-rate-threshold
+    DO->>DO: PostDeployChecklistService.execute()
+    Note over DO: 4 checks: deploy-result-gate,<br/>healthcheck, smoke-test, error-rate
 
     alt Deploy SUCCESS + todos checks passam
-        DO->>DB: UPDATE changes SET status='COMPLETED' WHERE change_id=?<br/>[UpdateChangeStatusPort.markCompleted()]
-        DO->>DB: INSERT INTO change_events (event_type='ChangeCompletedEvent', payload)<br/>[SaveChangeEventPort.save()]
-        DO->>K: kafkaTemplate.send("changeops.change.result", IntegrationEvent)<br/>{eventType: "ChangeCompletedEvent", payload: {changeId, deployId, completedAt}}
+        DO->>DB: UPDATE changes SET status='COMPLETED'
+        DO->>DB: INSERT INTO change_events (ChangeCompletedEvent)
+        DO->>K: Publica ChangeCompletedEvent
+        Note over DO,K: topic: changeops.change.result
     else Deploy FAILURE ou check falha
-        DO->>DB: UPDATE changes SET status='FAILED' WHERE change_id=?<br/>[UpdateChangeStatusPort.markFailed()]
-        DO->>DB: INSERT INTO change_events (event_type='ChangeFailedEvent', payload)<br/>[SaveChangeEventPort.save()]
-        DO->>K: kafkaTemplate.send("changeops.change.result", IntegrationEvent)<br/>{eventType: "ChangeFailedEvent", payload: {changeId, deployId, reason, failedAt}}
+        DO->>DB: UPDATE changes SET status='FAILED'
+        DO->>DB: INSERT INTO change_events (ChangeFailedEvent)
+        DO->>K: Publica ChangeFailedEvent
+        Note over DO,K: topic: changeops.change.result
     end
 
     K-->>DO: ACK
-
     Note over DO: MDC.clear()
 
-    rect rgb(255, 235, 235)
+    rect rgb(69, 26, 26)
         Note over K,DO: Cenário de Falha — Retry + DLQ
 
         K->>DO: Consumo falha (exceção)
-        DO->>DO: Retry #1 (500ms backoff)
-        DO->>DO: Retry #2 (1000ms backoff)
-        DO->>DO: Retry #3 (2000ms backoff)
-        DO->>DO: Retry #4 (4000ms backoff)
-        DO->>K: Envia para DLT: changeops.deploy.finished-dlt
-        
-        K->>DO: @KafkaListener(dlt) consome de DLT<br/>DeployEventConsumer.onDlt()
-        DO->>DO: log.error("Event sent to DLQ after max retries")<br/>events_failed_total.increment()
+        DO->>DO: Retry 1 (500ms)
+        DO->>DO: Retry 2 (1s)
+        DO->>DO: Retry 3 (2s)
+        DO->>DO: Retry 4 (4s)
+        DO->>K: Envia para DLT
+        Note over K: changeops.deploy.finished-dlt
+
+        K->>DO: @KafkaListener(dlt) consome de DLT
+        DO->>DO: log.error + events_failed_total.increment()
     end
 
-    rect rgb(255, 235, 235)
-        Note over DO,K: Cenário de Falha na Publicação do Resultado
+    rect rgb(69, 26, 26)
+        Note over DO,K: Falha na Publicação do Resultado
 
-        DO->>K: kafkaTemplate.send() falha (timeout/erro)
-        DO->>K: Fallback: envia para DLQ "changeops.events.dlq"<br/>[KafkaResultPublisherAdapter.sendToDlq()]
-        DO->>DO: log.error("Failed to publish result event — sending to DLQ")
+        DO->>K: kafkaTemplate.send() falha
+        DO->>K: Fallback: envia para DLQ
+        Note over K: changeops.events.dlq
+        DO->>DO: log.error("Sending to DLQ")
     end
 ```
 

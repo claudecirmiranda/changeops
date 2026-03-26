@@ -3,41 +3,81 @@
 Visão de containers do ChangeOps Dashboard.
 
 ```mermaid
-C4Context
-    title ChangeOps Dashboard — Container Diagram
+%%{init: {'theme':'dark', 'themeVariables':{'fontSize':'16px','lineColor':'#94A3B8','edgeLabelBackground':'transparent'}}}%%
+flowchart TD
+    subgraph ext[" "]
+        user(["👤 Operador / Admin"])
+        deploy_system(["🔧 Sistema de Deploy"])
+    end
 
-    Person(user, "Operador / Admin", "Usuário do portal de mudanças")
+    subgraph boundary["ChangeOps Dashboard"]
+        direction TB
 
-    System_Boundary(changeops, "ChangeOps Dashboard") {
+        subgraph services["Serviços"]
+            direction LR
+            frontend["Frontend<br/>React + TypeScript<br/>:3000"]
+            change_service["change-service<br/>Spring Boot<br/>:8080"]
+            deploy_orchestrator["deploy-orchestrator<br/>Spring Boot<br/>:8081"]
+        end
 
-        Container(frontend, "Frontend", "React + TypeScript", "Interface web para criação, listagem e acompanhamento de mudanças")
+        subgraph infra[" "]
+            direction LR
 
-        Container(change_service, "change-service", "Java 17 / Spring Boot", "API REST para criação e consulta de mudanças. Publica ChangePreparedEvent no Kafka")
+            subgraph data["Dados & Mensageria"]
+                direction TB
+                data_pad[ ]:::hidden
+                data_pad ~~~ kafka
+                kafka{{"Apache Kafka<br/>Confluent 7.6.0<br/>:9092"}}
+                postgres[("PostgreSQL 16<br/>:5432")]
+                kafka ~~~ postgres
+            end
 
-        Container(deploy_orchestrator, "deploy-orchestrator", "Java 17 / Spring Boot", "Consome DeployFinishedEvent, executa checklist pós-deploy, atualiza status e publica resultado")
+            subgraph obs["Observabilidade"]
+                direction TB
+                obs_pad[ ]:::hidden
+                obs_pad ~~~ grafana
+                grafana["Grafana<br/>v10.3.3<br/>:3001"]
+                prometheus["Prometheus<br/>v2.50.1<br/>:9090"]
+            end
+        end
+    end
 
-        ContainerDb(postgres, "PostgreSQL 16", "Banco Relacional", "Tabelas: changes, change_events, processed_events")
+    user -->|HTTPS| frontend
+    frontend -->|REST API| change_service
+    deploy_system --- kafka
 
-        ContainerQueue(kafka, "Apache Kafka", "Confluent 7.6.0", "Tópicos: change.prepared, deploy.finished, change.result, DLT")
+    change_service --- postgres
+    change_service --- kafka
 
-        Container(prometheus, "Prometheus", "v2.50.1", "Coleta métricas dos serviços via /actuator/prometheus")
+    kafka --- deploy_orchestrator
+    deploy_orchestrator --- postgres
+    deploy_orchestrator --- kafka
 
-        Container(grafana, "Grafana", "v10.3.3", "Dashboards de observabilidade: criação, eventos, falhas, latência")
-    }
+    prometheus -.->|scrape| change_service
+    prometheus -.->|scrape| deploy_orchestrator
+    grafana -.->|PromQL| prometheus
 
-    System_Ext(deploy_system, "Sistema de Deploy", "Publica DeployFinishedEvent no Kafka (simulado)")
+    classDef person fill:#334155,stroke:#64748B,color:#E2E8F0,stroke-width:2px
+    classDef svc fill:#4338CA,stroke:#6366F1,color:#E0E7FF,stroke-width:2px
+    classDef db fill:#047857,stroke:#34D399,color:#D1FAE5,stroke-width:2px
+    classDef broker fill:#C2410C,stroke:#FB923C,color:#FFF7ED,stroke-width:2px
+    classDef monitoring fill:#7C3AED,stroke:#A78BFA,color:#EDE9FE,stroke-width:2px
+    classDef extSys fill:#334155,stroke:#64748B,color:#E2E8F0,stroke-width:2px
+    classDef hidden fill:transparent,stroke:none,color:transparent,stroke-width:0px
 
-    Rel(user, frontend, "Acessa via browser", "HTTPS")
-    Rel(frontend, change_service, "REST API", "HTTP/JSON")
-    Rel(change_service, postgres, "Persiste mudanças", "JDBC/JPA")
-    Rel(change_service, kafka, "Publica ChangePreparedEvent", "Kafka Producer")
-    Rel(deploy_system, kafka, "Publica DeployFinishedEvent", "Kafka Producer")
-    Rel(kafka, deploy_orchestrator, "Consome DeployFinishedEvent", "Kafka Consumer")
-    Rel(deploy_orchestrator, postgres, "Atualiza status + idempotência", "JDBC/JPA")
-    Rel(deploy_orchestrator, kafka, "Publica ChangeCompleted/FailedEvent", "Kafka Producer")
-    Rel(prometheus, change_service, "Scrape métricas", "HTTP /actuator/prometheus")
-    Rel(prometheus, deploy_orchestrator, "Scrape métricas", "HTTP /actuator/prometheus")
-    Rel(grafana, prometheus, "Consulta métricas", "PromQL")
+    class user person
+    class frontend,change_service,deploy_orchestrator svc
+    class postgres db
+    class kafka broker
+    class prometheus,grafana monitoring
+    class deploy_system extSys
+
+    style ext fill:none,stroke:none
+    style infra fill:none,stroke:none
+    style boundary fill:#0F172A,stroke:#6366F1,stroke-width:2px,color:#A5B4FC
+    style services fill:#1E1B4B,stroke:#4338CA,stroke-width:1px,color:#A5B4FC
+    style data fill:#042F2E,stroke:#047857,stroke-width:1px,color:#5EEAD4
+    style obs fill:#2E1065,stroke:#7C3AED,stroke-width:1px,color:#C4B5FD
 ```
 
 ## Descrição dos Containers

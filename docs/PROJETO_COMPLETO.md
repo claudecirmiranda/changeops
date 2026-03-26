@@ -23,41 +23,81 @@
 ## Visão Arquitetural
 
 ```mermaid
-C4Context
-    title ChangeOps Dashboard — Container Diagram
+%%{init: {'theme':'dark', 'themeVariables':{'fontSize':'16px','lineColor':'#94A3B8','edgeLabelBackground':'transparent'}}}%%
+flowchart TD
+    subgraph ext[" "]
+        user(["👤 Operador / Admin"])
+        deploy_system(["🔧 Sistema de Deploy"])
+    end
 
-    Person(user, "Operador / Admin", "Usuário do portal de mudanças")
+    subgraph boundary["ChangeOps Dashboard"]
+        direction TB
 
-    System_Boundary(changeops, "ChangeOps Dashboard") {
+        subgraph services["Serviços"]
+            direction LR
+            frontend["Frontend<br/>React + TypeScript<br/>:3000"]
+            change_service["change-service<br/>Spring Boot<br/>:8080"]
+            deploy_orchestrator["deploy-orchestrator<br/>Spring Boot<br/>:8081"]
+        end
 
-        Container(frontend, "Frontend", "React + TypeScript", "Interface web para criação, listagem e acompanhamento de mudanças")
+        subgraph infra[" "]
+            direction LR
 
-        Container(change_service, "change-service", "Java 17 / Spring Boot", "API REST para criação e consulta de mudanças. Publica ChangePreparedEvent no Kafka")
+            subgraph data["Dados & Mensageria"]
+                direction TB
+                data_pad[ ]:::hidden
+                data_pad ~~~ kafka
+                kafka{{"Apache Kafka<br/>Confluent 7.6.0<br/>:9092"}}
+                postgres[("PostgreSQL 16<br/>:5432")]
+                kafka ~~~ postgres
+            end
 
-        Container(deploy_orchestrator, "deploy-orchestrator", "Java 17 / Spring Boot", "Consome DeployFinishedEvent, executa checklist pós-deploy, atualiza status e publica resultado")
+            subgraph obs["Observabilidade"]
+                direction TB
+                obs_pad[ ]:::hidden
+                obs_pad ~~~ grafana
+                grafana["Grafana<br/>v10.3.3<br/>:3001"]
+                prometheus["Prometheus<br/>v2.50.1<br/>:9090"]
+            end
+        end
+    end
 
-        ContainerDb(postgres, "PostgreSQL 16", "Banco Relacional", "Tabelas: changes, change_events, processed_events")
+    user -->|HTTPS| frontend
+    frontend -->|REST API| change_service
+    deploy_system --- kafka
 
-        ContainerQueue(kafka, "Apache Kafka", "Confluent 7.6.0", "Tópicos: change.prepared, deploy.finished, change.result, DLT")
+    change_service --- postgres
+    change_service --- kafka
 
-        Container(prometheus, "Prometheus", "v2.50.1", "Coleta métricas dos serviços via /actuator/prometheus")
+    kafka --- deploy_orchestrator
+    deploy_orchestrator --- postgres
+    deploy_orchestrator --- kafka
 
-        Container(grafana, "Grafana", "v10.3.3", "Dashboards de observabilidade: criação, eventos, falhas, latência")
-    }
+    prometheus -.->|scrape| change_service
+    prometheus -.->|scrape| deploy_orchestrator
+    grafana -.->|PromQL| prometheus
 
-    System_Ext(deploy_system, "Sistema de Deploy", "Publica DeployFinishedEvent no Kafka (simulado)")
+    classDef person fill:#334155,stroke:#64748B,color:#E2E8F0,stroke-width:2px
+    classDef svc fill:#4338CA,stroke:#6366F1,color:#E0E7FF,stroke-width:2px
+    classDef db fill:#047857,stroke:#34D399,color:#D1FAE5,stroke-width:2px
+    classDef broker fill:#C2410C,stroke:#FB923C,color:#FFF7ED,stroke-width:2px
+    classDef monitoring fill:#7C3AED,stroke:#A78BFA,color:#EDE9FE,stroke-width:2px
+    classDef extSys fill:#334155,stroke:#64748B,color:#E2E8F0,stroke-width:2px
+    classDef hidden fill:transparent,stroke:none,color:transparent,stroke-width:0px
 
-    Rel(user, frontend, "Acessa via browser", "HTTPS")
-    Rel(frontend, change_service, "REST API", "HTTP/JSON")
-    Rel(change_service, postgres, "Persiste mudanças", "JDBC/JPA")
-    Rel(change_service, kafka, "Publica ChangePreparedEvent", "Kafka Producer")
-    Rel(deploy_system, kafka, "Publica DeployFinishedEvent", "Kafka Producer")
-    Rel(kafka, deploy_orchestrator, "Consome DeployFinishedEvent", "Kafka Consumer")
-    Rel(deploy_orchestrator, postgres, "Atualiza status + idempotência", "JDBC/JPA")
-    Rel(deploy_orchestrator, kafka, "Publica ChangeCompleted/FailedEvent", "Kafka Producer")
-    Rel(prometheus, change_service, "Scrape métricas", "HTTP /actuator/prometheus")
-    Rel(prometheus, deploy_orchestrator, "Scrape métricas", "HTTP /actuator/prometheus")
-    Rel(grafana, prometheus, "Consulta métricas", "PromQL")
+    class user person
+    class frontend,change_service,deploy_orchestrator svc
+    class postgres db
+    class kafka broker
+    class prometheus,grafana monitoring
+    class deploy_system extSys
+
+    style ext fill:none,stroke:none
+    style infra fill:none,stroke:none
+    style boundary fill:#0F172A,stroke:#6366F1,stroke-width:2px,color:#A5B4FC
+    style services fill:#1E1B4B,stroke:#4338CA,stroke-width:1px,color:#A5B4FC
+    style data fill:#042F2E,stroke:#047857,stroke-width:1px,color:#5EEAD4
+    style obs fill:#2E1065,stroke:#7C3AED,stroke-width:1px,color:#C4B5FD
 ```
 
 | Container | Responsabilidade |
@@ -103,31 +143,68 @@ change-service/
 ```
 
 ```mermaid
-graph LR
-    subgraph API["API — Adapters IN"]
+%%{init: {'theme':'dark', 'themeVariables':{'fontSize':'15px','lineColor':'#94A3B8','edgeLabelBackground':'transparent'}}}%%
+flowchart TB
+    subgraph API["🔵 API — Adapters IN"]
+        direction TB
+        api_sp[ ]:::hidden
+        api_sp ~~~ CTRL
+        api_sp ~~~ EXC
         CTRL["ChangeController"]
         EXC["GlobalExceptionHandler"]
     end
-    subgraph APP["Application — Ports & Services"]
+    subgraph APP["🟢 Application — Ports & Services"]
+        direction TB
+        app_sp[ ]:::hidden
+        app_sp ~~~ UC_IN
+        app_sp ~~~ SVC
+        app_sp ~~~ UC_OUT
         UC_IN["ports/in<br/>CreateChangeUseCase<br/>ListChangesUseCase<br/>GetChangeEventsUseCase"]
         SVC["services<br/>CreateChangeService<br/>ListChangesService<br/>GetChangeEventsService"]
-        UC_OUT["ports/out<br/>SaveChangePort · LoadChangesPort<br/>PublishEventPort · SaveChangeEventPort"]
+        UC_OUT["ports/out<br/>SaveChangePort<br/>LoadChangesPort<br/>PublishEventPort<br/>SaveChangeEventPort"]
     end
-    subgraph DOM["Domain — Pure Java"]
-        AGG["Change (Aggregate Root)"]
+    subgraph DOM["🟡 Domain — Pure Java"]
+        direction TB
+        dom_sp[ ]:::hidden
+        dom_sp ~~~ AGG
+        dom_sp ~~~ EVT
+        dom_sp ~~~ VO
+        AGG["Change<br/>(Aggregate Root)"]
         EVT["ChangePreparedEvent"]
         VO["ChangeStatus"]
     end
-    subgraph INFRA["Infrastructure — Adapters OUT"]
+    subgraph INFRA["🟣 Infrastructure — Adapters OUT"]
+        direction TB
+        infra_sp[ ]:::hidden
+        infra_sp ~~~ JPA
+        infra_sp ~~~ KAFKA
+        infra_sp ~~~ SEC
         JPA["ChangePersistenceAdapter"]
         KAFKA["KafkaEventPublisherAdapter"]
-        SEC["SecurityConfig · CorrelationIdFilter"]
+        SEC["SecurityConfig<br/>CorrelationIdFilter"]
     end
 
     API -->|uses| APP
     APP -->|uses| DOM
     INFRA -->|implements| APP
-    INFRA -->|uses| DOM
+    INFRA -.->|uses| DOM
+
+    classDef api fill:#4338CA,stroke:#6366F1,color:#E0E7FF,stroke-width:2px
+    classDef app fill:#0F766E,stroke:#14B8A6,color:#CCFBF1,stroke-width:2px
+    classDef domain fill:#B45309,stroke:#F59E0B,color:#FEF3C7,stroke-width:2px
+    classDef infra fill:#7C3AED,stroke:#A78BFA,color:#EDE9FE,stroke-width:2px
+    classDef hidden fill:transparent,stroke:none,color:transparent,stroke-width:0px
+
+    class CTRL,EXC api
+    class UC_IN,SVC,UC_OUT app
+    class AGG,EVT,VO domain
+    class JPA,KAFKA,SEC infra
+    class api_sp,app_sp,dom_sp,infra_sp hidden
+
+    style API fill:#1E1B4B,stroke:#4338CA,stroke-width:2px,color:#A5B4FC
+    style APP fill:#042F2E,stroke:#0F766E,stroke-width:2px,color:#5EEAD4
+    style DOM fill:#451A03,stroke:#B45309,stroke-width:2px,color:#FCD34D
+    style INFRA fill:#2E1065,stroke:#7C3AED,stroke-width:2px,color:#C4B5FD
 ```
 
 ### pom.xml
@@ -202,7 +279,13 @@ public enum ChangeStatus { DRAFT, PREPARED, COMPLETED, FAILED, CANCELLED }
 ```
 
 ```mermaid
+%%{init: {'theme':'dark', 'themeVariables':{'fontSize':'16px','primaryColor':'#4338CA','primaryTextColor':'#E0E7FF','primaryBorderColor':'#6366F1','lineColor':'#94A3B8','secondaryColor':'#1E1B4B','tertiaryColor':'#B45309'}}}%%
 stateDiagram-v2
+    classDef svcState fill:#4338CA,stroke:#6366F1,color:#E0E7FF,font-weight:bold
+    classDef doneState fill:#047857,stroke:#34D399,color:#D1FAE5,font-weight:bold
+    classDef failState fill:#991B1B,stroke:#EF4444,color:#FEE2E2,font-weight:bold
+    classDef cancelState fill:#334155,stroke:#64748B,color:#CBD5E1,font-weight:bold
+
     [*] --> PREPARED : Change.create()
     PREPARED --> COMPLETED : complete()
     PREPARED --> FAILED : fail()
@@ -210,6 +293,11 @@ stateDiagram-v2
     COMPLETED --> [*]
     FAILED --> [*]
     CANCELLED --> [*]
+
+    class PREPARED svcState
+    class COMPLETED doneState
+    class FAILED failState
+    class CANCELLED cancelState
 ```
 
 ### Application Layer — Use Cases
@@ -558,6 +646,7 @@ class CreateChangeIT {
 ### Fluxo 1 — Sequência: Criação de Mudança
 
 ```mermaid
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'14px','actorTextColor':'#E0E7FF','actorBkg':'#4338CA','actorBorder':'#6366F1','activationBorderColor':'#6366F1','signalColor':'#CBD5E1','signalTextColor':'#E2E8F0','noteBkgColor':'#1E293B','noteBorderColor':'#6366F1','noteTextColor':'#E2E8F0','altSectionBkgColor':'#0F172A','labelTextColor':'#A5B4FC'},'sequence':{'mirrorActors':false,'messageFontSize':14,'noteFontSize':13,'actorFontSize':15,'noteMargin':12,'messageMargin':40,'width':220}}}%%
 sequenceDiagram
     autonumber
     participant U as Operador (Browser)
@@ -567,36 +656,39 @@ sequenceDiagram
     participant K as Kafka
 
     U->>FE: Preenche formulário e clica "Create Change"
-    FE->>FE: Validação client-side (campos obrigatórios, data futura)
+    FE->>FE: Validação client-side
 
-    FE->>CS: POST /api/v1/changes<br/>{title, description, componentId, requestedBy, scheduledAt}
+    FE->>CS: POST /api/v1/changes
+    Note over FE,CS: {title, description, componentId,<br/>requestedBy, scheduledAt}
 
-    Note over CS: CorrelationIdFilter<br/>Lê X-Correlation-Id ou gera UUID<br/>Armazena no MDC
+    Note over CS: CorrelationIdFilter<br/>Lê X-Correlation-Id ou gera UUID
 
-    CS->>CS: Bean Validation (@Valid)<br/>Campos obrigatórios, maxLength, @Future
+    CS->>CS: Bean Validation (@Valid)
 
     alt Validação falha
-        CS-->>FE: 400 Bad Request<br/>ProblemDetail RFC 7807 + fields map
-        FE-->>U: Exibe erros por campo (form data preservado)
+        CS-->>FE: 400 Bad Request (ProblemDetail RFC 7807)
+        FE-->>U: Exibe erros por campo
     end
 
-    CS->>CS: Change.create(title, desc, componentId, requestedBy, scheduledAt)<br/>→ status = PREPARED<br/>→ correlationId = UUID.randomUUID()<br/>→ domainEvents.add(ChangePreparedEvent)
+    CS->>CS: Change.create(...)
+    Note over CS: status = PREPARED<br/>correlationId = UUID<br/>domainEvents.add(ChangePreparedEvent)
 
-    CS->>DB: INSERT INTO changes (...) VALUES (...)<br/>[SaveChangePort.save()]
+    CS->>DB: INSERT INTO changes
     DB-->>CS: Change persistido
 
-    CS->>CS: saved.pullDomainEvents()<br/>→ List&lt;ChangePreparedEvent&gt;
+    CS->>CS: saved.pullDomainEvents()
 
-    CS->>K: kafkaTemplate.send("changeops.change.prepared", changeId, IntegrationEvent)<br/>[PublishEventPort.publish()]
-    Note over CS,K: IntegrationEvent envelope:<br/>{eventType, version:"1.0", correlationId, occurredAt, payload}
+    CS->>K: Publica ChangePreparedEvent
+    Note over CS,K: IntegrationEvent envelope:<br/>{eventType, version, correlationId, payload}
     K-->>CS: ACK (acks=all)
 
-    CS->>DB: INSERT INTO change_events (event_type, payload, change_id)<br/>[SaveChangeEventPort.save()]
+    CS->>DB: INSERT INTO change_events
     DB-->>CS: Evento registrado na timeline
 
     CS->>CS: changesCreatedCounter.increment()
 
-    CS-->>FE: 201 Created + Location header<br/>{changeId, status:"PREPARED", correlationId, createdAt}
+    CS-->>FE: 201 Created + Location header
+    Note over CS,FE: {changeId, status:"PREPARED",<br/>correlationId, createdAt}
 
     FE->>FE: Fecha formulário, exibe sucesso
     FE-->>U: Mudança aparece na listagem
@@ -630,20 +722,38 @@ deploy-orchestrator/
 ```
 
 ```mermaid
-graph LR
-    subgraph KIN["Kafka Consumer — Adapter IN"]
+%%{init: {'theme':'dark', 'themeVariables':{'fontSize':'15px','lineColor':'#94A3B8','edgeLabelBackground':'transparent'}}}%%
+flowchart TB
+    subgraph KIN["🔵 Kafka Consumer — Adapter IN"]
+        direction TB
+        kin_sp[ ]:::hidden
+        kin_sp ~~~ CONS
         CONS["DeployEventConsumer<br/>@RetryableTopic · @KafkaListener"]
     end
-    subgraph APP["Application — Ports & Services"]
+    subgraph APP["🟢 Application — Ports & Services"]
+        direction TB
+        app_sp[ ]:::hidden
+        app_sp ~~~ UC
+        app_sp ~~~ SVC
+        app_sp ~~~ PORTS
         UC["ProcessDeployResultUseCase"]
         SVC["ProcessDeployResultService<br/>PostDeployChecklistService"]
         PORTS["ports/out<br/>IdempotencyPort<br/>UpdateChangeStatusPort<br/>PublishResultEventPort"]
     end
-    subgraph DOM["Domain — Pure Java"]
+    subgraph DOM["🟡 Domain — Pure Java"]
+        direction TB
+        dom_sp[ ]:::hidden
+        dom_sp ~~~ EVT
+        dom_sp ~~~ RES
         EVT["DeployFinishedEvent"]
         RES["ChangeResult"]
     end
-    subgraph INFRA["Infrastructure — Adapters OUT"]
+    subgraph INFRA["🟣 Infrastructure — Adapters OUT"]
+        direction TB
+        infra_sp[ ]:::hidden
+        infra_sp ~~~ IDEM
+        infra_sp ~~~ UPD
+        infra_sp ~~~ PUB
         IDEM["IdempotencyAdapter<br/>(processed_events)"]
         UPD["UpdateChangeStatusAdapter<br/>(changes table)"]
         PUB["KafkaResultPublisherAdapter<br/>(change.result topic)"]
@@ -652,7 +762,24 @@ graph LR
     KIN -->|uses| APP
     APP -->|uses| DOM
     INFRA -->|implements| APP
-    INFRA -->|uses| DOM
+    INFRA -.->|uses| DOM
+
+    classDef api fill:#4338CA,stroke:#6366F1,color:#E0E7FF,stroke-width:2px
+    classDef app fill:#0F766E,stroke:#14B8A6,color:#CCFBF1,stroke-width:2px
+    classDef domain fill:#B45309,stroke:#F59E0B,color:#FEF3C7,stroke-width:2px
+    classDef infra fill:#7C3AED,stroke:#A78BFA,color:#EDE9FE,stroke-width:2px
+    classDef hidden fill:transparent,stroke:none,color:transparent,stroke-width:0px
+
+    class CONS api
+    class UC,SVC,PORTS app
+    class EVT,RES domain
+    class IDEM,UPD,PUB infra
+    class kin_sp,app_sp,dom_sp,infra_sp hidden
+
+    style KIN fill:#1E1B4B,stroke:#4338CA,stroke-width:2px,color:#A5B4FC
+    style APP fill:#042F2E,stroke:#0F766E,stroke-width:2px,color:#5EEAD4
+    style DOM fill:#451A03,stroke:#B45309,stroke-width:2px,color:#FCD34D
+    style INFRA fill:#2E1065,stroke:#7C3AED,stroke-width:2px,color:#C4B5FD
 ```
 
 ### `DeployFinishedEvent` — Consumed
@@ -820,64 +947,71 @@ class ProcessDeployResultServiceTest {
 ### Fluxo 2 — Sequência: Orquestração de Deploy
 
 ```mermaid
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'14px','actorTextColor':'#E0E7FF','actorBkg':'#4338CA','actorBorder':'#6366F1','activationBorderColor':'#6366F1','signalColor':'#CBD5E1','signalTextColor':'#E2E8F0','noteBkgColor':'#1E293B','noteBorderColor':'#6366F1','noteTextColor':'#E2E8F0','altSectionBkgColor':'#0F172A','labelTextColor':'#A5B4FC'},'sequence':{'mirrorActors':false,'messageFontSize':14,'noteFontSize':13,'actorFontSize':15,'noteMargin':12,'messageMargin':40,'width':220}}}%%
 sequenceDiagram
     autonumber
-    participant ES as Sistema de Deploy (externo)
+    participant ES as Sistema de Deploy
     participant K as Kafka
     participant DO as deploy-orchestrator
     participant DB as PostgreSQL
 
-    ES->>K: Publica DeployFinishedEvent<br/>topic: changeops.deploy.finished<br/>{deployId, changeId, result, executedAt}
+    ES->>K: Publica DeployFinishedEvent
+    Note over ES,K: topic: changeops.deploy.finished<br/>{deployId, changeId, result, executedAt}
 
-    K->>DO: @KafkaListener consome evento<br/>DeployEventConsumer.onDeployFinished()
+    K->>DO: Consome evento via @KafkaListener
 
     Note over DO: MDC.put(correlation_id, change_id, deploy_id)
 
     DO->>DO: events_consumed_total.increment()
 
-    DO->>DB: INSERT INTO processed_events (event_id, service_name)<br/>ON CONFLICT DO NOTHING<br/>[IdempotencyPort.tryMarkAsProcessed()]
+    DO->>DB: INSERT INTO processed_events (ON CONFLICT DO NOTHING)
+    Note over DO,DB: IdempotencyPort.tryMarkAsProcessed()
 
     alt Evento já processado (retorno = 0)
-        DO->>DO: log.warn("Event already processed, discarding")
-        Note over DO: Descarta silenciosamente — sem erro, sem reprocessamento
+        DO->>DO: log.warn("Event already processed")
+        Note over DO: Descarta silenciosamente
     end
 
-    DO->>DO: PostDeployChecklistService.execute(changeId, deployId, result)<br/>→ 4 checks: deploy-result-gate, healthcheck, smoke-test, error-rate-threshold
+    DO->>DO: PostDeployChecklistService.execute()
+    Note over DO: 4 checks: deploy-result-gate,<br/>healthcheck, smoke-test, error-rate
 
     alt Deploy SUCCESS + todos checks passam
-        DO->>DB: UPDATE changes SET status='COMPLETED' WHERE change_id=?
-        DO->>DB: INSERT INTO change_events (event_type='ChangeCompletedEvent', payload)
-        DO->>K: kafkaTemplate.send("changeops.change.result", IntegrationEvent)<br/>{eventType: "ChangeCompletedEvent", payload: {changeId, deployId, completedAt}}
+        DO->>DB: UPDATE changes SET status='COMPLETED'
+        DO->>DB: INSERT INTO change_events (ChangeCompletedEvent)
+        DO->>K: Publica ChangeCompletedEvent
+        Note over DO,K: topic: changeops.change.result
     else Deploy FAILURE ou check falha
-        DO->>DB: UPDATE changes SET status='FAILED' WHERE change_id=?
-        DO->>DB: INSERT INTO change_events (event_type='ChangeFailedEvent', payload)
-        DO->>K: kafkaTemplate.send("changeops.change.result", IntegrationEvent)<br/>{eventType: "ChangeFailedEvent", payload: {changeId, deployId, reason, failedAt}}
+        DO->>DB: UPDATE changes SET status='FAILED'
+        DO->>DB: INSERT INTO change_events (ChangeFailedEvent)
+        DO->>K: Publica ChangeFailedEvent
+        Note over DO,K: topic: changeops.change.result
     end
 
     K-->>DO: ACK
-
     Note over DO: MDC.clear()
 
-    rect rgb(255, 235, 235)
+    rect rgb(69, 26, 26)
         Note over K,DO: Cenário de Falha — Retry + DLQ
 
         K->>DO: Consumo falha (exceção)
-        DO->>DO: Retry 1 (500ms backoff)
-        DO->>DO: Retry 2 (1000ms backoff)
-        DO->>DO: Retry 3 (2000ms backoff)
-        DO->>DO: Retry 4 (4000ms backoff)
-        DO->>K: Envia para DLT: changeops.deploy.finished-dlt
+        DO->>DO: Retry 1 (500ms)
+        DO->>DO: Retry 2 (1s)
+        DO->>DO: Retry 3 (2s)
+        DO->>DO: Retry 4 (4s)
+        DO->>K: Envia para DLT
+        Note over K: changeops.deploy.finished-dlt
 
         K->>DO: @KafkaListener(dlt) consome de DLT
-        DO->>DO: log.error("Event sent to DLQ after max retries")<br/>events_failed_total.increment()
+        DO->>DO: log.error + events_failed_total.increment()
     end
 
-    rect rgb(255, 235, 235)
-        Note over DO,K: Cenário de Falha na Publicação do Resultado
+    rect rgb(69, 26, 26)
+        Note over DO,K: Falha na Publicação do Resultado
 
-        DO->>K: kafkaTemplate.send() falha (timeout/erro)
-        DO->>K: Fallback: envia para DLQ "changeops.events.dlq"
-        DO->>DO: log.error("Failed to publish result event — sending to DLQ")
+        DO->>K: kafkaTemplate.send() falha
+        DO->>K: Fallback: envia para DLQ
+        Note over K: changeops.events.dlq
+        DO->>DO: log.error("Sending to DLQ")
     end
 ```
 
@@ -914,31 +1048,39 @@ frontend/src/
 ```
 
 ```mermaid
-graph TD
-    APP["App.tsx"]
-    PAGE["ChangesPage"]
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'15px','lineColor':'#94A3B8','edgeLabelBackground':'transparent'}}}%%
+flowchart TD
+    APP["📱 App.tsx"]
+    PAGE["📄 ChangesPage"]
     FORM["ChangeForm"]
     LIST["ChangeList"]
     TIMELINE["ChangeTimeline"]
     BADGE["StatusBadge"]
-    STORE["useChangesStore (Zustand)"]
-    H_CHANGES["useChanges + usePolling"]
-    H_CREATE["useCreateChange"]
-    H_EVENTS["useChangeEvents"]
-    SVC["changeService (Axios)"]
+    STORE["📦 useChangesStore<br/>(Zustand)"]
+    H_CHANGES["🪝 useChanges<br/>+ usePolling"]
+    H_CREATE["🪝 useCreateChange"]
+    H_EVENTS["🪝 useChangeEvents"]
+    SVC["🔌 changeService<br/>(Axios)"]
 
     APP --> PAGE
-    PAGE --> FORM
-    PAGE --> LIST
-    PAGE --> TIMELINE
+    PAGE --> FORM & LIST & TIMELINE
     LIST --> BADGE
     FORM --> H_CREATE
     LIST --> H_CHANGES
     TIMELINE --> H_EVENTS
-    H_CHANGES --> STORE
-    H_CHANGES --> SVC
+    H_CHANGES --> STORE & SVC
     H_CREATE --> SVC
     H_EVENTS --> SVC
+
+    classDef page fill:#4338CA,stroke:#6366F1,color:#E0E7FF,stroke-width:2px
+    classDef component fill:#0F766E,stroke:#14B8A6,color:#CCFBF1,stroke-width:2px
+    classDef hook fill:#B45309,stroke:#F59E0B,color:#FEF3C7,stroke-width:2px
+    classDef service fill:#7C3AED,stroke:#A78BFA,color:#EDE9FE,stroke-width:2px
+
+    class APP,PAGE page
+    class FORM,LIST,TIMELINE,BADGE component
+    class H_CHANGES,H_CREATE,H_EVENTS,STORE hook
+    class SVC service
 ```
 
 ### `changeService.ts`
@@ -1146,28 +1288,56 @@ channels:
 ### Fluxo de Eventos — Visão Geral
 
 ```mermaid
-flowchart LR
-    FE(["Frontend\n:3000"])
-    CS(["change-service\n:8080"])
-    DO(["deploy-orchestrator\n:8081"])
-    DS(["Sistema de Deploy\nexterno"])
-    PG[("PostgreSQL\n:5432")]
-    T1{{"changeops.change.prepared"}}
-    T2{{"changeops.deploy.finished"}}
-    T3{{"changeops.change.result"}}
-    T4{{"deploy.finished-dlt"}}
-    T5{{"changeops.events.dlq"}}
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'15px','lineColor':'#94A3B8','edgeLabelBackground':'transparent'}}}%%
+flowchart TD
+    subgraph clients["Clientes"]
+        direction LR
+        FE(["Frontend :3000"])
+        DS(["Sistema de Deploy"])
+    end
 
-    FE -->|"POST /api/v1/changes"| CS
-    FE -->|"GET /api/v1/changes (polling 5s)"| CS
-    CS -->|"ChangePreparedEvent"| T1
-    CS -->|"persist + timeline"| PG
-    DS -->|"DeployFinishedEvent"| T2
-    T2 -->|"@KafkaListener"| DO
-    DO -->|"status update + idempotency"| PG
-    DO -->|"ChangeCompleted/FailedEvent"| T3
-    DO -->|"max retries exceeded"| T4
-    DO -->|"publish failure fallback"| T5
+    subgraph svcs["Serviços"]
+        direction LR
+        CS(["change-service :8080"])
+        DO(["deploy-orchestrator :8081"])
+    end
+
+    subgraph kafka["Apache Kafka"]
+        direction LR
+        T1{{"change.prepared"}}
+        T2{{"deploy.finished"}}
+        T3{{"change.result"}}
+        T4{{"deploy.finished-dlt"}}
+        T5{{"events.dlq"}}
+    end
+
+    PG[("PostgreSQL :5432")]
+
+    FE -->|"POST + GET (poll)"| CS
+    CS -->|"persist"| PG
+    CS --> T1
+    DS --> T2
+    T2 --> DO
+    DO -->|"status update"| PG
+    DO --> T3
+    DO -.->|"retry exceeded"| T4
+    DO -.->|"publish fail"| T5
+
+    classDef svc fill:#4338CA,stroke:#6366F1,color:#E0E7FF,stroke-width:2px
+    classDef topic fill:#C2410C,stroke:#FB923C,color:#FFF7ED,stroke-width:2px
+    classDef db fill:#047857,stroke:#34D399,color:#D1FAE5,stroke-width:2px
+    classDef ext fill:#334155,stroke:#64748B,color:#CBD5E1,stroke-width:2px
+    classDef dlt fill:#991B1B,stroke:#EF4444,color:#FEE2E2,stroke-width:2px
+
+    class FE,CS,DO svc
+    class T1,T2,T3 topic
+    class T4,T5 dlt
+    class PG db
+    class DS ext
+
+    style clients fill:none,stroke:#64748B,stroke-width:1px,color:#94A3B8
+    style svcs fill:#1E1B4B,stroke:#6366F1,stroke-width:1px,color:#C7D2FE
+    style kafka fill:#431407,stroke:#FB923C,stroke-width:1px,color:#FED7AA
 ```
 
 ---
@@ -1177,6 +1347,7 @@ flowchart LR
 ### ER Diagram
 
 ```mermaid
+%%{init: {'theme':'dark', 'themeVariables':{'fontSize':'15px','primaryColor':'#4338CA','primaryTextColor':'#E0E7FF','lineColor':'#94A3B8','primaryBorderColor':'#6366F1','edgeLabelBackground':'#1E293B','attributeBackgroundColorEven':'#1E1B4B','attributeBackgroundColorOdd':'#2D2A55','attributeTextColor':'#C7D2FE'}}}%%
 erDiagram
     changes {
         uuid change_id PK
@@ -1378,25 +1549,52 @@ Acesso: http://localhost:3001 (`admin` / `changeops`)
 Todos os serviços com `healthcheck` configurado. Dependências via `condition: service_healthy`.
 
 ```mermaid
-graph TD
-    PG["postgres:16-alpine\n:5432"]
-    ZK["zookeeper:7.6.0\n:2181"]
-    K["kafka:7.6.0\n:9092"]
-    KUI["kafka-ui\n:8090"]
-    CS["change-service\n:8080"]
-    DO["deploy-orchestrator\n:8081"]
-    PROM["prometheus:v2.50.1\n:9090"]
-    GRAF["grafana:10.3.3\n:3001"]
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'15px','lineColor':'#94A3B8','edgeLabelBackground':'transparent'}}}%%
+flowchart TD
+    subgraph infra["Infraestrutura"]
+        direction LR
+        PG["PostgreSQL 16<br/>:5432"]
+        ZK["Zookeeper<br/>:2181"]
+    end
 
-    PG -->|"healthy"| CS
-    PG -->|"healthy"| DO
-    ZK -->|"healthy"| K
-    K -->|"healthy"| CS
-    K -->|"healthy"| DO
-    K -->|"healthy"| KUI
-    CS -->|"healthy"| PROM
-    DO -->|"healthy"| PROM
-    PROM -->|"healthy"| GRAF
+    subgraph broker["Mensageria"]
+        direction LR
+        K["Kafka<br/>:9092"]
+        KUI["Kafka UI<br/>:8090"]
+    end
+
+    subgraph app["Aplicação"]
+        direction LR
+        CS["change-service<br/>:8080"]
+        DO["deploy-orchestrator<br/>:8081"]
+    end
+
+    subgraph monitoring["Observabilidade"]
+        direction LR
+        PROM["Prometheus<br/>:9090"]
+        GRAF["Grafana<br/>:3001"]
+    end
+
+    PG --> CS & DO
+    ZK --> K
+    K --> CS & DO & KUI
+    CS & DO --> PROM
+    PROM --> GRAF
+
+    classDef infraNode fill:#047857,stroke:#34D399,color:#D1FAE5,stroke-width:2px
+    classDef brokerNode fill:#C2410C,stroke:#FB923C,color:#FFF7ED,stroke-width:2px
+    classDef svcNode fill:#4338CA,stroke:#6366F1,color:#E0E7FF,stroke-width:2px
+    classDef obsNode fill:#7C3AED,stroke:#A78BFA,color:#EDE9FE,stroke-width:2px
+
+    class PG,ZK infraNode
+    class K,KUI brokerNode
+    class CS,DO svcNode
+    class PROM,GRAF obsNode
+
+    style infra fill:#042F2E,stroke:#14B8A6,stroke-width:1px,color:#99F6E4
+    style broker fill:#431407,stroke:#FB923C,stroke-width:1px,color:#FED7AA
+    style app fill:#1E1B4B,stroke:#6366F1,stroke-width:1px,color:#C7D2FE
+    style monitoring fill:#2E1065,stroke:#A78BFA,stroke-width:1px,color:#DDD6FE
 ```
 
 ### Dockerfiles — Multi-stage
