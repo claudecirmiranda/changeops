@@ -32,7 +32,7 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
           cache: maven
-         cache-dependency-path: backend/deploy-orchestrator/pom.xml
+          cache-dependency-path: backend/deploy-orchestrator/pom.xml
 
       - name: Run unit tests
         run: mvn test -DfailIfNoTests=false
