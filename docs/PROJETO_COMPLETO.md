@@ -20,6 +20,58 @@
 
 ---
 
+## Visão Arquitetural
+
+```mermaid
+C4Context
+    title ChangeOps Dashboard — Container Diagram
+
+    Person(user, "Operador / Admin", "Usuário do portal de mudanças")
+
+    System_Boundary(changeops, "ChangeOps Dashboard") {
+
+        Container(frontend, "Frontend", "React + TypeScript", "Interface web para criação, listagem e acompanhamento de mudanças")
+
+        Container(change_service, "change-service", "Java 17 / Spring Boot", "API REST para criação e consulta de mudanças. Publica ChangePreparedEvent no Kafka")
+
+        Container(deploy_orchestrator, "deploy-orchestrator", "Java 17 / Spring Boot", "Consome DeployFinishedEvent, executa checklist pós-deploy, atualiza status e publica resultado")
+
+        ContainerDb(postgres, "PostgreSQL 16", "Banco Relacional", "Tabelas: changes, change_events, processed_events")
+
+        ContainerQueue(kafka, "Apache Kafka", "Confluent 7.6.0", "Tópicos: change.prepared, deploy.finished, change.result, DLT")
+
+        Container(prometheus, "Prometheus", "v2.50.1", "Coleta métricas dos serviços via /actuator/prometheus")
+
+        Container(grafana, "Grafana", "v10.3.3", "Dashboards de observabilidade: criação, eventos, falhas, latência")
+    }
+
+    System_Ext(deploy_system, "Sistema de Deploy", "Publica DeployFinishedEvent no Kafka (simulado)")
+
+    Rel(user, frontend, "Acessa via browser", "HTTPS")
+    Rel(frontend, change_service, "REST API", "HTTP/JSON")
+    Rel(change_service, postgres, "Persiste mudanças", "JDBC/JPA")
+    Rel(change_service, kafka, "Publica ChangePreparedEvent", "Kafka Producer")
+    Rel(deploy_system, kafka, "Publica DeployFinishedEvent", "Kafka Producer")
+    Rel(kafka, deploy_orchestrator, "Consome DeployFinishedEvent", "Kafka Consumer")
+    Rel(deploy_orchestrator, postgres, "Atualiza status + idempotência", "JDBC/JPA")
+    Rel(deploy_orchestrator, kafka, "Publica ChangeCompleted/FailedEvent", "Kafka Producer")
+    Rel(prometheus, change_service, "Scrape métricas", "HTTP /actuator/prometheus")
+    Rel(prometheus, deploy_orchestrator, "Scrape métricas", "HTTP /actuator/prometheus")
+    Rel(grafana, prometheus, "Consulta métricas", "PromQL")
+```
+
+| Container | Responsabilidade |
+|-----------|-----------------|
+| **Frontend** | Interface React com formulário de criação, listagem paginada, polling a cada 5s e timeline de eventos |
+| **change-service** | API REST (`POST/GET /api/v1/changes`), validação de domínio, persistência, publicação de evento de domínio encapsulado em envelope de integração |
+| **deploy-orchestrator** | Consumer Kafka com idempotência via `processed_events`, checklist pós-deploy, atualização de status, publicação de evento de resultado, retry com backoff + DLQ |
+| **PostgreSQL** | Banco compartilhado com schema único: `changes`, `change_events`, `processed_events`. Flyway migrations independentes por serviço |
+| **Kafka** | Broker de eventos com 3 tópicos principais + DLT. Produtor idempotente, consumer groups com ACK por registro |
+| **Prometheus** | Scraper de métricas HTTP a cada 15s. Coleta: `changes_created_total`, `events_published_total`, `events_consumed_total`, `events_failed_total` |
+| **Grafana** | 7 painéis: counters de criação/publicação/consumo/falha, latência p95, distribuição por status, taxa de eventos |
+
+---
+
 ## 1. Repositório Backend — change-service
 
 ### Visão Geral
@@ -48,6 +100,34 @@ change-service/
     ├── observability/    CorrelationIdFilter (MDC)
     ├── persistence/      ChangePersistenceAdapter, ChangeEntity, ChangeEventEntity
     └── security/         SecurityConfig, CustomJwtAuthenticationConverter
+```
+
+```mermaid
+graph LR
+    subgraph API["API — Adapters IN"]
+        CTRL["ChangeController"]
+        EXC["GlobalExceptionHandler"]
+    end
+    subgraph APP["Application — Ports & Services"]
+        UC_IN["ports/in<br/>CreateChangeUseCase<br/>ListChangesUseCase<br/>GetChangeEventsUseCase"]
+        SVC["services<br/>CreateChangeService<br/>ListChangesService<br/>GetChangeEventsService"]
+        UC_OUT["ports/out<br/>SaveChangePort · LoadChangesPort<br/>PublishEventPort · SaveChangeEventPort"]
+    end
+    subgraph DOM["Domain — Pure Java"]
+        AGG["Change (Aggregate Root)"]
+        EVT["ChangePreparedEvent"]
+        VO["ChangeStatus"]
+    end
+    subgraph INFRA["Infrastructure — Adapters OUT"]
+        JPA["ChangePersistenceAdapter"]
+        KAFKA["KafkaEventPublisherAdapter"]
+        SEC["SecurityConfig · CorrelationIdFilter"]
+    end
+
+    API -->|uses| APP
+    APP -->|uses| DOM
+    INFRA -->|implements| APP
+    INFRA -->|uses| DOM
 ```
 
 ### pom.xml
@@ -119,6 +199,17 @@ public record ChangePreparedEvent(
 
 ```java
 public enum ChangeStatus { DRAFT, PREPARED, COMPLETED, FAILED, CANCELLED }
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> PREPARED : Change.create()
+    PREPARED --> COMPLETED : complete()
+    PREPARED --> FAILED : fail()
+    PREPARED --> CANCELLED : cancel()
+    COMPLETED --> [*]
+    FAILED --> [*]
+    CANCELLED --> [*]
 ```
 
 ### Application Layer — Use Cases
@@ -464,6 +555,55 @@ class CreateChangeIT {
 }
 ```
 
+### Fluxo 1 — Sequência: Criação de Mudança
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as Operador (Browser)
+    participant FE as Frontend (React)
+    participant CS as change-service
+    participant DB as PostgreSQL
+    participant K as Kafka
+
+    U->>FE: Preenche formulário e clica "Create Change"
+    FE->>FE: Validação client-side (campos obrigatórios, data futura)
+
+    FE->>CS: POST /api/v1/changes<br/>{title, description, componentId, requestedBy, scheduledAt}
+
+    Note over CS: CorrelationIdFilter<br/>Lê X-Correlation-Id ou gera UUID<br/>Armazena no MDC
+
+    CS->>CS: Bean Validation (@Valid)<br/>Campos obrigatórios, maxLength, @Future
+
+    alt Validação falha
+        CS-->>FE: 400 Bad Request<br/>ProblemDetail RFC 7807 + fields map
+        FE-->>U: Exibe erros por campo (form data preservado)
+    end
+
+    CS->>CS: Change.create(title, desc, componentId, requestedBy, scheduledAt)<br/>→ status = PREPARED<br/>→ correlationId = UUID.randomUUID()<br/>→ domainEvents.add(ChangePreparedEvent)
+
+    CS->>DB: INSERT INTO changes (...) VALUES (...)<br/>[SaveChangePort.save()]
+    DB-->>CS: Change persistido
+
+    CS->>CS: saved.pullDomainEvents()<br/>→ List&lt;ChangePreparedEvent&gt;
+
+    CS->>K: kafkaTemplate.send("changeops.change.prepared", changeId, IntegrationEvent)<br/>[PublishEventPort.publish()]
+    Note over CS,K: IntegrationEvent envelope:<br/>{eventType, version:"1.0", correlationId, occurredAt, payload}
+    K-->>CS: ACK (acks=all)
+
+    CS->>DB: INSERT INTO change_events (event_type, payload, change_id)<br/>[SaveChangeEventPort.save()]
+    DB-->>CS: Evento registrado na timeline
+
+    CS->>CS: changesCreatedCounter.increment()
+
+    CS-->>FE: 201 Created + Location header<br/>{changeId, status:"PREPARED", correlationId, createdAt}
+
+    FE->>FE: Fecha formulário, exibe sucesso
+    FE-->>U: Mudança aparece na listagem
+
+    Note over FE: Polling a cada 5s atualiza listagem
+```
+
 ---
 
 ## 2. Repositório Backend — deploy-orchestrator
@@ -487,6 +627,32 @@ deploy-orchestrator/
     │              KafkaConfig, IntegrationEvent
     └── persistence/ IdempotencyAdapter, UpdateChangeStatusAdapter,
                      ProcessedEventEntity/Repository, ChangeStatusEntity/Repository
+```
+
+```mermaid
+graph LR
+    subgraph KIN["Kafka Consumer — Adapter IN"]
+        CONS["DeployEventConsumer<br/>@RetryableTopic · @KafkaListener"]
+    end
+    subgraph APP["Application — Ports & Services"]
+        UC["ProcessDeployResultUseCase"]
+        SVC["ProcessDeployResultService<br/>PostDeployChecklistService"]
+        PORTS["ports/out<br/>IdempotencyPort<br/>UpdateChangeStatusPort<br/>PublishResultEventPort"]
+    end
+    subgraph DOM["Domain — Pure Java"]
+        EVT["DeployFinishedEvent"]
+        RES["ChangeResult"]
+    end
+    subgraph INFRA["Infrastructure — Adapters OUT"]
+        IDEM["IdempotencyAdapter<br/>(processed_events)"]
+        UPD["UpdateChangeStatusAdapter<br/>(changes table)"]
+        PUB["KafkaResultPublisherAdapter<br/>(change.result topic)"]
+    end
+
+    KIN -->|uses| APP
+    APP -->|uses| DOM
+    INFRA -->|implements| APP
+    INFRA -->|uses| DOM
 ```
 
 ### `DeployFinishedEvent` — Consumed
@@ -651,6 +817,70 @@ class ProcessDeployResultServiceTest {
 }
 ```
 
+### Fluxo 2 — Sequência: Orquestração de Deploy
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant ES as Sistema de Deploy (externo)
+    participant K as Kafka
+    participant DO as deploy-orchestrator
+    participant DB as PostgreSQL
+
+    ES->>K: Publica DeployFinishedEvent<br/>topic: changeops.deploy.finished<br/>{deployId, changeId, result, executedAt}
+
+    K->>DO: @KafkaListener consome evento<br/>DeployEventConsumer.onDeployFinished()
+
+    Note over DO: MDC.put(correlation_id, change_id, deploy_id)
+
+    DO->>DO: events_consumed_total.increment()
+
+    DO->>DB: INSERT INTO processed_events (event_id, service_name)<br/>ON CONFLICT DO NOTHING<br/>[IdempotencyPort.tryMarkAsProcessed()]
+
+    alt Evento já processado (retorno = 0)
+        DO->>DO: log.warn("Event already processed, discarding")
+        Note over DO: Descarta silenciosamente — sem erro, sem reprocessamento
+    end
+
+    DO->>DO: PostDeployChecklistService.execute(changeId, deployId, result)<br/>→ 4 checks: deploy-result-gate, healthcheck, smoke-test, error-rate-threshold
+
+    alt Deploy SUCCESS + todos checks passam
+        DO->>DB: UPDATE changes SET status='COMPLETED' WHERE change_id=?
+        DO->>DB: INSERT INTO change_events (event_type='ChangeCompletedEvent', payload)
+        DO->>K: kafkaTemplate.send("changeops.change.result", IntegrationEvent)<br/>{eventType: "ChangeCompletedEvent", payload: {changeId, deployId, completedAt}}
+    else Deploy FAILURE ou check falha
+        DO->>DB: UPDATE changes SET status='FAILED' WHERE change_id=?
+        DO->>DB: INSERT INTO change_events (event_type='ChangeFailedEvent', payload)
+        DO->>K: kafkaTemplate.send("changeops.change.result", IntegrationEvent)<br/>{eventType: "ChangeFailedEvent", payload: {changeId, deployId, reason, failedAt}}
+    end
+
+    K-->>DO: ACK
+
+    Note over DO: MDC.clear()
+
+    rect rgb(255, 235, 235)
+        Note over K,DO: Cenário de Falha — Retry + DLQ
+
+        K->>DO: Consumo falha (exceção)
+        DO->>DO: Retry 1 (500ms backoff)
+        DO->>DO: Retry 2 (1000ms backoff)
+        DO->>DO: Retry 3 (2000ms backoff)
+        DO->>DO: Retry 4 (4000ms backoff)
+        DO->>K: Envia para DLT: changeops.deploy.finished-dlt
+
+        K->>DO: @KafkaListener(dlt) consome de DLT
+        DO->>DO: log.error("Event sent to DLQ after max retries")<br/>events_failed_total.increment()
+    end
+
+    rect rgb(255, 235, 235)
+        Note over DO,K: Cenário de Falha na Publicação do Resultado
+
+        DO->>K: kafkaTemplate.send() falha (timeout/erro)
+        DO->>K: Fallback: envia para DLQ "changeops.events.dlq"
+        DO->>DO: log.error("Failed to publish result event — sending to DLQ")
+    end
+```
+
 ---
 
 ## 3. Repositório Frontend
@@ -681,6 +911,34 @@ frontend/src/
 │   └── lib/         http.ts (axios), test-setup.ts
 └── app/
     └── routes/      ChangesPage.tsx (main page)
+```
+
+```mermaid
+graph TD
+    APP["App.tsx"]
+    PAGE["ChangesPage"]
+    FORM["ChangeForm"]
+    LIST["ChangeList"]
+    TIMELINE["ChangeTimeline"]
+    BADGE["StatusBadge"]
+    STORE["useChangesStore (Zustand)"]
+    H_CHANGES["useChanges + usePolling"]
+    H_CREATE["useCreateChange"]
+    H_EVENTS["useChangeEvents"]
+    SVC["changeService (Axios)"]
+
+    APP --> PAGE
+    PAGE --> FORM
+    PAGE --> LIST
+    PAGE --> TIMELINE
+    LIST --> BADGE
+    FORM --> H_CREATE
+    LIST --> H_CHANGES
+    TIMELINE --> H_EVENTS
+    H_CHANGES --> STORE
+    H_CHANGES --> SVC
+    H_CREATE --> SVC
+    H_EVENTS --> SVC
 ```
 
 ### `changeService.ts`
@@ -883,6 +1141,33 @@ channels:
 # IntegrationEnvelope: { eventType, version, correlationId, occurredAt, payload }
 # Payloads: ChangePreparedPayload, DeployFinishedPayload,
 #           ChangeCompletedPayload, ChangeFailedPayload
+```
+
+### Fluxo de Eventos — Visão Geral
+
+```mermaid
+flowchart LR
+    FE(["Frontend\n:3000"])
+    CS(["change-service\n:8080"])
+    DO(["deploy-orchestrator\n:8081"])
+    DS(["Sistema de Deploy\nexterno"])
+    PG[("PostgreSQL\n:5432")]
+    T1{{"changeops.change.prepared"}}
+    T2{{"changeops.deploy.finished"}}
+    T3{{"changeops.change.result"}}
+    T4{{"deploy.finished-dlt"}}
+    T5{{"changeops.events.dlq"}}
+
+    FE -->|"POST /api/v1/changes"| CS
+    FE -->|"GET /api/v1/changes (polling 5s)"| CS
+    CS -->|"ChangePreparedEvent"| T1
+    CS -->|"persist + timeline"| PG
+    DS -->|"DeployFinishedEvent"| T2
+    T2 -->|"@KafkaListener"| DO
+    DO -->|"status update + idempotency"| PG
+    DO -->|"ChangeCompleted/FailedEvent"| T3
+    DO -->|"max retries exceeded"| T4
+    DO -->|"publish failure fallback"| T5
 ```
 
 ---
@@ -1091,6 +1376,28 @@ Acesso: http://localhost:3001 (`admin` / `changeops`)
 | grafana | grafana/grafana:10.3.3 | 3001 |
 
 Todos os serviços com `healthcheck` configurado. Dependências via `condition: service_healthy`.
+
+```mermaid
+graph TD
+    PG["postgres:16-alpine\n:5432"]
+    ZK["zookeeper:7.6.0\n:2181"]
+    K["kafka:7.6.0\n:9092"]
+    KUI["kafka-ui\n:8090"]
+    CS["change-service\n:8080"]
+    DO["deploy-orchestrator\n:8081"]
+    PROM["prometheus:v2.50.1\n:9090"]
+    GRAF["grafana:10.3.3\n:3001"]
+
+    PG -->|"healthy"| CS
+    PG -->|"healthy"| DO
+    ZK -->|"healthy"| K
+    K -->|"healthy"| CS
+    K -->|"healthy"| DO
+    K -->|"healthy"| KUI
+    CS -->|"healthy"| PROM
+    DO -->|"healthy"| PROM
+    PROM -->|"healthy"| GRAF
+```
 
 ### Dockerfiles — Multi-stage
 
