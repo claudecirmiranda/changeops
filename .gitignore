@@ -32,15 +32,6 @@ target/
 .settings/
 
 # =========================
-# Spring config local (cuidado!)
-# =========================
-# Se você NÃO versiona application.yml/properties, pode manter:
-application*.yml
-application*.yaml
-application*.properties
-# Se você versiona configurações base, me diga que eu ajusto.
-
-# =========================
 # Variáveis de ambiente (se usar)
 # =========================
 .env

@@ -1196,13 +1196,71 @@ jobs:
 
 1. **Sem padrão Outbox** — risco de event loss se Kafka estiver indisponível durante o commit
 2. **PostDeployChecklist é simulado** — precisa de integração real (health endpoints, smoke tests)
-3. **Sem rate limiting** em `POST /changes` — adicionar `bucket4j` ou Spring Cloud Gateway
-4. **Auth frontend é dev-only** — `localStorage.getItem('access_token')` é placeholder
-5. **V2 seed migration** sempre executa — deve ser guardada por Spring profile
+3. **Auth frontend é dev-only** — `localStorage.getItem('access_token')` é placeholder
 
 ---
 
-## Checklist de Entregáveis
+## 10. Tradeoffs Estratégicos
+
+Decisões deliberadas, alinhadas ao objetivo da POC, com caminho de evolução documentado.
+
+### T1 — Banco de Dados Compartilhado entre Serviços
+
+**Decisão:** `change-service` e `deploy-orchestrator` compartilham o mesmo PostgreSQL.
+
+**Justificativa:** Simplifica o setup de demo (um único `docker compose up`). O `deploy-orchestrator` faz `UPDATE` direto na tabela `changes` sem necessidade de API interna, demonstrando os conceitos arquiteturais sem adicionar complexidade operacional.
+
+**Caminho de evolução (Roadmap Fase 3):** Separar em schemas distintos com Row Level Security. O `deploy-orchestrator` passa a notificar via API interna do `change-service` — elimina acoplamento via banco e habilita deploy independente dos serviços.
+
+---
+
+### T2 — HTTP Polling vs. SSE / WebSocket no Frontend
+
+**Decisão:** Polling HTTP a cada 5 segundos via hook `usePolling()`.
+
+**Justificativa:** Zero infra adicional no backend. Funciona atrás de qualquer proxy/load balancer sem configuração especial. Latência de até 5s é aceitável para um fluxo de mudança que leva minutos. O hook é genérico — a interface de alto nível permanece idêntica independente do mecanismo de atualização.
+
+**Caminho de evolução (Roadmap Fase 2.4):** Substituir internamente `usePolling()` por SSE com `text/event-stream` e `SseEmitter` no Spring Boot — sem mudança na interface dos componentes.
+
+---
+
+### T3 — Sem Outbox Pattern (Publicação Kafka Pós-Commit)
+
+**Decisão:** `CreateChangeService` persiste no DB e publica no Kafka em operação separada (dentro da transação Java).
+
+**Justificativa:** O produtor Kafka é idempotente (`acks=all`, `enable.idempotence=true`) — falhas transientes resultam em retry automático. O consumer implementa idempotência atômica — mesmo em eventual duplicata, o processamento é seguro. Simplifica o código sem adicionar uma terceira tabela e um worker de polling.
+
+**Caminho de evolução (Roadmap Fase 2.1):** Implementar Transactional Outbox com tabela `outbox_events`. Worker publica eventos pendentes com garantia de at-least-once durável.
+
+---
+
+### T4 — Fator de Replicação Kafka = 1 (Padrão)
+
+**Decisão:** Tópicos criados com `replicas=1` por padrão.
+
+**Justificativa:** Ambiente single-broker local — não haveria réplicas para distribuir mesmo com fator maior. O valor é configurável via variável de ambiente `KAFKA_REPLICATION_FACTOR` sem necessidade de alterar código.
+
+**Caminho de evolução (Produção):** `KAFKA_REPLICATION_FACTOR=3` em ambientes com cluster Kafka multi-broker. Ajuste de `min.insync.replicas=2` para garantia de durabilidade.
+
+---
+
+### T5 — Autenticação Frontend via localStorage (Dev Only)
+
+**Decisão:** Frontend lê `access_token` e `user_id` de `localStorage` como fallback de desenvolvimento.
+
+**Justificativa:** Profile `local` no backend aceita requisições sem JWT por design. O `X-User-Id` header tem **menor prioridade** que o JWT Subject — JWT vence sempre se presente. A infraestrutura completa de OAuth2/JWT está implementada no backend (`SecurityConfig.java`).
+
+**Caminho de evolução (Roadmap Fase 2.2):** Implementar OAuth2 PKCE flow com Keycloak. Tokens armazenados em `HttpOnly Secure Cookie` — elimina risco de XSS.
+
+---
+
+### T6 — PostDeployChecklist Simulado
+
+**Decisão:** `PostDeployChecklistService` simula 4 verificações (healthcheck, smoke test, error rate, deploy result gate).
+
+**Justificativa:** Demonstra o padrão arquitetural sem dependência de infraestrutura externa real. O serviço é um extension point explícito — substituir cada verificação por chamada HTTP real é uma mudança localizada e testável independentemente.
+
+**Caminho de evolução (pós-POC):** Injetar `HealthCheckClient` e `MetricsClient` como ports de saída. Implementar adapters para chamar actuator health do serviço deployado e Prometheus da aplicação.
 
 | Entregável | Status |
 |---|---|
