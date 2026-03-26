@@ -1,51 +1,72 @@
 # ChangeOps Dashboard
 
-> Technical change management platform with full async event-driven orchestration.
+> POC de gestão de mudanças técnicas com arquitetura event-driven.
+
+O objetivo desta POC é demonstrar maturidade arquitetural em software distribuído: microserviços desacoplados, comunicação assíncrona via eventos, rastreabilidade ponta a ponta, resiliência a falhas e observabilidade em tempo real.
+
+Escopo formal da POC: [Documento de Escopo](https://soaone.com.br/hyper/viewer.php?file=escopo.md) · [Guia de Execução Interno](https://soaone.com.br/hyper/viewer.php?file=escopo_tecnico.md)
 
 ---
 
-## Architecture Overview
+## O que o sistema faz
+
+O ChangeOps cobre dois fluxos complementares:
+
+- **Fluxo 1 — Criação de mudança:** operador cria uma mudança técnica via API REST ou interface web. O sistema valida, persiste com status `PREPARED` e publica um evento de domínio (`ChangePreparedEvent`) no Kafka, sinalizando prontidão para deploy.
+- **Fluxo 2 — Orquestração de deploy:** um sistema externo de CI/CD publica o resultado do deploy (`DeployFinishedEvent`). O `deploy-orchestrator` consome o evento com idempotência atômica, executa um checklist de validações pós-deploy, atualiza o status da mudança para `COMPLETED` ou `FAILED`, e publica o evento de conclusão. A interface web reflete a mudança de status em até 5 segundos.
+
+---
+
+## Arquitetura
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  CloudFoundry PaaS                                              │
-│  ┌───────────────────┐                                          │
-│  │   ChangeOps UI    │  React + TypeScript + Zustand            │
-│  │   :3000           │  Polling every 5s                        │
-│  └────────┬──────────┘                                          │
-└───────────│─────────────────────────────────────────────────────┘
-            │ REST HTTPS
-┌───────────▼─────────────────────────────────────────────────────┐
-│  AWS Cloud                                                      │
-│                                                                 │
-│  ┌───────────────────┐    Kafka     ┌───────────────────────┐   │
-│  │  change-service   │────────────▶│  deploy-orchestrator  │  │
-│  │  :8080            │              │  :8081                │  │
-│  │  POST /changes    │◀────────────│  Idempotency + DLQ    │  │
-│  │  GET  /changes    │  result evt  └──────────┬────────────┘   │
-│  └────────┬──────────┘                         │                │
-│           │                                    │                │
-│  ┌────────▼────────────────────────────────────▼────────┐       │
-│  │              PostgreSQL  :5432                        │       │
-│  │  changes | change_events | processed_events           │       │
-│  └───────────────────────────────────────────────────────┘       │
-│                                                                  │
-│  Kafka :9092  │  Prometheus :9090  │  Grafana :3001              │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  Frontend — React + TypeScript + Zustand                             │
+│  :3000   Polling 5s                                                  │
+└─────────────────────┬────────────────────────────────────────────────┘
+                      │ REST HTTPS
+┌─────────────────────▼─────────────────────────────────────────────────┐
+│  change-service :8080          deploy-orchestrator :8081              │
+│  POST /api/v1/changes    ◄──── result event (Kafka)                   │
+│  GET  /api/v1/changes    ────► ChangePreparedEvent (Kafka)            │
+│                                Idempotência + Retry + DLQ             │
+│                                                                       │
+│  ┌───────────────────────────────────────────────────────────────┐    │
+│  │  PostgreSQL :5432                                             │    │
+│  │  changes  |  change_events  |  processed_events               │    │
+│  └───────────────────────────────────────────────────────────────┘    │
+│                                                                       │
+│  Kafka :9092  ·  Kafka UI :8090  ·  Prometheus :9090  ·  Grafana :3001│
+└───────────────────────────────────────────────────────────────────────┘
 ```
+
+Ambos os serviços seguem **Arquitetura Hexagonal (Ports & Adapters)**: o domínio é Java puro, sem dependências de Spring, JPA ou Kafka. A regra de dependência é unidirecional — `API → Application → Domain ← Infrastructure`.
+
+Documentação detalhada:
+- [Diagrama C4 de Containers](docs/architecture/c4-container.md)
+- [Diagrama de Sequência — Fluxo 1 (Criação)](docs/architecture/sequence-flow1-criacao.md)
+- [Diagrama de Sequência — Fluxo 2 (Orquestração)](docs/architecture/sequence-flow2-orquestracao.md)
+
+---
+
+## Stack
+
+| Camada | Tecnologias |
+|--------|-------------|
+| **Backend** | Java 17, Spring Boot 3.2, Spring Kafka, Spring Security OAuth2, Spring Data JPA, Flyway, Bucket4j |
+| **Frontend** | React 18, TypeScript, Zustand, Axios, Tailwind CSS, Vitest |
+| **Mensageria** | Apache Kafka (Confluent 7.6), tópicos versionados, produtor idempotente |
+| **Persistência** | PostgreSQL 16 com JSONB para payloads de eventos |
+| **Observabilidade** | Micrometer + Prometheus, Grafana (dashboard pré-provisionado), Logback JSON |
+| **Infra** | Docker Compose com healthchecks em todos os serviços, Makefile com 20+ targets |
+
+Stack e versões completas: [docs/PROJETO_COMPLETO.md](docs/PROJETO_COMPLETO.md)
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-
-- Docker 24+ and Docker Compose v2
-- Java 17+ (for local backend development)
-- Node.js 20+ (for local frontend development)
-- GNU Make
-
-### Start the full stack
+**Pré-requisitos:** Docker 24+ e Docker Compose v2. GNU Make.
 
 ```bash
 # Clone and start everything
@@ -55,228 +76,164 @@ cd changeops
 make up
 ```
 
-This starts:
+Isso sobe toda a stack. Aguarde todos os serviços ficarem `healthy` (`docker compose ps`).
 
-| Service               | URL                                    |
-|-----------------------|----------------------------------------|
-| change-service API    | http://localhost:8080                  |
-| Swagger UI            | http://localhost:8080/swagger-ui.html  |
-| deploy-orchestrator   | http://localhost:8081                  |
-| Kafka UI              | http://localhost:8090                  |
-| Prometheus            | http://localhost:9090                  |
-| Grafana               | http://localhost:3001 (`admin/changeops`) |
-| Frontend (dev)        | http://localhost:3000                  |
+| Serviço | URL |
+|---------|-----|
+| Frontend | http://localhost:3000 |
+| change-service API | http://localhost:8080 |
+| **Swagger UI** | http://localhost:8080/swagger-ui.html |
+| deploy-orchestrator | http://localhost:8081 |
+| Kafka UI | http://localhost:8090 |
+| Prometheus | http://localhost:9090 |
+| **Grafana** | http://localhost:3001 (`admin` / `changeops`) |
 
-### Start frontend in dev mode
+> **Swagger UI** — toda a API REST está documentada e executável em `http://localhost:8080/swagger-ui.html`. O contrato completo está em [contracts/openapi/change-service.yml](contracts/openapi/change-service.yml).
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+> **Grafana** — o dashboard **ChangeOps** é carregado automaticamente na inicialização, sem configuração manual. Exibe métricas ao vivo: changes criadas, eventos publicados/consumidos/falhos, latência de API (p95), distribuição de status.
 
 ---
 
-## Smoke Test
+## Usando o Sistema
+
+### Fluxo completo via terminal
 
 ```bash
-# 1. Create a change
+# 1. Criar uma mudança (retorna JSON com changeId)
 make smoke
 
-# 2. Copy the changeId from the response, then simulate a deploy result:
-CHANGE_ID=<your-change-id> make publish-deploy-event
+# 2. Simular resultado de deploy — copiar o changeId do passo anterior
+make publish-deploy-event CHANGE_ID=<uuid>
 
-# 3. Watch the status transition in the UI or query directly:
-curl http://localhost:8080/api/v1/changes | python3 -m json.tool
+# 3. Status muda para COMPLETED em até 5s
+curl -s http://localhost:8080/api/v1/changes | python3 -m json.tool
 ```
+
+### Fluxo via interface web
+
+1. Abrir `http://localhost:3000`
+2. Clicar em **New Change** e preencher o formulário
+3. Observar a mudança aparecer na lista com status `PREPARED`
+4. Verificar o evento `ChangePreparedEvent` no [Kafka UI](http://localhost:8090)
+5. Executar `make publish-deploy-event CHANGE_ID=<uuid>` para simular o CI/CD
+6. Acompanhar a atualização automática de status e a timeline de eventos
+
+Roteiro detalhado com 14 casos de teste: [docs/ROTEIRO_TESTES_MANUAIS.md](docs/ROTEIRO_TESTES_MANUAIS.md)
 
 ---
 
-## Demonstração
+## Documentação Técnica
 
-> Vídeo de demonstração planejado para a fase de apresentação do projeto (Roadmap: processo pós-aprovação).
->
-> As etapas do fluxo completo estão documentadas em [`docs/ROTEIRO_TESTES_MANUAIS.md`](docs/ROTEIRO_TESTES_MANUAIS.md) e podem ser executadas manualmente com `make smoke` e `make publish-deploy-event`.
+### Arquitetura Hexagonal & DDD
 
----
+Os dois serviços seguem rigorosamente Ports & Adapters. O `Change` é um Aggregate Root com factory method puro (`Change.create()`), pull-semantics para eventos de domínio (`pullDomainEvents()`), e máquina de estados protegida. O domínio não tem nenhuma dependência de framework.
 
-## Repository Structure
+→ [ADR-005 — Estrutura de Pacotes](docs/adr/ADR-005-estrutura-pacotes.md) · [docs/PROJETO_COMPLETO.md §1–2](docs/PROJETO_COMPLETO.md)
 
-```
-changeops/
-├── backend/
-│   ├── change-service/          # REST API — creates changes, publishes events
-│   └── deploy-orchestrator/     # Kafka consumer — processes deploy results
-├── frontend/                    # React + TypeScript dashboard
-├── infra/
-│   ├── postgres/                # DB init SQL
-│   ├── prometheus/              # Scrape config
-│   └── grafana/                 # Dashboards + provisioning
-├── contracts/
-│   ├── openapi/                 # REST API specs (OpenAPI 3.1)
-│   └── asyncapi/                # Event contracts (AsyncAPI 2.6)
-├── .github/workflows/           # CI pipelines (GitHub Actions)
-├── docker-compose.yml
-└── Makefile
-```
+### Fluxos Event-Driven
 
----
+Eventos de domínio (`ChangePreparedEvent`) são separados explicitamente de eventos de integração (`IntegrationEvent` envelope com `eventType`, `version`, `correlationId`). O `correlation_id` é propagado por toda a stack — desde a request HTTP até os logs do consumer Kafka — sem a necessidade de distributed tracing externo na POC.
 
-## Backend Services
+→ [ADR-001 — Escolha do Message Broker](docs/adr/ADR-001-escolha-message-broker.md) · [ADR-003 — Eventos Domínio vs Integração](docs/adr/ADR-003-eventos-dominio-vs-integracao.md) · [Contratos AsyncAPI](contracts/asyncapi/events.yml)
 
-### change-service (`:8080`)
+### Resiliência
 
-Hexagonal architecture (Ports & Adapters):
+Idempotência atômica via `INSERT INTO processed_events ON CONFLICT DO NOTHING` — sem race conditions ao escalar o consumer horizontalmente. Retry com backoff exponencial (500ms → 1s → 2s → 4s, 4 tentativas). Dead Letter Queue automática para mensagens não processáveis. Fallback DLQ para falhas de publicação.
 
-```
-api/controller         → REST endpoints + validation
-application/port/in    → Use case interfaces
-application/port/out   → Repository + event publisher interfaces
-application/service    → Business logic
-domain/model           → Change aggregate
-domain/event           → ChangePreparedEvent (domain)
-infrastructure/        → JPA, Kafka, Security, Observability
-```
+→ [ADR-002 — Estratégia de Idempotência](docs/adr/ADR-002-estrategia-idempotencia.md)
 
-**Key flows:**
-- `POST /changes` → validates → persists with `PREPARED` status → publishes `ChangePreparedEvent`
-- `GET /changes` → paginated list with optional `status` / `componentId` filters
-- `GET /changes/{id}/events` → chronological event timeline
+### Observabilidade
 
-### deploy-orchestrator (`:8081`)
+Logs estruturados em JSON com campos `correlation_id`, `change_id`, `deploy_id` em todos os serviços. Métricas customizadas via Micrometer: `changes_created_total`, `events_published_total`, `events_consumed_total`, `events_failed_total`, latência de API (histograma). Dashboard Grafana pré-provisionado — zero configuração manual.
 
-Consumes `DeployFinishedEvent` from Kafka with:
-- **Idempotency** via `processed_events` table (`UNIQUE` constraint prevents duplicate processing)
-- **Retry** with exponential backoff (4 attempts: 500ms → 1s → 2s → 4s)
-- **DLQ** on `changeops.deploy.finished-dlt` after exhausted retries
-- **Post-deploy checklist** (simulated — extend `PostDeployChecklistService`)
+→ [docs/PROJETO_COMPLETO.md §7](docs/PROJETO_COMPLETO.md)
+
+### Segurança
+
+JWT Bearer via Spring Security OAuth2 Resource Server, RBAC com roles `ROLE_OPERATOR` / `ROLE_ADMIN`. Rate limiting em `POST /changes` (100 req/min por IP, Bucket4j). Validação de entrada com RFC 7807 `ProblemDetail`. CORS configurado sem wildcard. Em `local`/`test` o JWT é dispensado por design — a infraestrutura está pronta para ativação em produção via variáveis de ambiente.
+
+→ [docs/PROJETO_COMPLETO.md §6](docs/PROJETO_COMPLETO.md)
+
+### Testes
+
+Pirâmide completa: testes unitários de domínio e serviços (JUnit 5 + Mockito), testes de integração com infraestrutura real (Testcontainers — PostgreSQL 16 + Kafka 7.6), testes de componente frontend (Vitest + Testing Library + MSW). Cobertura JaCoCo: 80% linhas no `change-service`, 70% no `deploy-orchestrator`.
+
+→ [docs/test-strategy.md](docs/test-strategy.md)
+
+### Tradeoffs
+
+Decisões deliberadas com justificativa e caminho de evolução documentados: banco compartilhado, polling vs SSE, ausência de Outbox pattern, Kafka replicas=1, auth frontend dev-only, checklist simulado.
+
+→ [docs/PROJETO_COMPLETO.md §10 — Tradeoffs Estratégicos](docs/PROJETO_COMPLETO.md)
 
 ---
 
-## Event Flow
+## ADRs
 
-```
-POST /changes
-    │
-    ▼ (change-service)
-PREPARED status persisted
-    │
-    ▼
-ChangePreparedEvent ──▶ [Kafka: changeops.change.prepared]
-                                          │
-                              (external deploy system)
-                                          │
-                                          ▼
-                         DeployFinishedEvent ──▶ [Kafka: changeops.deploy.finished]
-                                                          │
-                                             (deploy-orchestrator)
-                                                          │
-                                             ┌────────────┴─────────────┐
-                                             │ idempotency check         │
-                                             │ post-deploy checklist     │
-                                             │ update status             │
-                                             └────────────┬─────────────┘
-                                                          │
-                                        ┌─────────────────┴──────────────────┐
-                                        ▼                                    ▼
-                              ChangeCompletedEvent                 ChangeFailedEvent
-                        [changeops.change.result]            [changeops.change.result]
-```
+| ADR | Decisão |
+|-----|---------|
+| [ADR-001](docs/adr/ADR-001-escolha-message-broker.md) | Apache Kafka — replay, particionamento por `changeId`, produtor idempotente nativo |
+| [ADR-002](docs/adr/ADR-002-estrategia-idempotencia.md) | `INSERT ... ON CONFLICT DO NOTHING` — idempotência atômica e durável |
+| [ADR-003](docs/adr/ADR-003-eventos-dominio-vs-integracao.md) | Separação explícita entre eventos de domínio e integração |
+| [ADR-004](docs/adr/ADR-004-atualizacao-status-frontend.md) | HTTP Polling (5s) — simples, robusto, migrável para SSE sem mudança de interface |
+| [ADR-005](docs/adr/ADR-005-estrutura-pacotes.md) | Arquitetura Hexagonal — dependência unidirecional, testabilidade máxima |
 
 ---
 
-## Database Schema
+## Contratos
 
-```sql
-changes          (change_id, title, description, component_id,
-                  requested_by, scheduled_at, status, correlation_id,
-                  created_at, updated_at)
-
-change_events    (event_id, change_id, event_type, payload JSONB, occurred_at)
-
-processed_events (event_id PK, processed_at, service_name)
-                  ↑ UNIQUE constraint guarantees idempotency
-```
-
----
-
-## Observability
-
-### Structured JSON logs
-
-Every log line includes:
-
-```json
-{
-  "timestamp": "2026-03-19T12:00:00Z",
-  "level": "INFO",
-  "service": "change-service",
-  "correlation_id": "aaaa-...",
-  "change_id": "1111-...",
-  "message": "Change created"
-}
-```
-
-### Prometheus metrics
-
-| Metric | Type | Description |
-|--------|------|-------------|
-| `changes_created_total` | Counter | Total changes created |
-| `events_published_total` | Counter | Integration events published |
-| `events_consumed_total` | Counter | Events consumed by orchestrator |
-| `events_failed_total` | Counter | Processing failures |
-| `http_server_requests_seconds` | Histogram | API latency |
-
-Grafana dashboard pre-provisioned at http://localhost:3001
-
----
-
-## Security
-
-- JWT Bearer token validation via Spring Security OAuth2 Resource Server
-- RBAC: `ROLE_OPERATOR` (read + create), `ROLE_ADMIN` (full access)
-- `X-User-Id` header accepted as dev fallback in `local`/`test` profiles only — full JWT/OAuth2 integration is ready to activate (see [ROADMAP.md](./docs/ROADMAP.md) §2.2)
-- CORS configured for `localhost:*` and `*.changeops.io`
-- No PII logged — correlation IDs only
-
----
-
-## Development
-
-```bash
-make test              # Run all tests
-make test-backend-unit # Fast unit tests only
-make test-backend-it   # Integration tests (needs Docker)
-make test-frontend     # Frontend vitest
-make lint              # Lint all
-make clean             # Remove build artifacts
-make db-shell          # Open psql session
-make kafka-topics      # List Kafka topics
-```
-
----
-
-## Useful Commands
-
-```bash
-# Check change-service health
-curl http://localhost:8080/actuator/health | python3 -m json.tool
-
-# View Prometheus metrics
-curl http://localhost:8080/actuator/prometheus | grep changes_
-
-# Tail structured logs
-docker compose logs -f change-service | python3 -m json.tool
-
-# Consume events from result topic
-docker compose exec kafka kafka-console-consumer \
-  --bootstrap-server localhost:9092 \
-  --topic changeops.change.result \
-  --from-beginning
-```
+| Contrato | Arquivo | Acesso live |
+|----------|---------|-------------|
+| REST API (OpenAPI 3.1) | [contracts/openapi/change-service.yml](contracts/openapi/change-service.yml) | http://localhost:8080/swagger-ui.html |
+| Eventos Kafka (AsyncAPI 2.6) | [contracts/asyncapi/events.yml](contracts/asyncapi/events.yml) | — |
 
 ---
 
 ## Roadmap
 
-See [ROADMAP.md](./docs/ROADMAP.md) for planned evolutions.
+| Fase | Foco |
+|------|------|
+| **Fase 1 — MVP** ✅ | Arquitetura hexagonal, fluxos 1 e 2, idempotência, retry/DLQ, observabilidade, segurança JWT pronta, testes, Docker Compose |
+| **Fase 2 — Hardening** | Transactional Outbox, OAuth2/PKCE + Keycloak, OpenTelemetry distributed tracing, TTL em `processed_events` |
+| **Fase 3 — Escala** | Kubernetes + Helm, Kafka multi-partition, Circuit Breaker (Resilience4j), read replicas PostgreSQL |
+| **Fase 4 — Enterprise** | Multi-tenancy (RLS), audit log imutável, GDPR/LGPD (pseudonimização, erasure API) |
+
+→ [docs/ROADMAP.md](docs/ROADMAP.md) — detalhamento completo por fase
+
+---
+
+## Desenvolvimento
+
+```bash
+# Ciclo de vida
+make up                  # Sobe toda a stack
+make down                # Para e remove containers
+make restart             # Reinicia serviços
+make logs                # Tail de todos os logs
+
+# Build
+make build-backend       # mvn clean package (ambos os serviços)
+make build-frontend      # npm ci + build
+
+# Testes
+make test                # Todos os testes
+make test-backend-unit   # Unitários rápidos (sem Docker)
+make test-backend-it     # Integração com Testcontainers (requer Docker)
+make test-frontend       # Vitest
+
+# Qualidade
+make lint                # Checkstyle + eslint
+
+# Utilitários
+make db-shell            # psql na instância local
+make kafka-topics        # Lista tópicos Kafka
+make kafka-shell         # Shell do container Kafka
+make clean               # Remove artefatos de build
+
+# Diagnóstico
+curl http://localhost:8080/actuator/health
+curl http://localhost:8081/actuator/health
+curl http://localhost:8080/actuator/prometheus | grep changes_
+docker compose logs change-service --follow
+docker compose logs deploy-orchestrator --follow
+```
