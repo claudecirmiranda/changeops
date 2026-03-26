@@ -47,7 +47,7 @@ class KafkaResultPublisherAdapterTest {
         result.markFinished();
 
         RecordMetadata metadata = new RecordMetadata(
-                new TopicPartition(CHANGE_RESULT_TOPIC, 0), 0L, 0L, 0L, 0, 0);
+                new TopicPartition(CHANGE_RESULT_TOPIC, 0), 0L, 0, 0L, 0, 0);
         SendResult<String, IntegrationEvent> sendResult =
                 new SendResult<>(new ProducerRecord<>(CHANGE_RESULT_TOPIC, null), metadata);
         when(kafkaTemplate.send(eq(CHANGE_RESULT_TOPIC), any(), any()))
