@@ -328,6 +328,9 @@ public record CreateChangeRequest(
     String description,
 
     @NotBlank(message = "componentId is required")
+    @Size(max = 100, message = "componentId must not exceed 100 characters")
+    @Pattern(regexp = "^[a-zA-Z0-9][a-zA-Z0-9_.\\-]{0,99}$",
+            message = "componentId must start with alphanumeric and contain only letters, digits, dots, hyphens, or underscores")
     String componentId,
 
     @NotBlank(message = "requestedBy is required")
@@ -456,6 +459,7 @@ class CreateChangeIT {
     @Test void shouldCreate_whenPayloadIsValid_thenReturn201AndPublishEvent() { ... }
     @Test void shouldReturn400_whenTitleIsMissing() { ... }
     @Test void shouldReturn400_whenComponentIdIsMissing() { ... }
+    @Test void shouldReturn400_whenComponentIdHasInvalidFormat() { ... }
     @Test void shouldListChanges_andReturnPaginatedResults() { ... }
 }
 ```
@@ -568,8 +572,27 @@ public class DeployEventConsumer {
 
     @KafkaListener(topics = "${changeops.kafka.topics.deploy-finished}-dlt", ...)
     public void onDlt(ConsumerRecord<String, DeployFinishedEvent> record) {
-        log.error("Event sent to DLQ after max retries: deployId={}",
-                  record.value().payload().deployId());
+        DeployFinishedEvent event = record.value();
+        try {
+            if (event != null && event.payload() != null) {
+                MDC.put("correlation_id", event.correlationId() != null
+                        ? event.correlationId().toString() : "unknown");
+                MDC.put("change_id", event.payload().changeId() != null
+                        ? event.payload().changeId().toString() : "unknown");
+                MDC.put("deploy_id", event.payload().deployId() != null
+                        ? event.payload().deployId().toString() : "unknown");
+                log.error("Event sent to DLQ after max retries: key={}, deployId={}, changeId={}, result={}",
+                        record.key(), event.payload().deployId(),
+                        event.payload().changeId(), event.payload().result());
+            } else {
+                log.error("Event sent to DLQ after max retries: key={}, payload=null", record.key());
+            }
+            consumeErrorCounter.increment();
+        } finally {
+            MDC.remove("correlation_id");
+            MDC.remove("change_id");
+            MDC.remove("deploy_id");
+        }
     }
 }
 ```
@@ -1021,7 +1044,7 @@ Em `prod/staging`: JSON completo via `LogstashEncoder`.
 | Métrica | Tipo | Serviço |
 |---------|------|---------|
 | `changes_created_total` | Counter | change-service |
-| `events_published_total` | Counter | change-service, deploy-orchestrator |
+| `events_published_total{type="..."}` | Counter | change-service (`ChangePreparedEvent`), deploy-orchestrator (`ChangeCompletedEvent`, `ChangeFailedEvent`) |
 | `events_consumed_total{type="DeployFinishedEvent"}` | Counter | deploy-orchestrator |
 | `events_failed_total{consumer="deploy-orchestrator"}` | Counter | deploy-orchestrator |
 | `http_server_requests_seconds` | Histogram | change-service |

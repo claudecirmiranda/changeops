@@ -65,6 +65,7 @@ A estratégia de testes do ChangeOps prioriza **confiança nos fluxos críticos*
 | Classe de Teste | O que cobre |
 |----------------|-------------|
 | `ProcessDeployResultServiceTest` | Orquestração completa: idempotência, checklist, atualização de status, publicação de evento, descarte de duplicatas |
+| `KafkaResultPublisherAdapterTest` | Publicação com sucesso incrementa counter; falha de publicação aciona fallback para DLQ |
 
 ### 3.3 Testes de Integração — Backend
 

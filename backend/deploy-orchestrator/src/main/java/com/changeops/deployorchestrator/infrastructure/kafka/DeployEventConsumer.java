@@ -78,9 +78,26 @@ public class DeployEventConsumer {
             groupId = "${changeops.kafka.consumer.group-id}-dlt"
     )
     public void onDlt(ConsumerRecord<String, DeployFinishedEvent> record) {
-        log.error("Event sent to DLQ after max retries: key={}, deployId={}",
-                record.key(),
-                record.value() != null ? record.value().payload().deployId() : "unknown");
-        consumeErrorCounter.increment();
+        DeployFinishedEvent event = record.value();
+        try {
+            if (event != null && event.payload() != null) {
+                MDC.put("correlation_id", event.correlationId() != null
+                        ? event.correlationId().toString() : "unknown");
+                MDC.put("change_id", event.payload().changeId() != null
+                        ? event.payload().changeId().toString() : "unknown");
+                MDC.put("deploy_id", event.payload().deployId() != null
+                        ? event.payload().deployId().toString() : "unknown");
+                log.error("Event sent to DLQ after max retries: key={}, deployId={}, changeId={}, result={}",
+                        record.key(), event.payload().deployId(),
+                        event.payload().changeId(), event.payload().result());
+            } else {
+                log.error("Event sent to DLQ after max retries: key={}, payload=null", record.key());
+            }
+            consumeErrorCounter.increment();
+        } finally {
+            MDC.remove("correlation_id");
+            MDC.remove("change_id");
+            MDC.remove("deploy_id");
+        }
     }
 }

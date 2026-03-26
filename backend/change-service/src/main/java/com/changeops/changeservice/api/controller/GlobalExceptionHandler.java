@@ -5,6 +5,7 @@ import com.changeops.changeservice.domain.exception.InvalidChangeStateException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -30,6 +31,16 @@ public class GlobalExceptionHandler {
         pd.setType(URI.create("https://changeops.io/errors/validation"));
         pd.setTitle("Validation Error");
         pd.setProperty("fields", fields);
+        pd.setProperty("timestamp", Instant.now());
+        return pd;
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleNotReadable(HttpMessageNotReadableException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, "Malformed or unreadable request body");
+        pd.setType(URI.create("https://changeops.io/errors/bad-request"));
+        pd.setTitle("Bad Request");
         pd.setProperty("timestamp", Instant.now());
         return pd;
     }

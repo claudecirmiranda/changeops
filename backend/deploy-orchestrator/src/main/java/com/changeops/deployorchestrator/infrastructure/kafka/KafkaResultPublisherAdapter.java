@@ -2,7 +2,6 @@ package com.changeops.deployorchestrator.infrastructure.kafka;
 
 import com.changeops.deployorchestrator.application.port.out.PublishResultEventPort;
 import com.changeops.deployorchestrator.domain.model.ChangeResult;
-import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,7 +21,7 @@ public class KafkaResultPublisherAdapter implements PublishResultEventPort {
     private final KafkaTemplate<String, IntegrationEvent> kafkaTemplate;
     private final String changeResultTopic;
     private final String dlqTopic;
-    private final Counter eventsPublishedCounter;
+    private final MeterRegistry meterRegistry;
 
     public KafkaResultPublisherAdapter(
             KafkaTemplate<String, IntegrationEvent> kafkaTemplate,
@@ -32,9 +31,7 @@ public class KafkaResultPublisherAdapter implements PublishResultEventPort {
         this.kafkaTemplate = kafkaTemplate;
         this.changeResultTopic = changeResultTopic;
         this.dlqTopic = dlqTopic;
-        this.eventsPublishedCounter = Counter.builder("events_published_total")
-                .description("Total result events published")
-                .register(meterRegistry);
+        this.meterRegistry = meterRegistry;
     }
 
     @Override
@@ -45,7 +42,7 @@ public class KafkaResultPublisherAdapter implements PublishResultEventPort {
         try {
             SendResult<String, IntegrationEvent> sendResult =
                     kafkaTemplate.send(changeResultTopic, key, envelope).get(10, TimeUnit.SECONDS);
-            eventsPublishedCounter.increment();
+            meterRegistry.counter("events_published_total", "type", envelope.eventType()).increment();
             log.info("Result event published: eventType={}, changeId={}, correlationId={}",
                     envelope.eventType(), result.getChangeId(), result.getCorrelationId());
         } catch (ExecutionException e) {

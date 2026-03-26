@@ -481,7 +481,7 @@ Todos os campos são indexáveis — integração direta com Elasticsearch/Splun
 | Métrica | Tipo | Descrição |
 |---------|------|-----------|
 | `changes_created_total` | Counter | Total de mudanças criadas |
-| `events_published_total` | Counter | Eventos publicados no Kafka |
+| `events_published_total{type="..."}` | Counter | Eventos publicados no Kafka, dimensionado por tipo de evento |
 | `events_consumed_total` | Counter | Eventos consumidos pelo orchestrator |
 | `events_failed_total` | Counter | Eventos enviados para DLT |
 | `changes_by_status{status}` | Gauge | Distribuição atual por status (refresh 60s) |
