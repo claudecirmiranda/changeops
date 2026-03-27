@@ -28,6 +28,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
     private final SaveChangeEventPort saveChangeEventPort; // ← aqui, junto aos outros campos
     private final Counter eventsConsumedCounter;
     private final Counter eventsFailedCounter;
+    private final Counter eventsDiscardedCounter;
 
     public ProcessDeployResultService(
             IdempotencyPort idempotencyPort,
@@ -48,6 +49,10 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
         this.eventsFailedCounter = Counter.builder("events_failed_total")
                 .description("Total events that failed processing")
                 .register(meterRegistry);
+        this.eventsDiscardedCounter = Counter.builder("events_discarded_total")
+                .tag("reason", "duplicate")
+                .description("Total events discarded (e.g. duplicates)")
+                .register(meterRegistry);
     }
 
     @Override
@@ -66,6 +71,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
 
             // ── Step 1: Atomic idempotency check + mark ──────────────
             if (!idempotencyPort.tryMarkAsProcessed(payload.deployId(), "deploy-orchestrator")) {
+                eventsDiscardedCounter.increment();
                 log.warn("Event already processed, discarding: deployId={}", payload.deployId());
                 return;
             }

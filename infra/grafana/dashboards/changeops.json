@@ -175,10 +175,23 @@
       }]
     },
     {
+      "id": 24,
+      "title": "Events - Discarded (total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 18 },
+      "fieldConfig": {
+        "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" }, "decimals": 0 }
+      },
+      "targets": [{
+        "expr": "sum(increase(events_discarded_total[$__range]))",
+        "legendFormat": "Discarded"
+      }]
+    },
+    {
       "id": 7,
       "title": "Events - Rate (per min)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 18, "x": 6, "y": 18 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
       "targets": [
         {
           "expr": "sum(rate(events_published_total[1m])) * 60",
