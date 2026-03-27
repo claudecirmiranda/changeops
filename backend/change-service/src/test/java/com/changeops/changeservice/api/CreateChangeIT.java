@@ -159,46 +159,6 @@ class CreateChangeIT {
                 .andExpect(jsonPath("$.pageable").exists());
     }
 
-    @Test
-    void shouldRemainPrepared_whenNoDeployEventIsReceived() throws Exception {
-        CreateChangeRequest request = new CreateChangeRequest(
-                "Deploy inventory-service v1.5",
-                "Rollout de nova versão do serviço de inventário",
-                "inventory-service",
-                "user-test-prepared",
-                Instant.now().plus(3, ChronoUnit.DAYS));
-
-        // Cria a change e captura o changeId
-        String responseBody = mockMvc.perform(post("/api/v1/changes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request))
-                        .header("X-User-Id", "user-test-prepared"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.changeId").isNotEmpty())
-                .andExpect(jsonPath("$.status").value("PREPARED"))
-                .andReturn().getResponse().getContentAsString();
-
-        String changeId = objectMapper.readTree(responseBody).get("changeId").asText();
-
-        // Confirma via GET que o status continua PREPARED
-        mockMvc.perform(get("/api/v1/changes/{changeId}", changeId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.changeId").value(changeId))
-                .andExpect(jsonPath("$.status").value("PREPARED"))
-                .andExpect(jsonPath("$.title").value("Deploy inventory-service v1.5"))
-                .andExpect(jsonPath("$.componentId").value("inventory-service"));
-
-        // Confirma que a timeline contém apenas ChangePreparedEvent (nenhum COMPLETED ou FAILED)
-        String eventsBody = mockMvc.perform(get("/api/v1/changes/{changeId}/events", changeId))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-
-        var eventsTree = objectMapper.readTree(eventsBody);
-        assertThat(eventsTree.isArray()).isTrue();
-        assertThat(eventsTree.size()).isEqualTo(1);
-        assertThat(eventsTree.get(0).get("eventType").asText()).isEqualTo("ChangePreparedEvent");
-    }
-
     private ConsumerRecords<String, String> consumeFromKafka(String topic, String expectedKey) {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());

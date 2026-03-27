@@ -33,7 +33,7 @@ public class ChangeMetricsCollector implements MeterBinder {
         refreshCounts();
     }
 
-    @Scheduled(fixedDelay = 60_000)
+    @Scheduled(fixedDelay = 5_000)
     public void refreshCounts() {
         for (ChangeStatus status : ChangeStatus.values()) {
             counts.get(status).set(changeJpaRepository.countByStatus(status));
