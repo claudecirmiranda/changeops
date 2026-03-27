@@ -1,6 +1,7 @@
 {
   "id": null,
   "uid": "changeops-main",
+  "version": 2,
   "title": "ChangeOps Dashboard",
   "tags": ["changeops"],
   "timezone": "browser",
@@ -23,7 +24,9 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
       "targets": [{
         "expr": "sum(changes_by_status)",
-        "legendFormat": "Total"
+        "legendFormat": "Total",
+        "instant": true,
+        "interval": "5s"
       }]
     },
     {
@@ -36,7 +39,9 @@
       },
       "targets": [{
         "expr": "changes_by_status{status='COMPLETED'}",
-        "legendFormat": "Completed"
+        "legendFormat": "Completed",
+        "instant": true,
+        "interval": "5s"
       }]
     },
     {
@@ -49,7 +54,9 @@
       },
       "targets": [{
         "expr": "changes_by_status{status='FAILED'}",
-        "legendFormat": "Failed"
+        "legendFormat": "Failed",
+        "instant": true,
+        "interval": "5s"
       }]
     },
     {
@@ -62,7 +69,9 @@
       },
       "targets": [{
         "expr": "changes_by_status{status='PREPARED'}",
-        "legendFormat": "Prepared"
+        "legendFormat": "Prepared",
+        "instant": true,
+        "interval": "5s"
       }]
     },
     {
@@ -89,7 +98,9 @@
       },
       "targets": [{
         "expr": "sum by (status) (changes_by_status)",
-        "legendFormat": "{{status}}"
+        "legendFormat": "{{status}}",
+        "instant": true,
+        "interval": "5s"
       }]
     },
     {
@@ -106,9 +117,11 @@
           }
         }
       },
+      "maxDataPoints": 100,
       "targets": [{
         "expr": "histogram_quantile(0.95, sum by (le, method, uri) (rate(api_request_duration_seconds_bucket{job='change-service'}[$__rate_interval])))",
-        "legendFormat": "p95 {{method}}"
+        "legendFormat": "p95 {{method}}",
+        "interval": "5s"
       }]
     },
     {
@@ -127,9 +140,11 @@
       "fieldConfig": {
         "defaults": { "decimals": 0 }
       },
+      "maxDataPoints": 100,
       "targets": [{
         "expr": "sum(increase(events_published_total[$__range]))",
-        "legendFormat": "Published"
+        "legendFormat": "Published",
+        "interval": "5s"
       }]
     },
     {
@@ -140,9 +155,11 @@
       "fieldConfig": {
         "defaults": { "decimals": 0 }
       },
+      "maxDataPoints": 100,
       "targets": [{
         "expr": "sum(increase(events_consumed_total[$__range]))",
-        "legendFormat": "Consumed"
+        "legendFormat": "Consumed",
+        "interval": "5s"
       }]
     },
     {
@@ -153,9 +170,11 @@
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "decimals": 0 }
       },
+      "maxDataPoints": 100,
       "targets": [{
         "expr": "sum(increase(events_failed_total[$__range]))",
-        "legendFormat": "Failed"
+        "legendFormat": "Failed",
+        "interval": "5s"
       }]
     },
     {
@@ -166,9 +185,11 @@
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "dark-red", "mode": "fixed" }, "decimals": 0 }
       },
+      "maxDataPoints": 100,
       "targets": [{
         "expr": "sum(increase(events_dlt_total[$__range]))",
-        "legendFormat": "DLT"
+        "legendFormat": "DLT",
+        "interval": "5s"
       }]
     },
     {
@@ -179,9 +200,11 @@
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" }, "decimals": 0 }
       },
+      "maxDataPoints": 100,
       "targets": [{
         "expr": "sum(increase(events_discarded_total[$__range]))",
-        "legendFormat": "Discarded"
+        "legendFormat": "Discarded",
+        "interval": "5s"
       }]
     },
     {
@@ -189,18 +212,22 @@
       "title": "Events - Rate (per min)",
       "type": "timeseries",
       "gridPos": { "h": 20, "w": 18, "x": 6, "y": 14 },
+      "maxDataPoints": 100,
       "targets": [
         {
           "expr": "sum(rate(events_published_total[$__rate_interval])) * 60",
-          "legendFormat": "Published/min"
+          "legendFormat": "Published/min",
+          "interval": "5s"
         },
         {
           "expr": "rate(events_consumed_total[$__rate_interval]) * 60",
-          "legendFormat": "Consumed/min"
+          "legendFormat": "Consumed/min",
+          "interval": "5s"
         },
         {
           "expr": "rate(events_failed_total[$__rate_interval]) * 60",
-          "legendFormat": "Failed/min"
+          "legendFormat": "Failed/min",
+          "interval": "5s"
         }
       ]
     }
