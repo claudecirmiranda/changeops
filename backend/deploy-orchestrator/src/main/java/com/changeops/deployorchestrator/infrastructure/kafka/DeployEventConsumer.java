@@ -86,7 +86,8 @@ public class DeployEventConsumer {
 
     @KafkaListener(
             topics = "${changeops.kafka.topics.deploy-finished}-dlt",
-            groupId = "${changeops.kafka.consumer.group-id}-dlt"
+            groupId = "${changeops.kafka.consumer.group-id}-dlt",
+            containerFactory = "deployEventListenerContainerFactory"
     )
     public void onDlt(ConsumerRecord<String, DeployFinishedEvent> record) {
         DeployFinishedEvent event = record.value();
