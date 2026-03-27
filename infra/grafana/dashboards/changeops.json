@@ -106,7 +106,7 @@
         }
       },
       "targets": [{
-        "expr": "histogram_quantile(0.95, sum by (le, method) (rate(api_request_duration_seconds_bucket{job='change-service'}[5m])))",
+        "expr": "histogram_quantile(0.95, sum by (le, method, uri) (rate(api_request_duration_seconds_bucket{job='change-service'}[$__rate_interval])))",
         "legendFormat": "p95 {{method}}"
       }]
     },
@@ -122,7 +122,7 @@
       "id": 2,
       "title": "Events - Published (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 14 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 14 },
       "fieldConfig": {
         "defaults": { "decimals": 0 }
       },
@@ -135,7 +135,7 @@
       "id": 3,
       "title": "Events - Consumed (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 14 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 18 },
       "fieldConfig": {
         "defaults": { "decimals": 0 }
       },
@@ -148,7 +148,7 @@
       "id": 4,
       "title": "Events - Failed (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 14 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 22 },
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "decimals": 0 }
       },
@@ -161,7 +161,7 @@
       "id": 23,
       "title": "Events - DLT (total)",
       "type": "stat",
-      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 18 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 26 },
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "dark-red", "mode": "fixed" }, "decimals": 0 }
       },
@@ -174,7 +174,7 @@
       "id": 24,
       "title": "Events - Discarded (total)",
       "type": "stat",
-      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 18 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 30 },
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" }, "decimals": 0 }
       },
@@ -187,7 +187,7 @@
       "id": 7,
       "title": "Events - Rate (per min)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "gridPos": { "h": 20, "w": 18, "x": 6, "y": 14 },
       "targets": [
         {
           "expr": "sum(rate(events_published_total[1m])) * 60",
