@@ -94,10 +94,19 @@
     {
       "id": 5,
       "title": "Changes - API Duration (p95)",
+      "description": "Latência p95 por método da API do change-service. Unidade: segundos (ms para valores abaixo de 1s).",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "axisLabel": "Latência (s)"
+          }
+        }
+      },
       "targets": [{
-        "expr": "histogram_quantile(0.95, sum(rate(api_request_duration_seconds_bucket{job='change-service'}[5m])) by (le, method))",
+        "expr": "histogram_quantile(0.95, sum by (le, method) (rate(api_request_duration_seconds_bucket{job='change-service'}[$__rate_interval])))",
         "legendFormat": "p95 {{method}}"
       }]
     },
