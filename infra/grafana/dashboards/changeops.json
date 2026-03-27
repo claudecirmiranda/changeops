@@ -106,7 +106,7 @@
         }
       },
       "targets": [{
-        "expr": "histogram_quantile(0.95, sum by (le, method) (rate(api_request_duration_seconds_bucket{job='change-service'}[$__rate_interval])))",
+        "expr": "histogram_quantile(0.95, sum by (le, method) (rate(api_request_duration_seconds_bucket{job='change-service'}[5m])))",
         "legendFormat": "p95 {{method}}"
       }]
     },
@@ -122,7 +122,7 @@
       "id": 2,
       "title": "Events - Published (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 14 },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 14 },
       "fieldConfig": {
         "defaults": { "decimals": 0 }
       },
@@ -135,7 +135,7 @@
       "id": 3,
       "title": "Events - Consumed (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 14 },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 14 },
       "fieldConfig": {
         "defaults": { "decimals": 0 }
       },
@@ -148,26 +148,13 @@
       "id": 4,
       "title": "Events - Failed (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 14 },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 14 },
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "decimals": 0 }
       },
       "targets": [{
         "expr": "sum(increase(events_failed_total[$__range]))",
         "legendFormat": "Failed"
-      }]
-    },
-    {
-      "id": 22,
-      "title": "Events - Retries (total)",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 14 },
-      "fieldConfig": {
-        "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" }, "decimals": 0 }
-      },
-      "targets": [{
-        "expr": "sum(increase(events_retry_total[$__range]))",
-        "legendFormat": "Retries"
       }]
     },
     {

@@ -47,6 +47,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                 .description("Total DeployFinishedEvents consumed")
                 .register(meterRegistry);
         this.eventsFailedCounter = Counter.builder("events_failed_total")
+                .tag("consumer", "deploy-orchestrator")
                 .description("Total events that failed processing")
                 .register(meterRegistry);
         this.eventsDiscardedCounter = Counter.builder("events_discarded_total")
