@@ -21,7 +21,7 @@
       "id": 1,
       "title": "Changes - Total",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 1 },
       "targets": [{
         "expr": "sum(changes_by_status)",
         "legendFormat": "Total",
@@ -30,10 +30,25 @@
       }]
     },
     {
+      "id": 25,
+      "title": "Changes - Created (total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 5, "x": 5, "y": 1 },
+      "fieldConfig": {
+        "defaults": { "decimals": 0 }
+      },
+      "targets": [{
+        "expr": "sum(changes_created_total)",
+        "legendFormat": "Created",
+        "instant": true,
+        "interval": "5s"
+      }]
+    },
+    {
       "id": 8,
       "title": "Changes - Completed",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "gridPos": { "h": 4, "w": 5, "x": 10, "y": 1 },
       "fieldConfig": {
         "defaults": { "decimals": 0, "color": { "fixedColor": "green", "mode": "fixed" } }
       },
@@ -48,7 +63,7 @@
       "id": 9,
       "title": "Changes - Failed",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "gridPos": { "h": 4, "w": 5, "x": 15, "y": 1 },
       "fieldConfig": {
         "defaults": { "decimals": 0, "color": { "fixedColor": "red", "mode": "fixed" } }
       },
@@ -63,7 +78,7 @@
       "id": 10,
       "title": "Changes - Prepared",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
       "fieldConfig": {
         "defaults": { "decimals": 0, "color": { "fixedColor": "blue", "mode": "fixed" } }
       },
@@ -97,7 +112,7 @@
         ]
       },
       "targets": [{
-        "expr": "sum by (status) (changes_by_status)",
+        "expr": "sum by (status) (changes_by_status{status=~'COMPLETED|FAILED|PREPARED'})",
         "legendFormat": "{{status}}",
         "instant": true,
         "interval": "5s"
@@ -105,24 +120,46 @@
     },
     {
       "id": 5,
-      "title": "Changes - API Duration (p95)",
-      "description": "Latência p95 por método da API do change-service. Unidade: segundos (ms para valores abaixo de 1s).",
+      "title": "API Latency (p95)",
+      "description": "Latência p95 das requisições REST ao longo do tempo.",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
       "fieldConfig": {
         "defaults": {
           "unit": "s",
+          "color": { "mode": "palette-classic" },
           "custom": {
-            "axisLabel": "Latência (s)"
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "pointSize": 5,
+            "showPoints": "auto"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "red", "value": 0.5 }
+            ]
           }
         }
       },
-      "maxDataPoints": 100,
-      "targets": [{
-        "expr": "histogram_quantile(0.95, sum by (le, method, uri) (rate(api_request_duration_seconds_bucket{job='change-service'}[$__rate_interval])))",
-        "legendFormat": "p95 {{method}}",
-        "interval": "5s"
-      }]
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job='change-service'}[5m])))",
+          "legendFormat": "change-service p95",
+          "interval": "30s"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job='deploy-orchestrator'}[5m])))",
+          "legendFormat": "deploy-orchestrator p95",
+          "interval": "30s"
+        }
+      ]
     },
     {
       "id": 21,
@@ -136,7 +173,7 @@
       "id": 2,
       "title": "Events - Published (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 14 },
+      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 14 },
       "fieldConfig": {
         "defaults": { "decimals": 0 }
       },
@@ -152,7 +189,7 @@
       "id": 3,
       "title": "Events - Consumed (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 18 },
+      "gridPos": { "h": 4, "w": 5, "x": 5, "y": 14 },
       "fieldConfig": {
         "defaults": { "decimals": 0 }
       },
@@ -168,7 +205,7 @@
       "id": 4,
       "title": "Events - Failed (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 22 },
+      "gridPos": { "h": 4, "w": 5, "x": 10, "y": 14 },
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "decimals": 0 }
       },
@@ -184,7 +221,7 @@
       "id": 23,
       "title": "Events - DLT (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 26 },
+      "gridPos": { "h": 4, "w": 5, "x": 15, "y": 14 },
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "dark-red", "mode": "fixed" }, "decimals": 0 }
       },
@@ -200,7 +237,7 @@
       "id": 24,
       "title": "Events - Discarded (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 30 },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 14 },
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" }, "decimals": 0 }
       },
@@ -216,25 +253,69 @@
       "id": 7,
       "title": "Events - Rate (per min)",
       "type": "timeseries",
-      "gridPos": { "h": 20, "w": 18, "x": 6, "y": 14 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 18 },
       "maxDataPoints": 100,
       "targets": [
         {
           "expr": "sum(rate(events_published_total[$__rate_interval])) * 60",
           "legendFormat": "Published/min",
-          "interval": "5s"
+          "interval": "30s"
         },
         {
-          "expr": "rate(events_consumed_total[$__rate_interval]) * 60",
+          "expr": "sum(rate(events_consumed_total[$__rate_interval])) * 60",
           "legendFormat": "Consumed/min",
-          "interval": "5s"
+          "interval": "30s"
         },
         {
-          "expr": "rate(events_failed_total[$__rate_interval]) * 60",
+          "expr": "sum(rate(events_failed_total[$__rate_interval])) * 60",
           "legendFormat": "Failed/min",
-          "interval": "5s"
+          "interval": "30s"
         }
       ]
+    },
+    {
+      "id": 22,
+      "title": "Orchestration",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "panels": []
+    },
+    {
+      "id": 26,
+      "title": "Orchestration Latency (p95)",
+      "description": "Latência p95 do processamento de DeployFinishedEvent no orquestrador.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 27 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "pointSize": 5,
+            "showPoints": "auto"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 2.0 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum by (le) (rate(orchestration_duration_seconds_bucket[5m])))",
+        "legendFormat": "p95",
+        "interval": "30s"
+      }]
     }
   ]
 }

@@ -9,6 +9,7 @@ import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
 import com.changeops.deployorchestrator.domain.model.ChangeResult;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
@@ -29,6 +30,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
     private final Counter eventsConsumedCounter;
     private final Counter eventsFailedCounter;
     private final Counter eventsDiscardedCounter;
+    private final Timer orchestrationTimer;
 
     public ProcessDeployResultService(
             IdempotencyPort idempotencyPort,
@@ -54,6 +56,10 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                 .tag("reason", "duplicate")
                 .description("Total events discarded (e.g. duplicates)")
                 .register(meterRegistry);
+        this.orchestrationTimer = Timer.builder("orchestration_duration_seconds")
+                .description("Time to process a DeployFinishedEvent end-to-end")
+                .publishPercentileHistogram()
+                .register(meterRegistry);
     }
 
     @Override
@@ -66,6 +72,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
         MDC.put("change_id", payload.changeId().toString());
         MDC.put("deploy_id", payload.deployId().toString());
 
+        Timer.Sample timerSample = Timer.start();
         try {
             log.info("DeployFinishedEvent received: deployId={}, changeId={}, result={}",
                     payload.deployId(), payload.changeId(), payload.result());
@@ -132,6 +139,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                     payload.deployId(), payload.changeId(), e);
             throw e;
         } finally {
+            timerSample.stop(orchestrationTimer);
             MDC.remove("deploy_id");
             MDC.remove("change_id");
         }
