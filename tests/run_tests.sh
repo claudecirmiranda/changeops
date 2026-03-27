@@ -198,8 +198,8 @@ echo "========================================"
 EVENT_11='{"eventType":"DeployFinishedEvent","version":"1.0","correlationId":"deadbeef-dead-beef-dead-beefdeadbeef","occurredAt":"2026-03-26T12:30:00Z","payload":{"deployId":"cc000000-0000-0000-0000-000000000001","changeId":"00000000-0000-0000-0000-000000000099","result":"SUCCESS","executedAt":"2026-03-26T12:30:00Z"}}'
 echo "$EVENT_11" | docker exec -i changeops-kafka kafka-console-producer --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
 echo "  INFO evento DLT publicado (changeId inexistente)"
-echo "  INFO aguardando 35s para retries + DLT..."
-sleep 35
+echo "  INFO aguardando 15s para retries + DLT..."
+sleep 15
 # Verifica se topic DLT existe e tem mensagens
 dlt_count=$(docker exec changeops-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic changeops.deploy.finished-dlt --from-beginning --max-messages 10 --timeout-ms 5000 2>/dev/null | wc -l)
 [ "$dlt_count" -gt 0 ] && { echo "  PASS [CT-11] mensagem chegou no DLT Kafka (count=$dlt_count)"; PASS=$((PASS+1)); } || { echo "  FAIL [CT-11] nenhuma mensagem no DLT Kafka"; FAIL=$((FAIL+1)); }

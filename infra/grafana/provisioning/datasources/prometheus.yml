@@ -9,6 +9,7 @@ datasources:
     editable: false
     jsonData:
       httpMethod: POST
+      scrapeInterval: 5s
       exemplarTraceIdDestinations:
         - name: traceID
           datasourceUid: tempo

@@ -5,7 +5,7 @@
   "tags": ["changeops"],
   "timezone": "browser",
   "schemaVersion": 38,
-  "refresh": "30s",
+  "refresh": "5s",
   "panels": [
     {
       "id": 20,
@@ -190,15 +190,15 @@
       "gridPos": { "h": 20, "w": 18, "x": 6, "y": 14 },
       "targets": [
         {
-          "expr": "sum(rate(events_published_total[1m])) * 60",
+          "expr": "sum(rate(events_published_total[$__rate_interval])) * 60",
           "legendFormat": "Published/min"
         },
         {
-          "expr": "rate(events_consumed_total[1m]) * 60",
+          "expr": "rate(events_consumed_total[$__rate_interval]) * 60",
           "legendFormat": "Consumed/min"
         },
         {
-          "expr": "rate(events_failed_total[1m]) * 60",
+          "expr": "rate(events_failed_total[$__rate_interval]) * 60",
           "legendFormat": "Failed/min"
         }
       ]

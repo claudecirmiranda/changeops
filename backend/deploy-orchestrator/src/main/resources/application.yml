@@ -51,6 +51,7 @@ management:
     export:
       prometheus:
         enabled: true
+        step: 5s
     tags:
       application: deploy-orchestrator
 
