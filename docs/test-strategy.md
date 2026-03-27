@@ -73,7 +73,7 @@ A estratégia de testes do ChangeOps prioriza **confiança nos fluxos críticos*
 
 | Classe de Teste | O que cobre |
 |----------------|-------------|
-| `CreateChangeIT` | `POST /changes` → persistência → evento no Kafka; validação 400; listagem paginada; mudança permanece `PREPARED` sem evento de deploy |
+| `CreateChangeIT` | `POST /changes` → persistência → evento no Kafka; validação 400; listagem paginada |
 | `DeployEventConsumerIT` | Consumo de `DeployFinishedEvent` → status COMPLETED/FAILED; idempotência (duplicata sem efeito); persistência de evento na timeline |
 
 **Infra:** PostgreSQL 16-alpine + Confluent Kafka 7.6.0 via `@Container` + `@DynamicPropertySource`.
@@ -138,7 +138,6 @@ cd frontend && npm test
 |-------------|-------|--------|
 | Criação com dados válidos → 201 + evento | `CreateChangeIT.shouldCreate_whenPayloadIsValid` | ✅ |
 | Criação sem campo obrigatório → 400 | `CreateChangeIT` (validação) | ✅ |
-| Mudança permanece PREPARED sem evento de deploy | `CreateChangeIT.shouldRemainPrepared_whenNoDeployEventIsReceived` | ✅ |
 | Deploy com sucesso → COMPLETED + ChangeCompletedEvent | `DeployEventConsumerIT.shouldMarkCompleted` | ✅ |
 | Deploy com falha → FAILED + ChangeFailedEvent | `DeployEventConsumerIT.shouldMarkFailed` | ✅ |
 | Mesmo evento 2x → estado inalterado | `DeployEventConsumerIT.shouldBeIdempotent` | ✅ |
