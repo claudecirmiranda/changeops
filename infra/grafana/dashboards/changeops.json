@@ -144,6 +144,7 @@
       "targets": [{
         "expr": "sum(increase(events_published_total[$__range]))",
         "legendFormat": "Published",
+        "instant": true,
         "interval": "5s"
       }]
     },
@@ -159,6 +160,7 @@
       "targets": [{
         "expr": "sum(increase(events_consumed_total[$__range]))",
         "legendFormat": "Consumed",
+        "instant": true,
         "interval": "5s"
       }]
     },
@@ -174,6 +176,7 @@
       "targets": [{
         "expr": "sum(increase(events_failed_total[$__range]))",
         "legendFormat": "Failed",
+        "instant": true,
         "interval": "5s"
       }]
     },
@@ -189,6 +192,7 @@
       "targets": [{
         "expr": "sum(increase(events_dlt_total[$__range]))",
         "legendFormat": "DLT",
+        "instant": true,
         "interval": "5s"
       }]
     },
@@ -204,6 +208,7 @@
       "targets": [{
         "expr": "sum(increase(events_discarded_total[$__range]))",
         "legendFormat": "Discarded",
+        "instant": true,
         "interval": "5s"
       }]
     },
