@@ -161,7 +161,7 @@
       "id": 23,
       "title": "Events - DLT (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 18 },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 18 },
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "dark-red", "mode": "fixed" }, "decimals": 0 }
       },
@@ -174,7 +174,7 @@
       "id": 24,
       "title": "Events - Discarded (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 18 },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 18 },
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" }, "decimals": 0 }
       },
