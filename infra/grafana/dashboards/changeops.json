@@ -8,59 +8,28 @@
   "refresh": "30s",
   "panels": [
     {
+      "id": 20,
+      "title": "Changes",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "panels": []
+    },
+    {
       "id": 1,
-      "title": "Changes Created (total)",
+      "title": "Changes - Total",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
       "targets": [{
         "expr": "sum(changes_by_status)",
         "legendFormat": "Total"
       }]
     },
     {
-      "id": 2,
-      "title": "Events Published (total)",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
-      "fieldConfig": {
-        "defaults": { "decimals": 0 }
-      },
-      "targets": [{
-        "expr": "sum(increase(events_published_total[$__range]))",
-        "legendFormat": "Published"
-      }]
-    },
-    {
-      "id": 3,
-      "title": "Events Consumed (total)",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
-      "fieldConfig": {
-        "defaults": { "decimals": 0 }
-      },
-      "targets": [{
-        "expr": "sum(increase(events_consumed_total[$__range]))",
-        "legendFormat": "Consumed"
-      }]
-    },
-    {
-      "id": 4,
-      "title": "Events Failed (total)",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
-      "fieldConfig": {
-        "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "decimals": 0 }
-      },
-      "targets": [{
-        "expr": "sum(increase(events_failed_total[$__range]))",
-        "legendFormat": "Failed"
-      }]
-    },
-    {
       "id": 8,
-      "title": "Completed",
+      "title": "Changes - Completed",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 4 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
       "fieldConfig": {
         "defaults": { "decimals": 0, "color": { "fixedColor": "green", "mode": "fixed" } }
       },
@@ -71,9 +40,9 @@
     },
     {
       "id": 9,
-      "title": "Failed",
+      "title": "Changes - Failed",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 5, "x": 5, "y": 4 },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
       "fieldConfig": {
         "defaults": { "decimals": 0, "color": { "fixedColor": "red", "mode": "fixed" } }
       },
@@ -84,9 +53,9 @@
     },
     {
       "id": 10,
-      "title": "Prepared",
+      "title": "Changes - Prepared",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 5, "x": 10, "y": 4 },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
       "fieldConfig": {
         "defaults": { "decimals": 0, "color": { "fixedColor": "blue", "mode": "fixed" } }
       },
@@ -96,46 +65,10 @@
       }]
     },
     {
-      "id": 11,
-      "title": "Cancelled",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 5, "x": 15, "y": 4 },
-      "fieldConfig": {
-        "defaults": { "decimals": 0, "color": { "fixedColor": "orange", "mode": "fixed" } }
-      },
-      "targets": [{
-        "expr": "changes_by_status{status='CANCELLED'}",
-        "legendFormat": "Cancelled"
-      }]
-    },
-    {
-      "id": 12,
-      "title": "Draft",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 4 },
-      "fieldConfig": {
-        "defaults": { "decimals": 0, "color": { "fixedColor": "gray", "mode": "fixed" } }
-      },
-      "targets": [{
-        "expr": "changes_by_status{status='DRAFT'}",
-        "legendFormat": "Draft"
-      }]
-    },
-    {
-      "id": 5,
-      "title": "API Request Duration (p95)",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
-      "targets": [{
-        "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application='change-service'}[5m])) by (le, method))",
-        "legendFormat": "p95 {{method}}"
-      }]
-    },
-    {
       "id": 6,
-      "title": "Changes by Status",
+      "title": "Changes - By Status",
       "type": "piechart",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
       "fieldConfig": {
         "defaults": {},
         "overrides": [
@@ -150,14 +83,6 @@
           {
             "matcher": { "id": "byName", "options": "PREPARED" },
             "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }]
-          },
-          {
-            "matcher": { "id": "byName", "options": "CANCELLED" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }]
-          },
-          {
-            "matcher": { "id": "byName", "options": "DRAFT" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "gray" } }]
           }
         ]
       },
@@ -167,10 +92,67 @@
       }]
     },
     {
-      "id": 7,
-      "title": "Events Published Rate (per min)",
+      "id": 5,
+      "title": "Changes - API Duration (p95)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application='change-service'}[5m])) by (le, method))",
+        "legendFormat": "p95 {{method}}"
+      }]
+    },
+    {
+      "id": 21,
+      "title": "Events",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "title": "Events - Published (total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 14 },
+      "fieldConfig": {
+        "defaults": { "decimals": 0 }
+      },
+      "targets": [{
+        "expr": "sum(increase(events_published_total[$__range]))",
+        "legendFormat": "Published"
+      }]
+    },
+    {
+      "id": 3,
+      "title": "Events - Consumed (total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 14 },
+      "fieldConfig": {
+        "defaults": { "decimals": 0 }
+      },
+      "targets": [{
+        "expr": "sum(increase(events_consumed_total[$__range]))",
+        "legendFormat": "Consumed"
+      }]
+    },
+    {
+      "id": 4,
+      "title": "Events - Failed (total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 14 },
+      "fieldConfig": {
+        "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "decimals": 0 }
+      },
+      "targets": [{
+        "expr": "sum(increase(events_failed_total[$__range]))",
+        "legendFormat": "Failed"
+      }]
+    },
+    {
+      "id": 7,
+      "title": "Events - Rate (per min)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 18 },
       "targets": [
         {
           "expr": "sum(rate(events_published_total[1m])) * 60",
