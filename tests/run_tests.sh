@@ -202,7 +202,12 @@ echo "  INFO aguardando 35s para retries + DLT..."
 sleep 35
 # Verifica se topic DLT existe e tem mensagens
 dlt_count=$(docker exec changeops-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic changeops.deploy.finished-dlt --from-beginning --max-messages 10 --timeout-ms 5000 2>/dev/null | wc -l)
-[ "$dlt_count" -gt 0 ] && { echo "  PASS [CT-11] mensagem chegou no DLT (count=$dlt_count)"; PASS=$((PASS+1)); } || { echo "  FAIL [CT-11] nenhuma mensagem no DLT"; FAIL=$((FAIL+1)); }
+[ "$dlt_count" -gt 0 ] && { echo "  PASS [CT-11] mensagem chegou no DLT Kafka (count=$dlt_count)"; PASS=$((PASS+1)); } || { echo "  FAIL [CT-11] nenhuma mensagem no DLT Kafka"; FAIL=$((FAIL+1)); }
+
+# Verifica se o counter events_dlt_total foi incrementado no deploy-orchestrator
+dlt_metric=$(curl -s http://localhost:8081/actuator/prometheus | grep '^events_dlt_total' | grep -v '#' | awk '{print $2}' | head -1)
+dlt_int=$(echo "$dlt_metric" | grep -o '^[0-9]*' | head -1)
+[ -n "$dlt_int" ] && [ "$dlt_int" -gt 0 ] && { echo "  PASS [CT-11] events_dlt_total=$dlt_metric (counter incrementado)"; PASS=$((PASS+1)); } || { echo "  FAIL [CT-11] events_dlt_total=${dlt_metric:-0} (counter não incrementado)"; FAIL=$((FAIL+1)); }
 
 echo ""
 echo "========================================"
@@ -216,6 +221,27 @@ val=$(echo "$prom" | grep -o '"value":\[[^]]*\]' | head -1 | grep -o '[0-9]*\.[0
 prom2=$(curl -s http://localhost:9090/api/v1/query --data-urlencode 'query=events_published_total')
 val2=$(echo "$prom2" | grep -o '"value":\[[^]]*\]' | head -1 | grep -o '[0-9.]*"' | tail -1 | tr -d '"')
 [ -n "$val2" ] && echo "  INFO events_published_total=$val2" || echo "  WARN sem valor de events_published_total"
+
+# Verifica métricas do deploy-orchestrator diretamente via actuator (porta 8081)
+echo "  --- deploy-orchestrator (actuator) ---"
+prom_orch=$(curl -s http://localhost:8081/actuator/prometheus)
+
+echo "$prom_orch" | grep -q 'events_consumed_total' \
+  && echo "  PASS [CT-12] events_consumed_total exposto" && PASS=$((PASS+1)) \
+  || { echo "  FAIL [CT-12] events_consumed_total ausente"; FAIL=$((FAIL+1)); }
+
+echo "$prom_orch" | grep -q 'events_failed_total' \
+  && echo "  PASS [CT-12] events_failed_total exposto" && PASS=$((PASS+1)) \
+  || { echo "  FAIL [CT-12] events_failed_total ausente"; FAIL=$((FAIL+1)); }
+
+dlt_prom=$(echo "$prom_orch" | grep '^events_dlt_total' | grep -v '#' | awk '{print $2}' | head -1)
+dlt_prom_int=$(echo "$dlt_prom" | grep -o '^[0-9]*' | head -1)
+[ -n "$dlt_prom_int" ] && [ "$dlt_prom_int" -gt 0 ] \
+  && { echo "  PASS [CT-12] events_dlt_total=$dlt_prom (> 0 após CT-11)"; PASS=$((PASS+1)); } \
+  || { echo "  FAIL [CT-12] events_dlt_total=${dlt_prom:-0} (esperado > 0)"; FAIL=$((FAIL+1)); }
+
+discarded_prom=$(echo "$prom_orch" | grep '^events_discarded_total' | grep -v '#' | awk '{print $2}' | head -1)
+[ -n "$discarded_prom" ] && echo "  INFO events_discarded_total=$discarded_prom" || echo "  WARN events_discarded_total ausente"
 
 echo ""
 echo "========================================"

@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.MDC;
+import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.retrytopic.DltStrategy;
@@ -73,11 +74,7 @@ public class DeployEventConsumer {
         }
     }
 
-    @KafkaListener(
-            topics = "${changeops.kafka.topics.deploy-finished}-dlt",
-            groupId = "${changeops.kafka.consumer.group-id}-dlt",
-            containerFactory = "deployEventListenerContainerFactory"
-    )
+    @DltHandler
     public void onDlt(ConsumerRecord<String, DeployFinishedEvent> record) {
         DeployFinishedEvent event = record.value();
         try {
