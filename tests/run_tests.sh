@@ -1,0 +1,226 @@
+#!/bin/bash
+CHANGE_ID_CT01=""
+CHANGE_ID_CT09=""
+CHANGE_ID_CT10=""
+PASS=0
+FAIL=0
+
+newuuid() {
+  python3 -c "import uuid; print(uuid.uuid4())" 2>/dev/null || \
+  cat /proc/sys/kernel/random/uuid 2>/dev/null || \
+  uuidgen 2>/dev/null
+}
+
+check() {
+  local test=$1
+  local expected=$2
+  local actual=$3
+  local desc=$4
+  if [ "$actual" = "$expected" ]; then
+    echo "  PASS [$test] $desc"
+    PASS=$((PASS+1))
+  else
+    echo "  FAIL [$test] $desc | expected=$expected got=$actual"
+    FAIL=$((FAIL+1))
+  fi
+}
+
+echo ""
+echo "========================================"
+echo "  CT-01: Criar mudança com dados válidos"
+echo "========================================"
+resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/changes \
+  -H "Content-Type: application/json" \
+  -H "X-User-Id: tester-001" \
+  -d '{"title":"Deploy payment-service v3.0","description":"Upgrade do gateway de pagamento","componentId":"payment-service","requestedBy":"tester-001","scheduledAt":"2026-06-01T10:00:00Z"}')
+body=$(echo "$resp" | head -n -1)
+code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
+CHANGE_ID_CT01=$(echo "$body" | grep -o '"changeId":"[^"]*"' | cut -d'"' -f4)
+status_val=$(echo "$body" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+corr=$(echo "$body" | grep -o '"correlationId":"[^"]*"' | cut -d'"' -f4)
+
+check "CT-01" "201" "$code" "HTTP 201 Created"
+check "CT-01" "PREPARED" "$status_val" "status=PREPARED"
+[ -n "$CHANGE_ID_CT01" ] && echo "  INFO changeId=$CHANGE_ID_CT01" || echo "  FAIL no changeId"
+[ -n "$corr" ] && echo "  INFO correlationId=$corr" || echo "  FAIL no correlationId"
+
+echo ""
+echo "========================================"
+echo "  CT-02: Campo obrigatório ausente (sem title)"
+echo "========================================"
+resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/changes \
+  -H "Content-Type: application/json" \
+  -d '{"description":"Teste de validação","componentId":"auth-service","requestedBy":"tester-001","scheduledAt":"2026-06-01T10:00:00Z"}')
+body=$(echo "$resp" | head -n -1)
+code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
+check "CT-02" "400" "$code" "HTTP 400 Bad Request"
+echo "$body" | grep -q '"title"' && echo "  INFO body contém field validation" || echo "  WARN body sem field detail"
+
+echo ""
+echo "========================================"
+echo "  CT-03: Data no passado"
+echo "========================================"
+resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/changes \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Deploy auth-service v3.0.5","description":"Performance improvements","componentId":"auth-service","requestedBy":"tester-001","scheduledAt":"2025-01-01T09:15:00Z"}')
+body=$(echo "$resp" | head -n -1)
+code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
+check "CT-03" "400" "$code" "HTTP 400 Bad Request (past date)"
+echo "$body" | grep -q 'scheduledAt\|future' && echo "  INFO body menciona scheduledAt" || echo "  WARN body sem scheduledAt detail"
+
+echo ""
+echo "========================================"
+echo "  CT-04: Listar mudanças com paginação"
+echo "========================================"
+resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes?status=PREPARED&page=0&size=5")
+body=$(echo "$resp" | head -n -1)
+code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
+check "CT-04" "200" "$code" "HTTP 200 OK"
+echo "$body" | grep -q '"content"' && echo "  INFO body tem content[]" || echo "  FAIL sem content"
+echo "$body" | grep -q '"totalElements"' && echo "  INFO tem totalElements" || echo "  FAIL sem totalElements"
+echo "$body" | grep -q '"totalPages"' && echo "  INFO tem totalPages" || echo "  FAIL sem totalPages"
+
+echo ""
+echo "========================================"
+echo "  CT-05: Consultar mudança por ID"
+echo "========================================"
+resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT01")
+body=$(echo "$resp" | head -n -1)
+code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
+check "CT-05" "200" "$code" "HTTP 200 OK"
+echo "$body" | grep -q '"title"' && echo "  INFO body tem title" || echo "  FAIL sem title"
+echo "$body" | grep -q '"description"' && echo "  INFO body tem description" || echo "  FAIL sem description"
+echo "$body" | grep -q '"componentId"' && echo "  INFO body tem componentId" || echo "  FAIL sem componentId"
+echo "$body" | grep -q '"scheduledAt"' && echo "  INFO body tem scheduledAt" || echo "  FAIL sem scheduledAt"
+
+echo ""
+echo "========================================"
+echo "  CT-06: Consultar ID inexistente"
+echo "========================================"
+resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes/00000000-0000-0000-0000-000000000000")
+code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
+check "CT-06" "404" "$code" "HTTP 404 Not Found"
+
+echo ""
+echo "========================================"
+echo "  CT-07: Consultar timeline de eventos"
+echo "========================================"
+resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT01/events")
+body=$(echo "$resp" | head -n -1)
+code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
+check "CT-07" "200" "$code" "HTTP 200 OK"
+echo "$body" | grep -q 'ChangePreparedEvent' && echo "  INFO contém ChangePreparedEvent" || echo "  FAIL sem ChangePreparedEvent"
+echo "$body" | grep -q '"eventId"' && echo "  INFO tem eventId" || echo "  FAIL sem eventId"
+echo "$body" | grep -q '"occurredAt"' && echo "  INFO tem occurredAt" || echo "  FAIL sem occurredAt"
+
+echo ""
+echo "========================================"
+echo "  CT-08: Deploy SUCCESS -> COMPLETED"
+echo "========================================"
+# Publicar DeployFinishedEvent SUCCESS via kafka-console-producer
+DEPLOY_ID_08=$(newuuid)
+EVENT_08='{"eventType":"DeployFinishedEvent","version":"1.0","correlationId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","occurredAt":"2026-03-26T12:00:00Z","payload":{"deployId":"'"$DEPLOY_ID_08"'","changeId":"'"$CHANGE_ID_CT01"'","result":"SUCCESS","executedAt":"2026-03-26T12:00:00Z"}}'
+echo "$EVENT_08" | docker exec -i changeops-kafka kafka-console-producer --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
+echo "  INFO evento publicado, aguardando 3s..."
+sleep 3
+resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT01")
+body=$(echo "$resp" | head -n -1)
+code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
+status_val=$(echo "$body" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+check "CT-08" "200" "$code" "GET retorna 200"
+check "CT-08" "COMPLETED" "$status_val" "status mudou para COMPLETED"
+
+# Verifica timeline
+resp=$(curl -s "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT01/events")
+echo "$resp" | grep -q 'ChangeCompletedEvent' && echo "  INFO timeline tem ChangeCompletedEvent" || echo "  FAIL sem ChangeCompletedEvent na timeline"
+echo "$resp" | grep -q 'ChangePreparedEvent' && echo "  INFO timeline tem ChangePreparedEvent" || echo "  FAIL sem ChangePreparedEvent"
+
+echo ""
+echo "========================================"
+echo "  CT-09: Deploy FAILURE -> FAILED"
+echo "========================================"
+# Criar nova mudança para CT-09
+resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/changes \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Deploy order-service v2.0","description":"Teste de falha no deploy","componentId":"order-service","requestedBy":"tester-001","scheduledAt":"2026-07-01T10:00:00Z"}')
+body=$(echo "$resp" | head -n -1)
+CHANGE_ID_CT09=$(echo "$body" | grep -o '"changeId":"[^"]*"' | cut -d'"' -f4)
+echo "  INFO changeId CT-09=$CHANGE_ID_CT09"
+
+DEPLOY_ID_09=$(newuuid)
+EVENT_09='{"eventType":"DeployFinishedEvent","version":"1.0","correlationId":"f1f2f3f4-f5f6-f7f8-f9fa-fbfcfdfeff00","occurredAt":"2026-03-26T12:10:00Z","payload":{"deployId":"'"$DEPLOY_ID_09"'","changeId":"'"$CHANGE_ID_CT09"'","result":"FAILURE","executedAt":"2026-03-26T12:10:00Z"}}'
+echo "$EVENT_09" | docker exec -i changeops-kafka kafka-console-producer --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
+echo "  INFO evento FAILURE publicado, aguardando 3s..."
+sleep 3
+resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT09")
+body=$(echo "$resp" | head -n -1)
+status_val=$(echo "$body" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+check "CT-09" "FAILED" "$status_val" "status mudou para FAILED"
+
+resp=$(curl -s "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT09/events")
+echo "$resp" | grep -q 'ChangeFailedEvent' && echo "  INFO timeline tem ChangeFailedEvent" || echo "  FAIL sem ChangeFailedEvent na timeline"
+
+echo ""
+echo "========================================"
+echo "  CT-10: Idempotência"
+echo "========================================"
+resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/changes \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Deploy idempotency-service v1.0","description":"Teste de idempotência","componentId":"idempotency-service","requestedBy":"tester-001","scheduledAt":"2026-07-01T10:00:00Z"}')
+body=$(echo "$resp" | head -n -1)
+CHANGE_ID_CT10=$(echo "$body" | grep -o '"changeId":"[^"]*"' | cut -d'"' -f4)
+echo "  INFO changeId CT-10=$CHANGE_ID_CT10"
+
+DEPLOY_ID_10=$(newuuid)
+EVENT_10='{"eventType":"DeployFinishedEvent","version":"1.0","correlationId":"c1c2c3c4-c5c6-c7c8-c9ca-cbcccdcecfc0","occurredAt":"2026-03-26T12:20:00Z","payload":{"deployId":"'"$DEPLOY_ID_10"'","changeId":"'"$CHANGE_ID_CT10"'","result":"SUCCESS","executedAt":"2026-03-26T12:20:00Z"}}'
+
+# Publicar 1a vez
+echo "$EVENT_10" | docker exec -i changeops-kafka kafka-console-producer --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
+sleep 3
+status_after1=$(curl -s "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT10" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+check "CT-10" "COMPLETED" "$status_after1" "1a vez: status=COMPLETED"
+
+# Publicar exato mesmo evento 2a vez
+echo "$EVENT_10" | docker exec -i changeops-kafka kafka-console-producer --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
+sleep 3
+status_after2=$(curl -s "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT10" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+check "CT-10" "COMPLETED" "$status_after2" "2a vez: status permanece COMPLETED"
+
+# Verifica que não duplicou eventos
+timeline=$(curl -s "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT10/events")
+count=$(echo "$timeline" | grep -o 'ChangeCompletedEvent' | wc -l)
+check "CT-10" "1" "$count" "apenas 1 ChangeCompletedEvent na timeline (sem duplicata)"
+
+echo ""
+echo "========================================"
+echo "  CT-11: DLT (changeId inexistente)"
+echo "========================================"
+EVENT_11='{"eventType":"DeployFinishedEvent","version":"1.0","correlationId":"deadbeef-dead-beef-dead-beefdeadbeef","occurredAt":"2026-03-26T12:30:00Z","payload":{"deployId":"cc000000-0000-0000-0000-000000000001","changeId":"00000000-0000-0000-0000-000000000099","result":"SUCCESS","executedAt":"2026-03-26T12:30:00Z"}}'
+echo "$EVENT_11" | docker exec -i changeops-kafka kafka-console-producer --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
+echo "  INFO evento DLT publicado (changeId inexistente)"
+echo "  INFO aguardando 35s para retries + DLT..."
+sleep 35
+# Verifica se topic DLT existe e tem mensagens
+dlt_count=$(docker exec changeops-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic changeops.deploy.finished-dlt --from-beginning --max-messages 10 --timeout-ms 5000 2>/dev/null | wc -l)
+[ "$dlt_count" -gt 0 ] && { echo "  PASS [CT-11] mensagem chegou no DLT (count=$dlt_count)"; PASS=$((PASS+1)); } || { echo "  FAIL [CT-11] nenhuma mensagem no DLT"; FAIL=$((FAIL+1)); }
+
+echo ""
+echo "========================================"
+echo "  CT-12: Observabilidade (Prometheus)"
+echo "========================================"
+prom=$(curl -s http://localhost:9090/api/v1/query --data-urlencode 'query=changes_created_total')
+echo "$prom" | grep -q '"result"' && echo "  INFO Prometheus respondeu" || echo "  FAIL Prometheus sem resposta"
+val=$(echo "$prom" | grep -o '"value":\[[^]]*\]' | head -1 | grep -o '[0-9]*\.[0-9]*"' | tr -d '"')
+[ -n "$val" ] && echo "  INFO changes_created_total=$val" || echo "  WARN sem valor de changes_created_total"
+
+prom2=$(curl -s http://localhost:9090/api/v1/query --data-urlencode 'query=events_published_total')
+val2=$(echo "$prom2" | grep -o '"value":\[[^]]*\]' | head -1 | grep -o '[0-9.]*"' | tail -1 | tr -d '"')
+[ -n "$val2" ] && echo "  INFO events_published_total=$val2" || echo "  WARN sem valor de events_published_total"
+
+echo ""
+echo "========================================"
+echo "  RESUMO FINAL"
+echo "========================================"
+echo "  PASSOU: $PASS"
+echo "  FALHOU: $FAIL"
+echo "  TOTAL : $((PASS+FAIL))"

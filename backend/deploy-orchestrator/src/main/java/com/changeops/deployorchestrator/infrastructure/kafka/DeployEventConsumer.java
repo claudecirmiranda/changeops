@@ -22,6 +22,8 @@ public class DeployEventConsumer {
 
     private final ProcessDeployResultUseCase processDeployResultUseCase;
     private final Counter consumeErrorCounter;
+    private final Counter retryCounter;
+    private final Counter dltCounter;
 
     public DeployEventConsumer(
             ProcessDeployResultUseCase processDeployResultUseCase,
@@ -29,6 +31,14 @@ public class DeployEventConsumer {
         this.processDeployResultUseCase = processDeployResultUseCase;
         this.consumeErrorCounter = Counter.builder("events_failed_total")
                 .tag("consumer", "deploy-orchestrator")
+                .register(meterRegistry);
+        this.retryCounter = Counter.builder("events_retry_total")
+                .tag("consumer", "deploy-orchestrator")
+                .description("Total number of event processing retries")
+                .register(meterRegistry);
+        this.dltCounter = Counter.builder("events_dlt_total")
+                .tag("consumer", "deploy-orchestrator")
+                .description("Total number of events sent to DLT after max retries")
                 .register(meterRegistry);
     }
 
@@ -64,6 +74,7 @@ public class DeployEventConsumer {
 
         } catch (Exception e) {
             consumeErrorCounter.increment();
+            retryCounter.increment();
             log.error("Error processing DeployFinishedEvent — will retry: deployId={}, attempt topic={}",
                     event.payload().deployId(), topic, e);
             throw e;
@@ -94,6 +105,7 @@ public class DeployEventConsumer {
                 log.error("Event sent to DLQ after max retries: key={}, payload=null", record.key());
             }
             consumeErrorCounter.increment();
+            dltCounter.increment();
         } finally {
             MDC.remove("correlation_id");
             MDC.remove("change_id");

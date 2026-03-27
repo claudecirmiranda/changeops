@@ -97,7 +97,7 @@
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
       "targets": [{
-        "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application='change-service'}[5m])) by (le, method))",
+        "expr": "histogram_quantile(0.95, sum(rate(api_request_duration_seconds_bucket{job='change-service'}[5m])) by (le, method))",
         "legendFormat": "p95 {{method}}"
       }]
     },
@@ -113,7 +113,7 @@
       "id": 2,
       "title": "Events - Published (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 14 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 14 },
       "fieldConfig": {
         "defaults": { "decimals": 0 }
       },
@@ -126,7 +126,7 @@
       "id": 3,
       "title": "Events - Consumed (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 14 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 14 },
       "fieldConfig": {
         "defaults": { "decimals": 0 }
       },
@@ -139,7 +139,7 @@
       "id": 4,
       "title": "Events - Failed (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 14 },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 14 },
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "decimals": 0 }
       },
@@ -149,10 +149,36 @@
       }]
     },
     {
+      "id": 22,
+      "title": "Events - Retries (total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 14 },
+      "fieldConfig": {
+        "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" }, "decimals": 0 }
+      },
+      "targets": [{
+        "expr": "sum(increase(events_retry_total[$__range]))",
+        "legendFormat": "Retries"
+      }]
+    },
+    {
+      "id": 23,
+      "title": "Events - DLT (total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 18 },
+      "fieldConfig": {
+        "defaults": { "color": { "fixedColor": "dark-red", "mode": "fixed" }, "decimals": 0 }
+      },
+      "targets": [{
+        "expr": "sum(increase(events_dlt_total[$__range]))",
+        "legendFormat": "DLT"
+      }]
+    },
+    {
       "id": 7,
       "title": "Events - Rate (per min)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 18 },
+      "gridPos": { "h": 8, "w": 18, "x": 6, "y": 18 },
       "targets": [
         {
           "expr": "sum(rate(events_published_total[1m])) * 60",
