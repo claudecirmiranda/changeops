@@ -26,12 +26,13 @@
 2. **CT-01** → Criar a primeira mudança (base para CT-04 a CT-08)
 3. **CT-02, CT-03** → Validações de entrada
 4. **CT-04, CT-05, CT-06, CT-07** → Consultas REST
-5. **CT-08** → Fluxo completo de sucesso
-6. **CT-09** → Fluxo completo de falha
-7. **CT-10** → Idempotência
-8. **CT-11** → DLT/retries
-9. **CT-12** → Observabilidade (após ter dados dos testes anteriores)
-10. **CT-13** → Frontend (fechamento visual)
+5. **CT-15** → Confirmar que mudança permanece PREPARED sem evento de deploy
+6. **CT-08** → Fluxo completo de sucesso
+7. **CT-09** → Fluxo completo de falha
+8. **CT-10** → Idempotência
+9. **CT-11** → DLT/retries
+10. **CT-12** → Observabilidade (após ter dados dos testes anteriores)
+11. **CT-13** → Frontend (fechamento visual)
 
 ---
 
@@ -426,6 +427,59 @@ Anotar o `changeId` retornado.
 
 ---
 
+## CT-15 — Mudança permanece PREPARED sem evento de deploy
+
+**Endpoint:** `POST http://localhost:8080/api/v1/changes`
+
+**Headers:**
+```
+Content-Type: application/json
+X-User-Id: tester-001
+```
+
+**Body:**
+```json
+{
+  "title": "Deploy inventory-service v1.5",
+  "description": "Rollout de nova versão do serviço de inventário",
+  "componentId": "inventory-service",
+  "requestedBy": "tester-001",
+  "scheduledAt": "2026-09-01T10:00:00Z"
+}
+```
+
+**Resultado esperado:**
+- Status HTTP: `201 Created`
+- Body contém `changeId` e `status: "PREPARED"`
+
+Anotar o `changeId` retornado.
+
+**Passo 2 — Aguardar 5 segundos** (sem publicar nenhum evento de deploy).
+
+**Passo 3 — Verificar que o status não mudou:**
+
+`GET http://localhost:8080/api/v1/changes/{changeId}`
+
+**Resultado esperado:**
+- Status HTTP: `200 OK`
+- `status: "PREPARED"` (inalterado)
+- Campos `title`, `componentId` e `scheduledAt` presentes
+
+**Passo 4 — Verificar timeline com apenas 1 evento:**
+
+`GET http://localhost:8080/api/v1/changes/{changeId}/events`
+
+**Resultado esperado:**
+- Array com **exatamente 1 evento** de tipo `ChangePreparedEvent`
+- Nenhum `ChangeCompletedEvent` ou `ChangeFailedEvent` presente
+
+**Evidenciar:**
+1. Screenshot do response `201` com o `changeId`
+2. Screenshot do GET após 5s mostrando `status: "PREPARED"` inalterado
+3. Screenshot da timeline com apenas `ChangePreparedEvent`
+
+---
+
 ## Resumo de Evidências
 
 | Teste | Cenário | O que evidenciar |
@@ -444,3 +498,4 @@ Anotar o `changeId` retornado.
 | CT-12 | Observabilidade | Dashboard Grafana completo + query Prometheus |
 | CT-13 | Frontend | Formulário, lista, polling automático, timeline |
 | CT-14 | Health check | Ambos os serviços com `status: "UP"` |
+| CT-15 | PREPARED sem deploy | Status permanece `PREPARED` + timeline com apenas `ChangePreparedEvent` |

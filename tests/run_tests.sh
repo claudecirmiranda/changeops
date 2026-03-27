@@ -115,6 +115,39 @@ echo "$body" | grep -q '"occurredAt"' && echo "  INFO tem occurredAt" || echo " 
 
 echo ""
 echo "========================================"
+echo "  CT-15: Mudança permanece PREPARED sem evento de deploy"
+echo "========================================"
+CHANGE_ID_CT15=""
+resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/changes \
+  -H "Content-Type: application/json" \
+  -H "X-User-Id: tester-001" \
+  -d '{"title":"Deploy inventory-service v1.5","description":"Rollout de nova versão do serviço de inventário","componentId":"inventory-service","requestedBy":"tester-001","scheduledAt":"2026-09-01T10:00:00Z"}')
+body=$(echo "$resp" | head -n -1)
+code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
+CHANGE_ID_CT15=$(echo "$body" | grep -o '"changeId":"[^"]*"' | cut -d'"' -f4)
+check "CT-15" "201" "$code" "HTTP 201 Created"
+[ -n "$CHANGE_ID_CT15" ] && echo "  INFO changeId=$CHANGE_ID_CT15" || echo "  FAIL no changeId"
+
+echo "  INFO aguardando 5s sem publicar nenhum evento de deploy..."
+sleep 5
+
+resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT15")
+body=$(echo "$resp" | head -n -1)
+code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
+status_val=$(echo "$body" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+check "CT-15" "200" "$code" "GET retorna 200"
+check "CT-15" "PREPARED" "$status_val" "status permanece PREPARED"
+
+timeline=$(curl -s "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT15/events")
+count=$(echo "$timeline" | grep -o 'ChangePreparedEvent' | wc -l)
+completed_count=$(echo "$timeline" | grep -o 'ChangeCompletedEvent' | wc -l)
+failed_count=$(echo "$timeline" | grep -o 'ChangeFailedEvent' | wc -l)
+check "CT-15" "1" "$count" "timeline contém exatamente 1 ChangePreparedEvent"
+check "CT-15" "0" "$completed_count" "timeline sem ChangeCompletedEvent"
+check "CT-15" "0" "$failed_count" "timeline sem ChangeFailedEvent"
+
+echo ""
+echo "========================================"
 echo "  CT-08: Deploy SUCCESS -> COMPLETED"
 echo "========================================"
 # Publicar DeployFinishedEvent SUCCESS via kafka-console-producer
