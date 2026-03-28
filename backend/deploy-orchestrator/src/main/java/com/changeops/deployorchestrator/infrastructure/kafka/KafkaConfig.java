@@ -1,6 +1,7 @@
 package com.changeops.deployorchestrator.infrastructure.kafka;
 
 import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -41,6 +42,12 @@ public class KafkaConfig {
     @Value("${changeops.kafka.default-replication-factor:1}")
     private int replicationFactor;
 
+    private final ObjectMapper objectMapper;
+
+    public KafkaConfig(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
+
     // ── Consumer ──────────────────────────────────────────────────────────────
 
     @Bean
@@ -50,12 +57,10 @@ public class KafkaConfig {
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-        props.put(JsonDeserializer.TRUSTED_PACKAGES, "com.changeops.*");
-        props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, DeployFinishedEvent.class.getName());
-        props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
-        return new DefaultKafkaConsumerFactory<>(props);
+        JsonDeserializer<DeployFinishedEvent> valueDeserializer =
+                new JsonDeserializer<>(DeployFinishedEvent.class, objectMapper, false);
+        valueDeserializer.addTrustedPackages("com.changeops.*");
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), valueDeserializer);
     }
 
     @Bean
@@ -75,13 +80,12 @@ public class KafkaConfig {
     public ProducerFactory<String, IntegrationEvent> resultProducerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
         props.put(ProducerConfig.ACKS_CONFIG, "all");
         props.put(ProducerConfig.RETRIES_CONFIG, 3);
         props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
-        props.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
-        return new DefaultKafkaProducerFactory<>(props);
+        JsonSerializer<IntegrationEvent> valueSerializer = new JsonSerializer<>(objectMapper);
+        valueSerializer.setAddTypeInfo(false);
+        return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), valueSerializer);
     }
 
     @Bean

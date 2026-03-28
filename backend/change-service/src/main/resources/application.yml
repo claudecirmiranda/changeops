@@ -2,6 +2,10 @@ spring:
   application:
     name: change-service
 
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:changeops}
     username: ${DB_USER:changeops}
@@ -38,6 +42,11 @@ management:
     export:
       prometheus:
         enabled: true
+        step: 5s
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        api_request_duration: true
 
 changeops:
   kafka:

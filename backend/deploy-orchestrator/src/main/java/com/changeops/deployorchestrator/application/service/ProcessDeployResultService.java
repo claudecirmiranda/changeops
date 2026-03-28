@@ -9,6 +9,7 @@ import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
 import com.changeops.deployorchestrator.domain.model.ChangeResult;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
@@ -28,6 +29,8 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
     private final SaveChangeEventPort saveChangeEventPort; // ← aqui, junto aos outros campos
     private final Counter eventsConsumedCounter;
     private final Counter eventsFailedCounter;
+    private final Counter eventsDiscardedCounter;
+    private final Timer orchestrationTimer;
 
     public ProcessDeployResultService(
             IdempotencyPort idempotencyPort,
@@ -46,7 +49,16 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                 .description("Total DeployFinishedEvents consumed")
                 .register(meterRegistry);
         this.eventsFailedCounter = Counter.builder("events_failed_total")
+                .tag("consumer", "deploy-orchestrator")
                 .description("Total events that failed processing")
+                .register(meterRegistry);
+        this.eventsDiscardedCounter = Counter.builder("events_discarded_total")
+                .tag("reason", "duplicate")
+                .description("Total events discarded (e.g. duplicates)")
+                .register(meterRegistry);
+        this.orchestrationTimer = Timer.builder("orchestration_duration_seconds")
+                .description("Time to process a DeployFinishedEvent end-to-end")
+                .publishPercentileHistogram()
                 .register(meterRegistry);
     }
 
@@ -60,12 +72,14 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
         MDC.put("change_id", payload.changeId().toString());
         MDC.put("deploy_id", payload.deployId().toString());
 
+        Timer.Sample timerSample = Timer.start();
         try {
             log.info("DeployFinishedEvent received: deployId={}, changeId={}, result={}",
                     payload.deployId(), payload.changeId(), payload.result());
 
             // ── Step 1: Atomic idempotency check + mark ──────────────
             if (!idempotencyPort.tryMarkAsProcessed(payload.deployId(), "deploy-orchestrator")) {
+                eventsDiscardedCounter.increment();
                 log.warn("Event already processed, discarding: deployId={}", payload.deployId());
                 return;
             }
@@ -125,6 +139,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                     payload.deployId(), payload.changeId(), e);
             throw e;
         } finally {
+            timerSample.stop(orchestrationTimer);
             MDC.remove("deploy_id");
             MDC.remove("change_id");
         }

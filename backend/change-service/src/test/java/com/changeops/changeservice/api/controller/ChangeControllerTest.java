@@ -235,6 +235,24 @@ class ChangeControllerTest {
     }
 
     @Test
+    void getById_shouldReturn400_whenChangeIdIsInvalidUuid() throws Exception {
+        mockMvc.perform(get("/api/v1/changes/7e213233-77d6-4727-91d8-c4d563939d83aaa"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid Parameter"))
+                .andExpect(jsonPath("$.detail").value(containsString("changeId")))
+                .andExpect(jsonPath("$.detail").value(containsString("UUID")));
+    }
+
+    @Test
+    void getEvents_shouldReturn400_whenChangeIdIsInvalidUuid() throws Exception {
+        mockMvc.perform(get("/api/v1/changes/not-a-valid-uuid/events"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid Parameter"))
+                .andExpect(jsonPath("$.detail").value(containsString("changeId")))
+                .andExpect(jsonPath("$.detail").value(containsString("UUID")));
+    }
+
+    @Test
     void create_shouldReturn400_whenBodyIsMalformedJson() throws Exception {
         mockMvc.perform(post("/api/v1/changes")
                         .contentType(MediaType.APPLICATION_JSON)

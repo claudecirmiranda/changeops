@@ -2,6 +2,10 @@ spring:
   application:
     name: deploy-orchestrator
 
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:changeops}
     username: ${DB_USER:changeops}
@@ -51,6 +55,7 @@ management:
     export:
       prometheus:
         enabled: true
+        step: 5s
     tags:
       application: deploy-orchestrator
 

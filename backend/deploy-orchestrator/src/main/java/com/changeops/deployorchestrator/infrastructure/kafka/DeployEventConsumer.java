@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.MDC;
+import org.springframework.kafka.annotation.DltHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.kafka.retrytopic.DltStrategy;
@@ -21,14 +22,15 @@ import org.springframework.stereotype.Component;
 public class DeployEventConsumer {
 
     private final ProcessDeployResultUseCase processDeployResultUseCase;
-    private final Counter consumeErrorCounter;
+    private final Counter dltCounter;
 
     public DeployEventConsumer(
             ProcessDeployResultUseCase processDeployResultUseCase,
             MeterRegistry meterRegistry) {
         this.processDeployResultUseCase = processDeployResultUseCase;
-        this.consumeErrorCounter = Counter.builder("events_failed_total")
+        this.dltCounter = Counter.builder("events_dlt_total")
                 .tag("consumer", "deploy-orchestrator")
+                .description("Total events sent to DLT after max retries")
                 .register(meterRegistry);
     }
 
@@ -63,7 +65,6 @@ public class DeployEventConsumer {
             processDeployResultUseCase.execute(event);
 
         } catch (Exception e) {
-            consumeErrorCounter.increment();
             log.error("Error processing DeployFinishedEvent — will retry: deployId={}, attempt topic={}",
                     event.payload().deployId(), topic, e);
             throw e;
@@ -73,10 +74,7 @@ public class DeployEventConsumer {
         }
     }
 
-    @KafkaListener(
-            topics = "${changeops.kafka.topics.deploy-finished}-dlt",
-            groupId = "${changeops.kafka.consumer.group-id}-dlt"
-    )
+    @DltHandler
     public void onDlt(ConsumerRecord<String, DeployFinishedEvent> record) {
         DeployFinishedEvent event = record.value();
         try {
@@ -93,7 +91,7 @@ public class DeployEventConsumer {
             } else {
                 log.error("Event sent to DLQ after max retries: key={}, payload=null", record.key());
             }
-            consumeErrorCounter.increment();
+            dltCounter.increment();
         } finally {
             MDC.remove("correlation_id");
             MDC.remove("change_id");

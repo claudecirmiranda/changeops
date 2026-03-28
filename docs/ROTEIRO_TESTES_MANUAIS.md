@@ -22,20 +22,41 @@
 
 ## Ordem de Execução Recomendada
 
-1. **CT-14** → Validar que os serviços estão saudáveis antes de tudo
-2. **CT-01** → Criar a primeira mudança (base para CT-04 a CT-08)
-3. **CT-02, CT-03** → Validações de entrada
-4. **CT-04, CT-05, CT-06, CT-07** → Consultas REST
-5. **CT-08** → Fluxo completo de sucesso
-6. **CT-09** → Fluxo completo de falha
-7. **CT-10** → Idempotência
-8. **CT-11** → DLT/retries
-9. **CT-12** → Observabilidade (após ter dados dos testes anteriores)
-10. **CT-13** → Frontend (fechamento visual)
+1. **CT-01** → Validar que os serviços estão saudáveis antes de tudo
+2. **CT-02** → Criar a primeira mudança (base para CT-05 a CT-10)
+3. **CT-03, CT-04** → Validações de entrada
+4. **CT-05, CT-06, CT-07, CT-08** → Consultas REST
+5. **CT-09** → Confirmar que mudança permanece PREPARED sem evento de deploy
+6. **CT-10** → Fluxo completo de sucesso
+7. **CT-11** → Fluxo completo de falha
+8. **CT-12** → Idempotência
+9. **CT-13** → DLT/retries
+10. **CT-14** → Observabilidade (após ter dados dos testes anteriores)
+11. **CT-15** → Frontend (fechamento visual)
 
 ---
 
-## CT-01 — Criar mudança com dados válidos
+---
+
+## CT-01 — Health Check dos serviços
+
+**Change Service:**
+
+`GET http://localhost:8080/actuator/health`
+
+**Deploy Orchestrator:**
+
+`GET http://localhost:8081/actuator/health`
+
+**Resultado esperado em ambos:**
+- Status HTTP: `200 OK`
+- Body: `{ "status": "UP" }` com detalhes dos componentes (db, kafka, diskSpace)
+
+**Evidenciar:** Screenshot dos dois responses `200` com `status: "UP"`.
+
+---
+
+## CT-02 — Criar mudança com dados válidos
 
 **Endpoint:** `POST http://localhost:8080/api/v1/changes`
 
@@ -73,7 +94,7 @@ X-User-Id: tester-001
 
 ---
 
-## CT-02 — Criar mudança sem campo obrigatório
+## CT-03 — Criar mudança sem campo obrigatório
 
 **Endpoint:** `POST http://localhost:8080/api/v1/changes`
 
@@ -100,7 +121,7 @@ Content-Type: application/json
 
 ---
 
-## CT-03 — Criar mudança com data no passado
+## CT-04 — Criar mudança com data no passado
 
 **Endpoint:** `POST http://localhost:8080/api/v1/changes`
 
@@ -128,7 +149,7 @@ Content-Type: application/json
 
 ---
 
-## CT-04 — Listar mudanças com paginação e filtro
+## CT-05 — Listar mudanças com paginação e filtro
 
 **Endpoint:** `GET http://localhost:8080/api/v1/changes?status=PREPARED&page=0&size=5`
 
@@ -141,7 +162,7 @@ Content-Type: application/json
 
 ---
 
-## CT-05 — Consultar mudança por ID
+## CT-06 — Consultar mudança por ID
 
 **Endpoint:** `GET http://localhost:8080/api/v1/changes/{changeId}`
 
@@ -155,7 +176,7 @@ Content-Type: application/json
 
 ---
 
-## CT-06 — Consultar mudança inexistente
+## CT-07 — Consultar mudança inexistente
 
 **Endpoint:** `GET http://localhost:8080/api/v1/changes/00000000-0000-0000-0000-000000000000`
 
@@ -166,7 +187,7 @@ Content-Type: application/json
 
 ---
 
-## CT-07 — Consultar timeline de eventos
+## CT-08 — Consultar timeline de eventos
 
 **Endpoint:** `GET http://localhost:8080/api/v1/changes/{changeId}/events`
 
@@ -181,7 +202,60 @@ Content-Type: application/json
 
 ---
 
-## CT-08 — Deploy com sucesso → COMPLETED
+## CT-09 — Mudança permanece PREPARED sem evento de deploy
+
+**Endpoint:** `POST http://localhost:8080/api/v1/changes`
+
+**Headers:**
+```
+Content-Type: application/json
+X-User-Id: tester-001
+```
+
+**Body:**
+```json
+{
+  "title": "Deploy inventory-service v1.5",
+  "description": "Rollout de nova versão do serviço de inventário",
+  "componentId": "inventory-service",
+  "requestedBy": "tester-001",
+  "scheduledAt": "2026-09-01T10:00:00Z"
+}
+```
+
+**Resultado esperado:**
+- Status HTTP: `201 Created`
+- Body contém `changeId` e `status: "PREPARED"`
+
+Anotar o `changeId` retornado.
+
+**Passo 2 — Aguardar 5 segundos** (sem publicar nenhum evento de deploy).
+
+**Passo 3 — Verificar que o status não mudou:**
+
+`GET http://localhost:8080/api/v1/changes/{changeId}`
+
+**Resultado esperado:**
+- Status HTTP: `200 OK`
+- `status: "PREPARED"` (inalterado)
+- Campos `title`, `componentId` e `scheduledAt` presentes
+
+**Passo 4 — Verificar timeline com apenas 1 evento:**
+
+`GET http://localhost:8080/api/v1/changes/{changeId}/events`
+
+**Resultado esperado:**
+- Array com **exatamente 1 evento** de tipo `ChangePreparedEvent`
+- Nenhum `ChangeCompletedEvent` ou `ChangeFailedEvent` presente
+
+**Evidenciar:**
+1. Screenshot do response `201` com o `changeId`
+2. Screenshot do GET após 5s mostrando `status: "PREPARED"` inalterado
+3. Screenshot da timeline com apenas `ChangePreparedEvent`
+
+---
+
+## CT-10 — Deploy com sucesso → COMPLETED
 
 > Pré-requisito: `changeId` do CT-01 em status `PREPARED`.
 
@@ -199,7 +273,7 @@ Content-Type: application/json
   "occurredAt": "2026-03-25T14:00:00Z",
   "payload": {
     "deployId": "d0d0d0d0-d0d0-d0d0-d0d0-d0d0d0d0d0d0",
-    "changeId": "<CHANGE_ID_DO_CT01>",
+    "changeId": "<CHANGE_ID_DO_CT02>",
     "result": "SUCCESS",
     "executedAt": "2026-03-25T14:00:00Z"
   }
@@ -229,7 +303,7 @@ Content-Type: application/json
 
 ---
 
-## CT-09 — Deploy com falha → FAILED
+## CT-11 — Deploy com falha → FAILED
 
 **Passo 1 — Criar nova mudança:**
 
@@ -280,9 +354,9 @@ Anotar o `changeId` retornado.
 
 ---
 
-## CT-10 — Idempotência (mesmo evento duas vezes)
+## CT-12 — Idempotência (mesmo evento duas vezes)
 
-> Pré-requisito: Criar uma nova mudança (seguir o Passo 1 do CT-09) e anotar o `changeId`.
+> Pré-requisito: Criar uma nova mudança (seguir o Passo 1 do CT-11) e anotar o `changeId`.
 
 **Passo 1 — Publicar DeployFinishedEvent SUCCESS:**
 - Kafka UI → tópico `changeops.deploy.finished` → "Produce Message"
@@ -320,7 +394,7 @@ Anotar o `changeId` retornado.
 
 ---
 
-## CT-11 — DLT (evento para changeId inexistente)
+## CT-13 — DLT (evento para changeId inexistente)
 
 **Publicar evento com changeId inexistente:**
 - Kafka UI → tópico `changeops.deploy.finished` → "Produce Message"
@@ -352,7 +426,7 @@ Anotar o `changeId` retornado.
 
 ---
 
-## CT-12 — Observabilidade (Grafana + Prometheus)
+## CT-14 — Observabilidade (Grafana + Prometheus)
 
 > Executar após os testes anteriores para ter dados suficientes nos painéis.
 
@@ -363,7 +437,7 @@ Anotar o `changeId` retornado.
   - **"Changes Created (total)"** — valor > 0
   - **"Events Published (total)"** — valor > 0
   - **"Events Consumed (total)"** — valor > 0
-  - **"Events Failed (total)"** — valor > 0 (após o CT-11)
+  - **"Events Failed (total)"** — valor > 0 (após o CT-13)
   - **"Completed"** / **"Failed"** / **"Prepared"** — stats por status
   - **"Changes by Status"** — pizza com distribuição de status
   - **"API Request Duration (p95)"** — gráfico com dados de latência
@@ -382,7 +456,7 @@ Anotar o `changeId` retornado.
 
 ---
 
-## CT-13 — Frontend (Interface Web)
+## CT-15 — Frontend (Interface Web)
 
 **Passo 1 — Acessar** http://localhost:3000
 
@@ -392,7 +466,7 @@ Anotar o `changeId` retornado.
 - Verificar que a mudança aparece na lista com badge de status `PREPARED`
 
 **Passo 3 — Verificar polling automático:**
-- Publicar um `DeployFinishedEvent` SUCCESS via Kafka UI para o `changeId` criado (seguir CT-08 Passo 1)
+- Publicar um `DeployFinishedEvent` SUCCESS via Kafka UI para o `changeId` criado (seguir CT-10 Passo 1)
 - Aguardar até **5 segundos** sem recarregar a página
 - O badge de status deve mudar automaticamente para `COMPLETED`
 
@@ -408,39 +482,22 @@ Anotar o `changeId` retornado.
 
 ---
 
-## CT-14 — Health Check dos serviços
-
-**Change Service:**
-
-`GET http://localhost:8080/actuator/health`
-
-**Deploy Orchestrator:**
-
-`GET http://localhost:8081/actuator/health`
-
-**Resultado esperado em ambos:**
-- Status HTTP: `200 OK`
-- Body: `{ "status": "UP" }` com detalhes dos componentes (db, kafka, diskSpace)
-
-**Evidenciar:** Screenshot dos dois responses `200` com `status: "UP"`.
-
----
-
 ## Resumo de Evidências
 
 | Teste | Cenário | O que evidenciar |
 |-------|---------|-----------------|
-| CT-01 | Criação válida | Response 201 + mensagem `ChangePreparedEvent` no Kafka |
-| CT-02 | Campo obrigatório ausente | Response 400 com campo e mensagem de erro |
-| CT-03 | Data no passado | Response 400 com mensagem de validação |
-| CT-04 | Listagem paginada | Response 200 com `content[]` e metadados de paginação |
-| CT-05 | Consulta por ID | Response 200 com detalhes completos |
-| CT-06 | ID inexistente | Response 404 |
-| CT-07 | Timeline de eventos | Response 200 com `ChangePreparedEvent` |
-| CT-08 | Deploy SUCCESS | Status `COMPLETED` + `ChangeCompletedEvent` no Kafka + timeline com 2 eventos |
-| CT-09 | Deploy FAILURE | Status `FAILED` + `ChangeFailedEvent` na timeline |
-| CT-10 | Idempotência | Status inalterado + sem duplicação na timeline |
-| CT-11 | DLT após retries | Mensagem no tópico `changeops.deploy.finished-dlt` |
-| CT-12 | Observabilidade | Dashboard Grafana completo + query Prometheus |
-| CT-13 | Frontend | Formulário, lista, polling automático, timeline |
-| CT-14 | Health check | Ambos os serviços com `status: "UP"` |
+| CT-01 | Health check | Ambos os serviços com `status: "UP"` |
+| CT-02 | Criação válida | Response 201 + mensagem `ChangePreparedEvent` no Kafka |
+| CT-03 | Campo obrigatório ausente | Response 400 com campo e mensagem de erro |
+| CT-04 | Data no passado | Response 400 com mensagem de validação |
+| CT-05 | Listagem paginada | Response 200 com `content[]` e metadados de paginação |
+| CT-06 | Consulta por ID | Response 200 com detalhes completos |
+| CT-07 | ID inexistente | Response 404 |
+| CT-08 | Timeline de eventos | Response 200 com `ChangePreparedEvent` |
+| CT-09 | PREPARED sem deploy | Screenshot do GET após 5s com status PREPARED + timeline com 1 evento |
+| CT-10 | Deploy SUCCESS | Status `COMPLETED` + `ChangeCompletedEvent` no Kafka + timeline com 2 eventos |
+| CT-11 | Deploy FAILURE | Status `FAILED` + `ChangeFailedEvent` na timeline |
+| CT-12 | Idempotência | Status inalterado + sem duplicação na timeline |
+| CT-13 | DLT após retries | Mensagem no tópico `changeops.deploy.finished-dlt` |
+| CT-14 | Observabilidade | Dashboard Grafana completo + query Prometheus |
+| CT-15 | Frontend | Formulário, lista, polling automático, timeline |
