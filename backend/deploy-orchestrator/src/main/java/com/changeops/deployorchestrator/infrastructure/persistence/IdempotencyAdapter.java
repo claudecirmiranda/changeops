@@ -23,27 +23,34 @@ public class IdempotencyAdapter implements IdempotencyPort {
     }
 
     @Override
+    @SuppressWarnings("null")
     public void markAsProcessed(UUID eventId, String serviceName) {
+        UUID requiredEventId = Objects.requireNonNull(eventId, "eventId must not be null");
+        String requiredServiceName = Objects.requireNonNull(serviceName, "serviceName must not be null");
+
         try {
-            repository.save(Objects.requireNonNull(ProcessedEventEntity.builder()
-                    .eventId(eventId)
+            repository.save(ProcessedEventEntity.builder()
+                    .eventId(requiredEventId)
                     .processedAt(Instant.now())
-                    .serviceName(serviceName)
-                    .build()));
-            log.debug("Event marked as processed: eventId={}", eventId);
+                    .serviceName(requiredServiceName)
+                    .build());
+            log.debug("Event marked as processed: eventId={}", requiredEventId);
         } catch (DataIntegrityViolationException e) {
-            log.warn("Concurrent idempotency conflict for eventId={} — already processed", eventId);
+            log.warn("Concurrent idempotency conflict for eventId={} — already processed", requiredEventId);
         }
     }
 
     @Override
     public boolean tryMarkAsProcessed(UUID eventId, String serviceName) {
-        int inserted = repository.insertIfAbsent(eventId, serviceName);
+        UUID requiredEventId = Objects.requireNonNull(eventId, "eventId must not be null");
+        String requiredServiceName = Objects.requireNonNull(serviceName, "serviceName must not be null");
+
+        int inserted = repository.insertIfAbsent(requiredEventId, requiredServiceName);
         if (inserted == 0) {
-            log.debug("Event already processed (atomic check): eventId={}", eventId);
+            log.debug("Event already processed (atomic check): eventId={}", requiredEventId);
             return false;
         }
-        log.debug("Event atomically marked as processed: eventId={}", eventId);
+        log.debug("Event atomically marked as processed: eventId={}", requiredEventId);
         return true;
     }
 }

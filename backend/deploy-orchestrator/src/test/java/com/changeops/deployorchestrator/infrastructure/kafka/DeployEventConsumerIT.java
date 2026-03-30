@@ -34,7 +34,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -44,6 +43,7 @@ import static org.awaitility.Awaitility.await;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
 @ActiveProfiles("test")
+@SuppressWarnings("null")
 class DeployEventConsumerIT {
 
     private static final PostgresHolder POSTGRES = new PostgresHolder();
@@ -78,12 +78,12 @@ class DeployEventConsumerIT {
 
     @BeforeEach
     void setUp() {
-        Map<String, Object> producerProps = Objects.requireNonNull(Map.of(
+        Map<String, Object> producerProps = Map.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
                 ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
                 ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class,
                 JsonSerializer.ADD_TYPE_INFO_HEADERS, false
-        ));
+        );
         kafkaTemplate = new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(producerProps));
 
         jdbcTemplate.execute("DELETE FROM change_events");

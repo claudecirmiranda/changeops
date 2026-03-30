@@ -29,17 +29,19 @@ public class KafkaEventPublisherAdapter implements PublishEventPort {
             KafkaTemplate<String, IntegrationEvent> kafkaTemplate,
             @Value("${changeops.kafka.topics.change-prepared}") String changePreparedTopic,
             MeterRegistry meterRegistry) {
-        this.kafkaTemplate = kafkaTemplate;
-        this.changePreparedTopic = changePreparedTopic;
+        this.kafkaTemplate = Objects.requireNonNull(kafkaTemplate, "kafkaTemplate must not be null");
+        this.changePreparedTopic = Objects.requireNonNull(changePreparedTopic, "changePreparedTopic must not be null");
         this.eventsPublishedCounter = Counter.builder("events_published_total")
                 .description("Total integration events published")
-                .tag("type", Objects.requireNonNull("ChangePreparedEvent"))
-                .register(meterRegistry);
+                .tag("type", "ChangePreparedEvent")
+                .register(Objects.requireNonNull(meterRegistry, "meterRegistry must not be null"));
     }
 
     @Override
     public void publish(Object domainEvent) {
-        if (domainEvent instanceof ChangePreparedEvent event) {
+        if (domainEvent == null) {
+            log.warn("Cannot publish a null domain event");
+        } else if (domainEvent instanceof ChangePreparedEvent event) {
             publishChangePrepared(event);
         } else {
             log.warn("No publisher found for event type: {}", domainEvent.getClass().getSimpleName());
@@ -47,6 +49,7 @@ public class KafkaEventPublisherAdapter implements PublishEventPort {
     }
 
     private void publishChangePrepared(ChangePreparedEvent event) {
+        String key = Objects.requireNonNull(event.changeId(), "changeId must not be null").toString();
         IntegrationEvent envelope = IntegrationEvent.builder()
                 .eventType("ChangePreparedEvent")
                 .version("1.0")
@@ -61,8 +64,8 @@ public class KafkaEventPublisherAdapter implements PublishEventPort {
 
         CompletableFuture<SendResult<String, IntegrationEvent>> future =
                 kafkaTemplate.send(
-                        Objects.requireNonNull(changePreparedTopic),
-                        Objects.requireNonNull(event.changeId().toString()),
+                        Objects.requireNonNull(changePreparedTopic, "changePreparedTopic must not be null"),
+                        Objects.requireNonNull(key, "key must not be null"),
                         envelope);
 
         try {

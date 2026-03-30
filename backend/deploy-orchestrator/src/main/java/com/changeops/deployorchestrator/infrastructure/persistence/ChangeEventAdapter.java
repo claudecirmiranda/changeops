@@ -16,13 +16,15 @@ public class ChangeEventAdapter implements SaveChangeEventPort {
     private final ChangeEventJpaRepository repository;
 
     @Override
+    @SuppressWarnings("null")
     public void save(UUID changeId, String eventType, String payload, Instant occurredAt) {
-        repository.save(Objects.requireNonNull(ChangeEventEntity.builder()
-            .eventId(UUID.randomUUID())
-            .changeId(changeId)
-            .eventType(eventType)
-            .payload(payload)
-            .occurredAt(occurredAt)
-            .build()));
+        ChangeEventEntity event = ChangeEventEntity.builder()
+                .eventId(UUID.randomUUID())
+                .changeId(Objects.requireNonNull(changeId, "changeId must not be null"))
+                .eventType(Objects.requireNonNull(eventType, "eventType must not be null"))
+                .payload(Objects.requireNonNull(payload, "payload must not be null"))
+                .occurredAt(Objects.requireNonNull(occurredAt, "occurredAt must not be null"))
+                .build();
+        repository.save(event);
     }
 }

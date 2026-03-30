@@ -44,12 +44,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (HttpMethod.POST.matches(Objects.requireNonNull(request.getMethod()))
                 && CHANGES_PATH.equals(request.getRequestURI())) {
 
-            String clientIp = Objects.requireNonNull(resolveClientIp(request));
+            String clientIp = resolveClientIp(request);
+            if (clientIp == null || clientIp.isBlank()) {
+                clientIp = "unknown";
+            }
             Bucket bucket = buckets.get(clientIp, k -> newBucket());
 
             if (!bucket.tryConsume(1)) {
                 response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-                response.setContentType(Objects.requireNonNull(MediaType.APPLICATION_JSON_VALUE));
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                 response.setHeader("Retry-After", "60");
                 response.getWriter().write(
                         "{\"title\":\"Too Many Requests\"," +

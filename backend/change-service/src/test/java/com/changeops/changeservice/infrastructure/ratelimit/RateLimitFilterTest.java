@@ -10,11 +10,11 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+@SuppressWarnings("null")
 class RateLimitFilterTest {
 
     private RateLimitFilter filter;
@@ -149,8 +149,8 @@ class RateLimitFilterTest {
                               HttpServletResponse response,
                               FilterChain filterChain) throws ServletException, IOException {
         filter.doFilterInternal(
-                Objects.requireNonNull(request),
-                Objects.requireNonNull(response),
-                Objects.requireNonNull(filterChain));
+                request,
+                response,
+                filterChain);
     }
 }

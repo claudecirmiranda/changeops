@@ -34,8 +34,8 @@ public class ChangePersistenceAdapter
     @Override
     @SuppressWarnings("null")
     public Change save(Change change) {
-        ChangeEntity entity = toEntity(change);
-        ChangeEntity saved = Objects.requireNonNull(changeJpaRepository.save(entity));
+        ChangeEntity entity = toEntity(Objects.requireNonNull(change, "change must not be null"));
+        ChangeEntity saved = changeJpaRepository.save(entity);
         return toDomain(saved);
     }
 
@@ -51,15 +51,16 @@ public class ChangePersistenceAdapter
     }
 
     @Override
+    @SuppressWarnings("null")
     public void save(UUID changeId, String eventType, String payload, Instant occurredAt) {
         ChangeEventEntity event = ChangeEventEntity.builder()
                 .eventId(UUID.randomUUID())
-                .changeId(changeId)
-                .eventType(eventType)
-                .payload(payload)
-                .occurredAt(occurredAt)
+                .changeId(Objects.requireNonNull(changeId, "changeId must not be null"))
+                .eventType(Objects.requireNonNull(eventType, "eventType must not be null"))
+                .payload(Objects.requireNonNull(payload, "payload must not be null"))
+                .occurredAt(Objects.requireNonNull(occurredAt, "occurredAt must not be null"))
                 .build();
-        changeEventJpaRepository.save(Objects.requireNonNull(event));
+        changeEventJpaRepository.save(event);
     }
 
     private ChangeEntity toEntity(Change c) {

@@ -23,7 +23,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Objects;
 import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc(addFilters = false)
 @Testcontainers
 @ActiveProfiles("test")
+@SuppressWarnings("null")
 class CreateChangeIT {
 
     private static final PostgresHolder POSTGRES = new PostgresHolder();
@@ -71,8 +71,8 @@ class CreateChangeIT {
                 Instant.now().plus(2, ChronoUnit.DAYS));
 
         String responseBody = mockMvc.perform(post("/api/v1/changes")
-                        .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
-                        .content(Objects.requireNonNull(objectMapper.writeValueAsString(request)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
                         .header("X-User-Id", "user-test-001"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.changeId").isNotEmpty())
@@ -107,7 +107,7 @@ class CreateChangeIT {
                 }""";
 
         mockMvc.perform(post("/api/v1/changes")
-                        .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidPayload))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fields.title").isNotEmpty());
@@ -123,7 +123,7 @@ class CreateChangeIT {
                 }""";
 
         mockMvc.perform(post("/api/v1/changes")
-                        .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidPayload))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fields.componentId").isNotEmpty());
@@ -140,7 +140,7 @@ class CreateChangeIT {
                 }""";
 
         mockMvc.perform(post("/api/v1/changes")
-                        .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidPayload))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fields.componentId").isNotEmpty());

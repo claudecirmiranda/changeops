@@ -15,7 +15,6 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
 import java.util.UUID;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,7 +47,7 @@ class KafkaResultPublisherAdapterTest {
     void whenKafkaPublishSucceeds_shouldIncrementCounter() {
         ChangeResult result = ChangeResult.from(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), true);
         result.markFinished();
-        String key = Objects.requireNonNull(result.getChangeId().toString());
+        String key = result.getChangeId().toString();
 
         RecordMetadata metadata = new RecordMetadata(
                 new TopicPartition(CHANGE_RESULT_TOPIC, 0), 0L, 0, 0L, 0, 0);
@@ -74,7 +73,7 @@ class KafkaResultPublisherAdapterTest {
     void whenKafkaPublishFails_shouldFallbackToDlqTopic() {
         ChangeResult result = ChangeResult.from(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), false);
         result.markFinished();
-        String key = Objects.requireNonNull(result.getChangeId().toString());
+        String key = result.getChangeId().toString();
 
         CompletableFuture<SendResult<String, IntegrationEvent>> failedFuture = new CompletableFuture<>();
         failedFuture.completeExceptionally(new RuntimeException("Kafka unavailable"));
