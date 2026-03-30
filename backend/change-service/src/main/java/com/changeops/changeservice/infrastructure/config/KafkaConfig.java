@@ -16,6 +16,7 @@ import org.springframework.kafka.support.serializer.JsonSerializer;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 @Configuration
 public class KafkaConfig {
@@ -50,12 +51,12 @@ public class KafkaConfig {
 
     @Bean
     public KafkaTemplate<String, IntegrationEvent> kafkaTemplate() {
-        return new KafkaTemplate<>(producerFactory());
+        return new KafkaTemplate<>(Objects.requireNonNull(producerFactory()));
     }
 
     @Bean
     public NewTopic changePreparedTopic() {
-        return TopicBuilder.name(changePreparedTopic)
+        return TopicBuilder.name(Objects.requireNonNull(changePreparedTopic))
                 .partitions(3)
                 .replicas(replicationFactor)
                 .build();

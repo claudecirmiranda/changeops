@@ -1,7 +1,6 @@
 package com.changeops.changeservice.api;
 
 import com.changeops.changeservice.api.dto.CreateChangeRequest;
-import com.changeops.changeservice.infrastructure.kafka.IntegrationEvent;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -11,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.KafkaContainer;
@@ -25,7 +23,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,17 +34,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc(addFilters = false)
 @Testcontainers
 @ActiveProfiles("test")
+@SuppressWarnings("null")
 class CreateChangeIT {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("changeops_test")
-            .withUsername("test")
-            .withPassword("test");
+    private static final PostgresHolder POSTGRES = new PostgresHolder();
+    private static final KafkaHolder KAFKA = new KafkaHolder();
 
     @Container
-    static KafkaContainer kafka = new KafkaContainer(
-            DockerImageName.parse("confluentinc/cp-kafka:7.6.0"));
+    static PostgreSQLContainer<?> postgres = POSTGRES.container();
+
+    @Container
+    static KafkaContainer kafka = KAFKA.container();
 
     @org.springframework.test.context.DynamicPropertySource
     static void configureProperties(org.springframework.test.context.DynamicPropertyRegistry registry) {
@@ -170,6 +167,28 @@ class CreateChangeIT {
         try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props)) {
             consumer.subscribe(List.of(topic));
             return consumer.poll(Duration.ofSeconds(10));
+        }
+    }
+
+    @SuppressWarnings("all")
+    private static final class PostgresHolder {
+        private final PostgreSQLContainer<?> container = new PostgreSQLContainer<>("postgres:16-alpine")
+                .withDatabaseName("changeops_test")
+                .withUsername("test")
+                .withPassword("test");
+
+        private PostgreSQLContainer<?> container() {
+            return container;
+        }
+    }
+
+    @SuppressWarnings("all")
+    private static final class KafkaHolder {
+        private final KafkaContainer container = new KafkaContainer(
+                DockerImageName.parse("confluentinc/cp-kafka:7.6.0"));
+
+        private KafkaContainer container() {
+            return container;
         }
     }
 }
