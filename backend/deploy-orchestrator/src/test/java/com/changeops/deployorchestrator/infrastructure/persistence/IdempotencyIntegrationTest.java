@@ -124,27 +124,28 @@ class IdempotencyIntegrationTest {
     }
 
     @Test
-    @DisplayName("Deve tratar consumers diferentes como contextos independentes")
-    void shouldTreatDifferentConsumersAsIndependentContexts() {
+    @DisplayName("Deve rejeitar mesmo eventId de consumer diferente (PK em event_id)")
+    void shouldRejectSameEventIdFromDifferentConsumer() {
         // Given: mesmo eventId, consumers diferentes
         UUID eventId = UUID.randomUUID();
         String consumer1 = "deploy-orchestrator";
         String consumer2 = "audit-logger";
 
-        // When: cada consumer processa o evento
+        // When: primeiro consumer processa
         boolean result1 = idempotency.tryMarkAsProcessed(eventId, consumer1);
+        // When: segundo consumer tenta processar o mesmo eventId
         boolean result2 = idempotency.tryMarkAsProcessed(eventId, consumer2);
 
-        // Then: ambos são aceitos (idempotência é por par eventId+consumer)
+        // Then: primeiro aceito, segundo rejeitado (PK é apenas event_id)
         assertThat(result1).isTrue();
-        assertThat(result2).isTrue();
+        assertThat(result2).isFalse();
 
-        // And: dois registros com mesmo eventId, consumers diferentes
+        // And: apenas 1 registro no banco
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM processed_events WHERE event_id = ?",
                 Integer.class,
                 eventId
         );
-        assertThat(count).isEqualTo(2);
+        assertThat(count).isEqualTo(1);
     }
 }
