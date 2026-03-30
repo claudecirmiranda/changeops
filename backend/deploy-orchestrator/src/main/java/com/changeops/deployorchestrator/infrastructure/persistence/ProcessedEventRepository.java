@@ -7,11 +7,11 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.UUID;
 
-public interface ProcessedEventRepository extends JpaRepository<ProcessedEventEntity, UUID> {
+public interface ProcessedEventRepository extends JpaRepository<ProcessedEventEntity, ProcessedEventId> {
 
     @Modifying
     @Query(value = "INSERT INTO processed_events (event_id, processed_at, service_name) " +
-            "VALUES (:eventId, NOW(), :serviceName) ON CONFLICT (event_id) DO NOTHING",
+            "VALUES (:eventId, NOW(), :serviceName) ON CONFLICT (event_id, service_name) DO NOTHING",
             nativeQuery = true)
     int insertIfAbsent(@Param("eventId") UUID eventId, @Param("serviceName") String serviceName);
 

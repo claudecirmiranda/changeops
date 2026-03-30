@@ -29,15 +29,16 @@ Essa abordagem assegura:
 ## Implementação
 
 CREATE TABLE processed_events (  
-    event_id     UUID PRIMARY KEY,  
-    processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),  
-    service_name VARCHAR(100) NOT NULL  
+    event_id     UUID          NOT NULL,  
+    processed_at TIMESTAMPTZ   NOT NULL DEFAULT NOW(),  
+    service_name VARCHAR(100)  NOT NULL,  
+    PRIMARY KEY (event_id, service_name)  
 );
 
 @Query(value = """  
     INSERT INTO processed_events (event_id, processed_at, service_name)  
     VALUES (:eventId, NOW(), :serviceName)  
-    ON CONFLICT (event_id) DO NOTHING  
+    ON CONFLICT (event_id, service_name) DO NOTHING  
     """, nativeQuery = true)  
 int insertIfAbsent(@Param("eventId") UUID eventId, @Param("serviceName") String serviceName);
 
@@ -46,7 +47,7 @@ O retorno é `1` (inserido, primeiro processamento) ou `0` (já existia, duplica
 ## Fluxo no Consumer
 
 // 1. Check de aplicação (ANTES do banco) — evita processamento redundante  
-if (idempotencyPort.isAlreadyProcessed(event.deployId())) {  
+if (idempotencyPort.isAlreadyProcessed(event.deployId(), "deploy-orchestrator")) {  
     log.warn("Event already processed, discarding: deployId={}", event.deployId());  
     return;  
 }  
@@ -60,7 +61,7 @@ Em duplicata detectada no nível de aplicação, apenas um log de `WARN` é emit
 
 ## Performance
 
-A tabela `processed_events` possui **PRIMARY KEY em `event_id`**, o que garante:
+A tabela `processed_events` possui **PRIMARY KEY composta em `(event_id, service_name)`**, o que garante:
 *   Busca indexada com complexidade **O(1)**
 *   Alta eficiência mesmo com grande volume de eventos
 *   Baixo impacto no throughput do consumer
@@ -141,7 +142,7 @@ void shouldDiscardDuplicateEventWithoutReprocessing() {
 
 ### Positivas
 - Idempotência garantida mesmo com retry automático do Kafka, restart do consumidor ou entrega duplicada de rede
-- Auditoria completa: tabela `processed_events` registra `event_id`, `consumer_name` e `processed_at` para rastreabilidade
+- Auditoria completa: tabela `processed_events` registra `event_id`, `service_name` e `processed_at` para rastreabilidade
 - Baixo custo operacional: solução baseada em banco de dados existente, sem infraestrutura adicional (Redis, etc.)
 
 ### Negativas / Riscos

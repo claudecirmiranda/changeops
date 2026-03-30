@@ -26,9 +26,10 @@ CREATE TABLE change_events (
 );
 
 CREATE TABLE processed_events (
-    event_id        UUID          PRIMARY KEY,
+    event_id        UUID          NOT NULL,
     processed_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    service_name    VARCHAR(100)  NOT NULL
+    service_name    VARCHAR(100)  NOT NULL,
+    PRIMARY KEY (event_id, service_name)
 );
 
 CREATE OR REPLACE FUNCTION update_updated_at_column()

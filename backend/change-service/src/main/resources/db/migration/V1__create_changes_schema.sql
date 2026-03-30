@@ -44,9 +44,10 @@ CREATE INDEX idx_change_events_type         ON change_events (event_type);
 -- processed_events  (idempotency store)
 -- ───────────────────────────────────────────────
 CREATE TABLE processed_events (
-    event_id        UUID          PRIMARY KEY,
+    event_id        UUID          NOT NULL,
     processed_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    service_name    VARCHAR(100)  NOT NULL
+    service_name    VARCHAR(100)  NOT NULL,
+    PRIMARY KEY (event_id, service_name)
 );
 
 CREATE INDEX idx_processed_events_processed_at ON processed_events (processed_at DESC);
