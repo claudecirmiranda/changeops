@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Component
@@ -16,12 +17,12 @@ public class ChangeEventAdapter implements SaveChangeEventPort {
 
     @Override
     public void save(UUID changeId, String eventType, String payload, Instant occurredAt) {
-        repository.save(ChangeEventEntity.builder()
+        repository.save(Objects.requireNonNull(ChangeEventEntity.builder()
             .eventId(UUID.randomUUID())
             .changeId(changeId)
             .eventType(eventType)
             .payload(payload)
             .occurredAt(occurredAt)
-            .build());
+            .build()));
     }
 }

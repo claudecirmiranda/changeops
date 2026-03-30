@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -45,11 +46,14 @@ public class KafkaResultPublisherAdapter implements PublishResultEventPort {
 
         try {
             SendResult<String, IntegrationEvent> sendResult =
-                    kafkaTemplate.send(changeResultTopic, key, envelope).get(10, TimeUnit.SECONDS);
+                    kafkaTemplate.send(
+                            Objects.requireNonNull(changeResultTopic),
+                            Objects.requireNonNull(key),
+                            envelope).get(10, TimeUnit.SECONDS);
             getOrCreateCounter(envelope.eventType()).increment();
             log.info("Result event published: eventType={}, changeId={}, correlationId={}, topic={}, partition={}, offset={}",
                     envelope.eventType(), result.getChangeId(), result.getCorrelationId(),
-                    sendResult.getRecordMetadata().topic(),
+                    Objects.requireNonNull(sendResult.getRecordMetadata().topic()),
                     sendResult.getRecordMetadata().partition(),
                     sendResult.getRecordMetadata().offset());
         } catch (ExecutionException e) {
@@ -69,7 +73,7 @@ public class KafkaResultPublisherAdapter implements PublishResultEventPort {
     }
 
     private void sendToDlq(String key, IntegrationEvent envelope) {
-        kafkaTemplate.send(dlqTopic, key, envelope)
+        kafkaTemplate.send(Objects.requireNonNull(dlqTopic), Objects.requireNonNull(key), envelope)
                 .whenComplete((r, ex) -> {
                     if (ex != null) {
                         log.error("CRITICAL: Failed to send event to DLQ — manual intervention required: key={}", key, ex);
@@ -80,7 +84,7 @@ public class KafkaResultPublisherAdapter implements PublishResultEventPort {
     }
 
     private Counter getOrCreateCounter(String eventType) {
-        return counterCache.computeIfAbsent(eventType, type ->
+        return counterCache.computeIfAbsent(Objects.requireNonNull(eventType), type ->
                 Counter.builder("events_published_total")
                         .tag("type", type)
                         .description("Total number of events published to Kafka")

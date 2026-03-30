@@ -18,7 +18,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
+import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -46,7 +46,7 @@ class ListChangesServiceTest {
         change.pullDomainEvents();
         Pageable pageable = PageRequest.of(0, 10);
         when(loadChangesPort.findAll(null, null, pageable))
-                .thenReturn(new PageImpl<>(List.of(change)));
+                .thenReturn(new PageImpl<>(Objects.requireNonNull(List.of(change))));
 
         Page<ListChangesUseCase.Result> results =
                 service.execute(new ListChangesUseCase.Query(null, null), pageable);
@@ -63,7 +63,7 @@ class ListChangesServiceTest {
     void shouldReturnEmptyPage_whenNoChanges() {
         Pageable pageable = PageRequest.of(0, 10);
         when(loadChangesPort.findAll(any(), any(), eq(pageable)))
-                .thenReturn(new PageImpl<>(Collections.emptyList()));
+                .thenReturn(new PageImpl<>(Objects.requireNonNull(Collections.emptyList())));
 
         Page<ListChangesUseCase.Result> results =
                 service.execute(new ListChangesUseCase.Query(null, null), pageable);
@@ -76,7 +76,7 @@ class ListChangesServiceTest {
     void shouldPassFilters_toPort() {
         Pageable pageable = PageRequest.of(0, 5);
         when(loadChangesPort.findAll(eq(ChangeStatus.PREPARED), eq("payment-service"), eq(pageable)))
-                .thenReturn(new PageImpl<>(Collections.emptyList()));
+                .thenReturn(new PageImpl<>(Objects.requireNonNull(Collections.emptyList())));
 
         service.execute(new ListChangesUseCase.Query(ChangeStatus.PREPARED, "payment-service"), pageable);
 

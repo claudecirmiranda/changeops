@@ -15,6 +15,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import java.net.URI;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -29,7 +30,7 @@ public class GlobalExceptionHandler {
 
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST, "Validation failed");
-        pd.setType(URI.create("https://changeops.io/errors/validation"));
+        pd.setType(Objects.requireNonNull(URI.create("https://changeops.io/errors/validation")));
         pd.setTitle("Validation Error");
         pd.setProperty("fields", fields);
         pd.setProperty("timestamp", Instant.now());
@@ -40,7 +41,7 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleNotReadable(HttpMessageNotReadableException ex) {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST, "Malformed or unreadable request body");
-        pd.setType(URI.create("https://changeops.io/errors/bad-request"));
+        pd.setType(Objects.requireNonNull(URI.create("https://changeops.io/errors/bad-request")));
         pd.setTitle("Bad Request");
         pd.setProperty("timestamp", Instant.now());
         return pd;
@@ -48,8 +49,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ChangeNotFoundException.class)
     public ProblemDetail handleNotFound(ChangeNotFoundException ex) {
-        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
-        pd.setType(URI.create("https://changeops.io/errors/not-found"));
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                Objects.requireNonNull(ex.getMessage()));
+        pd.setType(Objects.requireNonNull(URI.create("https://changeops.io/errors/not-found")));
         pd.setTitle("Resource Not Found");
         pd.setProperty("timestamp", Instant.now());
         return pd;
@@ -58,8 +61,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidChangeStateException.class)
     public ProblemDetail handleInvalidState(InvalidChangeStateException ex) {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(
-                HttpStatus.CONFLICT, ex.getMessage());
-        pd.setType(URI.create("https://changeops.io/errors/invalid-state"));
+                HttpStatus.CONFLICT, Objects.requireNonNull(ex.getMessage()));
+        pd.setType(Objects.requireNonNull(URI.create("https://changeops.io/errors/invalid-state")));
         pd.setTitle("Invalid State Transition");
         pd.setProperty("timestamp", Instant.now());
         return pd;
@@ -73,7 +76,7 @@ public class GlobalExceptionHandler {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST,
                 "Parameter '" + paramName + "' must be a valid " + typeName);
-        pd.setType(URI.create("https://changeops.io/errors/invalid-parameter"));
+        pd.setType(Objects.requireNonNull(URI.create("https://changeops.io/errors/invalid-parameter")));
         pd.setTitle("Invalid Parameter");
         pd.setProperty("timestamp", Instant.now());
         return pd;
@@ -84,7 +87,7 @@ public class GlobalExceptionHandler {
         log.error("Unexpected error", ex);
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(
                 HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");
-        pd.setType(URI.create("https://changeops.io/errors/internal"));
+        pd.setType(Objects.requireNonNull(URI.create("https://changeops.io/errors/internal")));
         pd.setTitle("Internal Server Error");
         pd.setProperty("timestamp", Instant.now());
         return pd;

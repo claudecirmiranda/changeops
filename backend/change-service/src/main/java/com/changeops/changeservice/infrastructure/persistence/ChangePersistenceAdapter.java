@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,15 +32,16 @@ public class ChangePersistenceAdapter
     private final ChangeEventJpaRepository changeEventJpaRepository;
 
     @Override
+    @SuppressWarnings("null")
     public Change save(Change change) {
         ChangeEntity entity = toEntity(change);
-        ChangeEntity saved = changeJpaRepository.save(entity);
+        ChangeEntity saved = Objects.requireNonNull(changeJpaRepository.save(entity));
         return toDomain(saved);
     }
 
     @Override
     public Optional<Change> findById(UUID changeId) {
-        return changeJpaRepository.findById(changeId).map(this::toDomain);
+        return changeJpaRepository.findById(Objects.requireNonNull(changeId)).map(this::toDomain);
     }
 
     @Override
@@ -57,7 +59,7 @@ public class ChangePersistenceAdapter
                 .payload(payload)
                 .occurredAt(occurredAt)
                 .build();
-        changeEventJpaRepository.save(event);
+        changeEventJpaRepository.save(Objects.requireNonNull(event));
     }
 
     private ChangeEntity toEntity(Change c) {
@@ -85,12 +87,12 @@ public class ChangePersistenceAdapter
 
     @Override
     public boolean existsById(UUID changeId) {
-        return changeJpaRepository.existsById(changeId);
+        return changeJpaRepository.existsById(Objects.requireNonNull(changeId));
     }
 
     @Override
     public List<LoadChangeEventsPort.ChangeEventResult> findByChangeId(UUID changeId) {
-        return changeEventJpaRepository.findByChangeIdOrderByOccurredAtAsc(changeId)
+        return changeEventJpaRepository.findByChangeIdOrderByOccurredAtAsc(Objects.requireNonNull(changeId))
                 .stream()
                 .map(e -> new LoadChangeEventsPort.ChangeEventResult(
                         e.getEventId(), e.getChangeId(),

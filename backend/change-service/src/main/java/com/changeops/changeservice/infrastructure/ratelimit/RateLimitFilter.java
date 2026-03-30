@@ -11,11 +11,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Objects;
 
 /**
  * Rate limiter for POST /api/v1/changes.
@@ -36,17 +38,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
             .build();
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
-        if (HttpMethod.POST.matches(request.getMethod())
+    protected void doFilterInternal(@NonNull HttpServletRequest request,
+                                    @NonNull HttpServletResponse response,
+                                    @NonNull FilterChain filterChain) throws ServletException, IOException {
+        if (HttpMethod.POST.matches(Objects.requireNonNull(request.getMethod()))
                 && CHANGES_PATH.equals(request.getRequestURI())) {
 
-            String clientIp = resolveClientIp(request);
+            String clientIp = Objects.requireNonNull(resolveClientIp(request));
             Bucket bucket = buckets.get(clientIp, k -> newBucket());
 
             if (!bucket.tryConsume(1)) {
                 response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                response.setContentType(Objects.requireNonNull(MediaType.APPLICATION_JSON_VALUE));
                 response.setHeader("Retry-After", "60");
                 response.getWriter().write(
                         "{\"title\":\"Too Many Requests\"," +

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -30,7 +31,7 @@ class RateLimitFilterTest {
         HttpServletRequest request = postChangesRequest("192.168.1.1");
         HttpServletResponse response = mock(HttpServletResponse.class);
 
-        filter.doFilterInternal(request, response, chain);
+        invokeFilter(request, response, chain);
 
         verify(chain).doFilter(request, response);
         verify(response, never()).setStatus(429);
@@ -44,7 +45,7 @@ class RateLimitFilterTest {
         for (int i = 0; i < 100; i++) {
             HttpServletRequest req = postChangesRequest(clientIp);
             HttpServletResponse resp = mock(HttpServletResponse.class);
-            filter.doFilterInternal(req, resp, chain);
+            invokeFilter(req, resp, chain);
         }
 
         // 101st request should be rejected
@@ -53,7 +54,7 @@ class RateLimitFilterTest {
         StringWriter body = new StringWriter();
         when(response.getWriter()).thenReturn(new PrintWriter(body));
 
-        filter.doFilterInternal(request, response, chain);
+        invokeFilter(request, response, chain);
 
         verify(response).setStatus(429);
         verify(response).setHeader("Retry-After", "60");
@@ -69,7 +70,7 @@ class RateLimitFilterTest {
         when(request.getMethod()).thenReturn("GET");
         when(request.getRequestURI()).thenReturn("/api/v1/changes");
 
-        filter.doFilterInternal(request, response, chain);
+        invokeFilter(request, response, chain);
 
         verify(chain).doFilter(request, response);
         verify(response, never()).setStatus(429);
@@ -82,7 +83,7 @@ class RateLimitFilterTest {
         when(request.getMethod()).thenReturn("POST");
         when(request.getRequestURI()).thenReturn("/api/v1/other");
 
-        filter.doFilterInternal(request, response, chain);
+        invokeFilter(request, response, chain);
 
         verify(chain).doFilter(request, response);
         verify(response, never()).setStatus(429);
@@ -94,14 +95,14 @@ class RateLimitFilterTest {
         for (int i = 0; i < 100; i++) {
             HttpServletRequest req = postChangesRequest("10.0.0.1");
             HttpServletResponse resp = mock(HttpServletResponse.class);
-            filter.doFilterInternal(req, resp, chain);
+            invokeFilter(req, resp, chain);
         }
 
         // IP-B should still be allowed
         HttpServletRequest request = postChangesRequest("10.0.0.2");
         HttpServletResponse response = mock(HttpServletResponse.class);
 
-        filter.doFilterInternal(request, response, chain);
+        invokeFilter(request, response, chain);
 
         verify(chain, times(101)).doFilter(any(), any());
         verify(response, never()).setStatus(429);
@@ -117,7 +118,7 @@ class RateLimitFilterTest {
             when(req.getHeader("X-Forwarded-For")).thenReturn("203.0.113.50, 10.0.0.1");
             when(req.getRemoteAddr()).thenReturn("10.0.0.1");
             HttpServletResponse resp = mock(HttpServletResponse.class);
-            filter.doFilterInternal(req, resp, chain);
+            invokeFilter(req, resp, chain);
         }
 
         // Same forwarded IP should be blocked
@@ -130,7 +131,7 @@ class RateLimitFilterTest {
         StringWriter body = new StringWriter();
         when(response.getWriter()).thenReturn(new PrintWriter(body));
 
-        filter.doFilterInternal(request, response, chain);
+        invokeFilter(request, response, chain);
 
         verify(response).setStatus(429);
     }
@@ -142,5 +143,14 @@ class RateLimitFilterTest {
         when(request.getHeader("X-Forwarded-For")).thenReturn(null);
         when(request.getRemoteAddr()).thenReturn(remoteAddr);
         return request;
+    }
+
+    private void invokeFilter(HttpServletRequest request,
+                              HttpServletResponse response,
+                              FilterChain filterChain) throws ServletException, IOException {
+        filter.doFilterInternal(
+                Objects.requireNonNull(request),
+                Objects.requireNonNull(response),
+                Objects.requireNonNull(filterChain));
     }
 }

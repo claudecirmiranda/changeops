@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -45,16 +46,14 @@ import static org.awaitility.Awaitility.await;
 @ActiveProfiles("test")
 class DeployEventConsumerIT {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("changeops_test")
-            .withUsername("test")
-            .withPassword("test")
-            .withInitScript("init-test-schema.sql");
+    private static final PostgresHolder POSTGRES = new PostgresHolder();
+    private static final KafkaHolder KAFKA = new KafkaHolder();
 
     @Container
-    static KafkaContainer kafka = new KafkaContainer(
-            DockerImageName.parse("confluentinc/cp-kafka:7.6.0"));
+    static PostgreSQLContainer<?> postgres = POSTGRES.container();
+
+    @Container
+    static KafkaContainer kafka = KAFKA.container();
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
@@ -79,12 +78,12 @@ class DeployEventConsumerIT {
 
     @BeforeEach
     void setUp() {
-        Map<String, Object> producerProps = Map.of(
+        Map<String, Object> producerProps = Objects.requireNonNull(Map.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
                 ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
                 ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class,
                 JsonSerializer.ADD_TYPE_INFO_HEADERS, false
-        );
+        ));
         kafkaTemplate = new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(producerProps));
 
         jdbcTemplate.execute("DELETE FROM change_events");
@@ -218,5 +217,28 @@ class DeployEventConsumerIT {
         kafkaTemplate.send(new ProducerRecord<>(
                 "changeops.deploy.finished", changeId.toString(), event));
         kafkaTemplate.flush();
+    }
+
+    @SuppressWarnings("all")
+    private static final class PostgresHolder {
+        private final PostgreSQLContainer<?> container = new PostgreSQLContainer<>("postgres:16-alpine")
+                .withDatabaseName("changeops_test")
+                .withUsername("test")
+                .withPassword("test")
+                .withInitScript("init-test-schema.sql");
+
+        private PostgreSQLContainer<?> container() {
+            return container;
+        }
+    }
+
+    @SuppressWarnings("all")
+    private static final class KafkaHolder {
+        private final KafkaContainer container = new KafkaContainer(
+                DockerImageName.parse("confluentinc/cp-kafka:7.6.0"));
+
+        private KafkaContainer container() {
+            return container;
+        }
     }
 }

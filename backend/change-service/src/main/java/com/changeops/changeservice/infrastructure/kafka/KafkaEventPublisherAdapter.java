@@ -11,6 +11,7 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +33,7 @@ public class KafkaEventPublisherAdapter implements PublishEventPort {
         this.changePreparedTopic = changePreparedTopic;
         this.eventsPublishedCounter = Counter.builder("events_published_total")
                 .description("Total integration events published")
-                .tag("type", "ChangePreparedEvent")
+                .tag("type", Objects.requireNonNull("ChangePreparedEvent"))
                 .register(meterRegistry);
     }
 
@@ -59,7 +60,10 @@ public class KafkaEventPublisherAdapter implements PublishEventPort {
                 .build();
 
         CompletableFuture<SendResult<String, IntegrationEvent>> future =
-                kafkaTemplate.send(changePreparedTopic, event.changeId().toString(), envelope);
+                kafkaTemplate.send(
+                        Objects.requireNonNull(changePreparedTopic),
+                        Objects.requireNonNull(event.changeId().toString()),
+                        envelope);
 
         try {
             SendResult<String, IntegrationEvent> result = future.get(10, TimeUnit.SECONDS);

@@ -7,6 +7,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Slf4j
@@ -18,17 +19,17 @@ public class IdempotencyAdapter implements IdempotencyPort {
 
     @Override
     public boolean isAlreadyProcessed(UUID eventId) {
-        return repository.existsById(eventId);
+        return repository.existsById(Objects.requireNonNull(eventId));
     }
 
     @Override
     public void markAsProcessed(UUID eventId, String serviceName) {
         try {
-            repository.save(ProcessedEventEntity.builder()
+            repository.save(Objects.requireNonNull(ProcessedEventEntity.builder()
                     .eventId(eventId)
                     .processedAt(Instant.now())
                     .serviceName(serviceName)
-                    .build());
+                    .build()));
             log.debug("Event marked as processed: eventId={}", eventId);
         } catch (DataIntegrityViolationException e) {
             log.warn("Concurrent idempotency conflict for eventId={} — already processed", eventId);

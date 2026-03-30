@@ -23,6 +23,7 @@ import org.springframework.kafka.support.serializer.JsonSerializer;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 @Configuration
 public class KafkaConfig {
@@ -68,7 +69,7 @@ public class KafkaConfig {
     deployEventListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, DeployFinishedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(deployEventConsumerFactory());
+        factory.setConsumerFactory(Objects.requireNonNull(deployEventConsumerFactory()));
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
         factory.setConcurrency(3);
         return factory;
@@ -90,23 +91,23 @@ public class KafkaConfig {
 
     @Bean
     public KafkaTemplate<String, IntegrationEvent> resultKafkaTemplate() {
-        return new KafkaTemplate<>(resultProducerFactory());
+        return new KafkaTemplate<>(Objects.requireNonNull(resultProducerFactory()));
     }
 
     // ── Topics ────────────────────────────────────────────────────────────────
 
     @Bean
     public NewTopic deployFinishedTopic() {
-        return TopicBuilder.name(deployFinishedTopic).partitions(3).replicas(replicationFactor).build();
+        return TopicBuilder.name(Objects.requireNonNull(deployFinishedTopic)).partitions(3).replicas(replicationFactor).build();
     }
 
     @Bean
     public NewTopic changeResultTopic() {
-        return TopicBuilder.name(changeResultTopic).partitions(3).replicas(replicationFactor).build();
+        return TopicBuilder.name(Objects.requireNonNull(changeResultTopic)).partitions(3).replicas(replicationFactor).build();
     }
 
     @Bean
     public NewTopic changeResultDltTopic() {
-        return TopicBuilder.name(changeResultTopic + "-dlt").partitions(1).replicas(replicationFactor).build();
+        return TopicBuilder.name(Objects.requireNonNull(changeResultTopic) + "-dlt").partitions(1).replicas(replicationFactor).build();
     }
 }

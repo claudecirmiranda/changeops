@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
@@ -75,10 +76,10 @@ class ChangeControllerTest {
                 }""".formatted(Instant.now().plus(2, ChronoUnit.DAYS));
 
         mockMvc.perform(post("/api/v1/changes")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
+                        .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+                        .content(Objects.requireNonNull(body)))
                 .andExpect(status().isCreated())
-                .andExpect(header().string("Location", containsString(changeId.toString())))
+                .andExpect(header().string("Location", Objects.requireNonNull(containsString(changeId.toString()))))
                 .andExpect(jsonPath("$.changeId").value(changeId.toString()))
                 .andExpect(jsonPath("$.status").value("PREPARED"))
                 .andExpect(jsonPath("$.correlationId").value(correlationId.toString()));
@@ -100,8 +101,8 @@ class ChangeControllerTest {
 
         mockMvc.perform(post("/api/v1/changes")
                         .header("X-User-Id", "header-user")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
+                        .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
+                        .content(Objects.requireNonNull(body)))
                 .andExpect(status().isCreated());
     }
 
@@ -115,11 +116,11 @@ class ChangeControllerTest {
                 UUID.randomUUID(), Instant.now(), Instant.now());
 
         when(listChangesUseCase.execute(any(), any()))
-                .thenReturn(new PageImpl<>(List.of(result), PageRequest.of(0, 20), 1));
+                .thenReturn(new PageImpl<>(Objects.requireNonNull(List.of(result)), PageRequest.of(0, 20), 1));
 
         mockMvc.perform(get("/api/v1/changes"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content", Objects.requireNonNull(hasSize(1))))
                 .andExpect(jsonPath("$.content[0].changeId").value(changeId.toString()))
                 .andExpect(jsonPath("$.content[0].title").value("Deploy v1"));
     }
@@ -127,13 +128,13 @@ class ChangeControllerTest {
     @Test
     void list_shouldForwardStatusFilterParam() throws Exception {
         when(listChangesUseCase.execute(any(), any()))
-                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+                .thenReturn(new PageImpl<>(Objects.requireNonNull(List.of()), PageRequest.of(0, 20), 0));
 
         mockMvc.perform(get("/api/v1/changes")
                         .param("status", "PREPARED")
                         .param("componentId", "svc-a"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content", hasSize(0)));
+                .andExpect(jsonPath("$.content", Objects.requireNonNull(hasSize(0))));
     }
 
     // ─── GET /api/v1/changes/{changeId} ──────────────────────────────────────
@@ -168,7 +169,7 @@ class ChangeControllerTest {
 
         mockMvc.perform(get("/api/v1/changes/" + changeId + "/events"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$", Objects.requireNonNull(hasSize(1))))
                 .andExpect(jsonPath("$[0].eventId").value(eventId.toString()))
                 .andExpect(jsonPath("$[0].eventType").value("CHANGE_PREPARED"));
     }
@@ -176,11 +177,11 @@ class ChangeControllerTest {
     @Test
     void getEvents_shouldReturn200WithEmptyList() throws Exception {
         UUID changeId = UUID.randomUUID();
-        when(getChangeEventsUseCase.execute(changeId)).thenReturn(List.of());
+        when(getChangeEventsUseCase.execute(changeId)).thenReturn(Objects.requireNonNull(List.of()));
 
         mockMvc.perform(get("/api/v1/changes/" + changeId + "/events"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(0)));
+                .andExpect(jsonPath("$", Objects.requireNonNull(hasSize(0))));
     }
 
     // ─── GlobalExceptionHandler ───────────────────────────────────────────────
@@ -193,7 +194,7 @@ class ChangeControllerTest {
                 }""";
 
         mockMvc.perform(post("/api/v1/changes")
-                        .contentType(MediaType.APPLICATION_JSON)
+                        .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
                         .content(invalidBody))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Validation Error"))
@@ -209,7 +210,7 @@ class ChangeControllerTest {
         mockMvc.perform(get("/api/v1/changes/" + changeId))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("Resource Not Found"))
-                .andExpect(jsonPath("$.detail").value(containsString(changeId.toString())));
+                .andExpect(jsonPath("$.detail").value(Objects.requireNonNull(containsString(changeId.toString()))));
     }
 
     @Test
@@ -239,8 +240,8 @@ class ChangeControllerTest {
         mockMvc.perform(get("/api/v1/changes/7e213233-77d6-4727-91d8-c4d563939d83aaa"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Invalid Parameter"))
-                .andExpect(jsonPath("$.detail").value(containsString("changeId")))
-                .andExpect(jsonPath("$.detail").value(containsString("UUID")));
+                .andExpect(jsonPath("$.detail").value(Objects.requireNonNull(containsString("changeId"))))
+                .andExpect(jsonPath("$.detail").value(Objects.requireNonNull(containsString("UUID"))));
     }
 
     @Test
@@ -248,14 +249,14 @@ class ChangeControllerTest {
         mockMvc.perform(get("/api/v1/changes/not-a-valid-uuid/events"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Invalid Parameter"))
-                .andExpect(jsonPath("$.detail").value(containsString("changeId")))
-                .andExpect(jsonPath("$.detail").value(containsString("UUID")));
+                .andExpect(jsonPath("$.detail").value(Objects.requireNonNull(containsString("changeId"))))
+                .andExpect(jsonPath("$.detail").value(Objects.requireNonNull(containsString("UUID"))));
     }
 
     @Test
     void create_shouldReturn400_whenBodyIsMalformedJson() throws Exception {
         mockMvc.perform(post("/api/v1/changes")
-                        .contentType(MediaType.APPLICATION_JSON)
+                        .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
                         .content("{ this is not valid json }"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Bad Request"));
