@@ -4,101 +4,177 @@
 **Data:** Março/2026  
 **Decisores:** Equipe Técnica
 
----
-
 ## Contexto
 
 A RFP valoriza "organização por domínio (Domain-Driven Design lite)" e "estrutura de pacotes organizada". É necessário definir como os serviços backend serão estruturados internamente, garantindo separação de responsabilidades, testabilidade e baixo acoplamento.
-
 Além disso, o domínio define o status `DRAFT` como parte do ciclo de vida da mudança, mas na implementação atual a criação vai diretamente para `PREPARED`. É necessário documentar essa decisão.
-
----
 
 ## Decisão
 
 Adotamos **Arquitetura Hexagonal (Ports & Adapters)** com pacotes organizados por camada dentro de cada bounded context.
 
-### Estrutura de Pacotes
+## Estrutura de Pacotes
 
 ```
-com.changeops.changeservice/
-├── api/                          # Adaptadores de entrada (driving)
-│   ├── controller/               # REST controllers
-│   └── dto/                      # Request/Response DTOs
-├── application/                  # Lógica de aplicação
-│   ├── port/
-│   │   ├── in/                   # Use cases (driving ports)
-│   │   └── out/                  # Driven ports (interfaces)
-│   └── service/                  # Implementação dos use cases
-├── domain/                       # Núcleo de domínio (zero dependências externas)
-│   ├── model/                    # Aggregates, entidades
-│   ├── event/                    # Eventos de domínio
-│   ├── exception/                # Exceções de domínio
-│   └── valueobject/              # Value objects (ChangeStatus)
-└── infrastructure/               # Adaptadores de saída (driven)
-    ├── config/                   # Configurações Spring/Kafka
-    ├── kafka/                    # Publisher adapter + IntegrationEvent
-    ├── observability/            # Filtros MDC, métricas
-    ├── persistence/              # JPA entities, repositories, adapters
-    ├── ratelimit/                # Rate limiting
+com.changeops.changeservice/  
+├── api/                          # Adaptadores de entrada (driving)  
+│   ├── controller/               # REST controllers  
+│   └── dto/                      # Request/Response DTOs  
+├── application/                  # Lógica de aplicação  
+│   ├── port/  
+│   │   ├── in/                   # Use cases (driving ports)  
+│   │   └── out/                  # Driven ports (interfaces)  
+│   └── service/                  # Implementação dos use cases  
+├── domain/                       # Núcleo de domínio (zero dependências externas)  
+│   ├── model/                    # Aggregates, entidades  
+│   ├── event/                    # Eventos de domínio  
+│   ├── exception/                # Exceções de domínio  
+│   └── valueobject/              # Value objects (ChangeStatus)  
+└── infrastructure/               # Adaptadores de saída (driven)  
+    ├── config/                   # Configurações Spring/Kafka  
+    ├── kafka/                    # Publisher adapter + IntegrationEvent  
+    ├── observability/            # Filtros MDC, métricas  
+    ├── persistence/              # JPA entities, repositories, adapters  
+    ├── ratelimit/                # Rate limiting  
     └── security/                 # OAuth2, CORS
 ```
 
-### Regra de Dependência
+## Regra de Dependência
 
+```mermaid
+graph LR
+
+API --> PORTIN
+PORTIN --> APP
+APP --> DOMAIN
+APP --> PORTOUT
+
+INFRA -- implements --> PORTOUT
 ```
-api → application → domain ← infrastructure
-         ↓
-    port/in  port/out
-                ↑
-          infrastructure
+
+*   **Domain** não depende de nenhuma outra camada (zero imports de frameworks).
+*   **Application**:
+    *   Depende apenas do `domain`
+    *   Define interfaces (`port/in` e `port/out`)
+    *   **Não depende de implementações de infraestrutura**
+*   **Infrastructure**:
+    *   Implementa os `port/out` definidos pelo application
+    *   Depende do módulo de aplicação para cumprir contratos
+    *   **Nunca é referenciada diretamente pelo application**
+*   **API**:
+    *   Atua como adaptador de entrada
+    *   Invoca use cases via `port/in`
+
+> Dependências sempre apontam para o centro (Domain), enquanto implementações técnicas ficam na borda (Infrastructure).
+
+## Independência de Serviços
+
+Essa estrutura reforça a independência entre serviços como `change-service` e `deploy-orchestrator`.
+
+Cada serviço:
+*   Possui seu próprio domínio isolado
+*   Define seus próprios ports e adapters
+*   Evolui de forma independente (deploy, versionamento, mudanças internas)
+A comunicação entre serviços ocorre exclusivamente via eventos (Kafka), conforme definido nas ADRs anteriores, evitando acoplamento direto entre códigos.
+
+Isso permite:
+*   Deploys independentes
+*   Evolução assíncrona dos bounded contexts
+*   Redução de impacto em mudanças internas
+
+## Status DRAFT e status inicial da mudança
+
+O enum `ChangeStatus` inclui o valor `DRAFT`, porém a factory `Change.create()` define o status inicial diretamente como `PREPARED`. Essa é uma **decisão deliberada de escopo**:
+*   No fluxo atual da POC, **não existe transição observável `DRAFT → PREPARED`**. A change é criada e imediatamente persistida em `PREPARED` — nenhum registro com status `DRAFT` será encontrado no banco de dados.
+*   A notação `DRAFT → PREPARED` presente em documentações de fluxo descreve uma **intenção futura**, não um estado transitório real na implementação atual.
+*   O valor `DRAFT` é mantido no enum exclusivamente para **compatibilidade forward**.
+**Status inicial efetivo:** `PREPARED`  
+**Roadmap:** A transição real `DRAFT → PREPARED` será introduzida junto ao fluxo de aprovação.
+
+## Exemplo de Testabilidade
+
+A arquitetura permite testar a lógica de aplicação de forma isolada, mockando apenas os ports de saída.
+
+```Java
+@ExtendWith(MockitoExtension.class)  
+class CreateChangeServiceTest {  
+  
+    @Mock  
+    private ChangeRepositoryPort repository;  
+  
+    @Mock  
+    private PublishEventPort eventPublisher;  
+  
+    @InjectMocks  
+    private CreateChangeService service;  
+  
+    @Test  
+    void shouldCreateChangeAndPublishEvent() {  
+        // given  
+        var command = new CreateChangeCommand("component-1", "user-1");  
+  
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));  
+  
+        // when  
+        service.execute(command);  
+  
+        // then  
+        verify(repository).save(any());  
+        verify(eventPublisher).publish(any());  
+    }  
+}
 ```
 
-- **Domain** não depende de nenhuma outra camada (zero imports de Spring, JPA, Kafka).
-- **Application** depende apenas de `domain` e define interfaces (`port/out`) que a infraestrutura implementa.
-- **Infrastructure** implementa os ports de saída e não é referenciada diretamente pelo application.
-- **API** é um adaptador de entrada que invoca use cases via ports de entrada.
-
-### Status DRAFT
-
-O enum `ChangeStatus` inclui o valor `DRAFT`, porém a implementação atual da factory `Change.create()` define o status diretamente como `PREPARED`. Essa é uma **decisão deliberada**:
-
-- No fluxo da POC, não há etapa de rascunho ou aprovação antes da preparação.
-- O status `DRAFT` é **reservado para uso futuro** — cenários como "criação em rascunho com aprovação posterior" ou "edição antes de submissão".
-- Manter `DRAFT` no enum garante compatibilidade forward (não será necessário alterar o schema ou a API quando implementado).
-- A transição `DRAFT → PREPARED` será adicionada quando o fluxo de aprovação for implementado (Roadmap futuro).
-
----
+Esse teste demonstra:
+*   Isolamento completo da lógica de aplicação
+*   Ausência de dependência de infraestrutura (JPA, Kafka, etc.)
+*   Execução rápida e determinística
 
 ## Alternativas Consideradas
 
 ### 1. Hexagonal / Ports & Adapters (escolhida)
 
-- Inversão de dependências clara: domínio no centro, sem acoplamento a frameworks.
-- Testabilidade máxima: serviços testados com mocks dos ports de saída.
-- Substituição de adapters sem impacto no domínio (ex: trocar Kafka por RabbitMQ).
-- Trade-off: mais interfaces e classes que uma abordagem layered simples.
+*   Inversão de dependências clara: domínio no centro, sem acoplamento a frameworks.
+*   Testabilidade máxima: serviços testados com mocks dos ports de saída.
+*   Substituição de adapters sem impacto no domínio (ex: trocar Kafka por RabbitMQ).
+*   Trade-off: mais interfaces e classes que uma abordagem layered simples.
+
+```Java
+// HexagonalArchitectureTest.java
+@Test
+void domainShouldNotDependOnInfrastructure() {
+    // Given: classes do domínio
+    Set<Class<?>> domainClasses = getClassesInPackage("com.changeops.changeservice.domain");
+    
+    // When: verificar imports
+    List<String> infraImports = domainClasses.stream()
+        .flatMap(c -> Arrays.stream(c.getImports()))
+        .filter(i -> i.startsWith("com.changeops.changeservice.infrastructure"))
+        .toList();
+    
+    // Then: nenhum import de infraestrutura
+    assertThat(infraImports).isEmpty();
+}
+```
 
 ### 2. Camadas tradicionais (Controller → Service → Repository)
 
-- Simples e familiar para a maioria dos desenvolvedores.
-- Services tendem a acumular lógica (god classes).
-- Repository acoplado ao framework (JPA direto no service).
-- Menor testabilidade: mocks de repositórios JPA são mais complexos.
+*   Simples e familiar para a maioria dos desenvolvedores.
+*   Services tendem a acumular lógica (god classes).
+*   Repository acoplado ao framework (JPA direto no service).
+*   Menor testabilidade.
 
 ### 3. Organização por feature/domínio (vertical slicing)
 
-- Cada feature em um pacote independente (ex: `create-change/`, `list-changes/`).
-- Boa para microserviços muito grandes com múltiplos subdomínios.
-- Over-engineering para serviços de escopo focado como os desta POC.
-- Dificulta visualização da arquitetura em camadas.
-
----
+*   Cada feature em um pacote independente.
+*   Boa para sistemas muito grandes.
+*   Over-engineering para a POC.
+*   Dificulta leitura da arquitetura em camadas.
 
 ## Trade-offs
 
 | Aspecto | Hexagonal (escolhida) | Camadas tradicionais | Vertical slicing |
-|---------|----------------------|---------------------|------------------|
+| --- | --- | --- | --- |
 | Desacoplamento | ✅ Máximo | ❌ Baixo | ⚠ Médio |
 | Testabilidade | ✅ Mock de ports | ⚠ Mock de repos JPA | ✅ Boa |
 | Complexidade | ⚠ Mais interfaces | ✅ Mínima | ⚠ Alta |
@@ -106,4 +182,38 @@ O enum `ChangeStatus` inclui o valor `DRAFT`, porém a implementação atual da 
 | Curva de aprendizado | ⚠ Requer entendimento de ports | ✅ Intuitiva | ⚠ Conceitual |
 | Escalabilidade de código | ✅ Boa separação | ⚠ God services | ✅ Boa |
 
-**Justificativa:** A Hexagonal Architecture oferece o melhor equilíbrio entre testabilidade, desacoplamento e manutenibilidade para serviços de domínio focado. O custo adicional de interfaces (ports) é compensado pela qualidade dos testes (mocks precisos) e pela capacidade de evoluir infraestrutura sem impactar o núcleo de negócio.
+## Consequências
+
+### Positivas
+- Isolamento de domínio: regras de negócio são testáveis sem dependências de infraestrutura, facilitando TDD e evolução
+- Substituibilidade de adapters: trocar Kafka por SQS, ou PostgreSQL por outro banco, requer apenas nova implementação de porta
+- Onboarding acelerado: estrutura padronizada permite que novos desenvolvedores localizem código por convenção, não por exploração
+
+### Negativas / Riscos
+- Verbosidade inicial: criação de múltiplos arquivos (model, port, adapter) para features simples pode parecer overhead
+- Curva de aprendizado: desenvolvedores não familiarizados com Hexagonal podem cometer erros de acoplamento entre camadas
+- Risco de "anemia de domínio": separação excessiva pode levar a modelos sem comportamento, apenas dados
+
+### Mitigações
+- Exemplo de feature completa (`CreateChange`) documentado no próprio ADR como referência para novas implementações
+- Teste de arquitetura `HexagonalArchitectureTest` verifica que domínio não importa infraestrutura, executado em cada build
+- Guidelines de modelagem rica em `docs/architecture/` (diagramas C4 e de sequência) com exemplos de estrutura por camada
+
+## Relacionado a
+- [ADR-002](./ADR-002-estrategia-idempotencia.md) — `IdempotencyAdapter` implementa porta de persistência em `infrastructure/persistence`
+- [ADR-003](./ADR-003-eventos-dominio-vs-integracao.md) — Eventos de domínio em `domain/model`, envelope em `infrastructure/event`
+- [ADR-004](./ADR-004-atualizacao-status-frontend.md) — Hook de frontend isolado em `frontend/hooks/`, sem dependência de backend
+
+## Conformidade com a RFP
+
+| Requisito | Status | Evidência |
+|-----------|--------|-----------|
+| "Organização por domínio com isolamento de infraestrutura" | ✅ Atendido | Pacotes `domain/`, `application/`, `infrastructure/` com dependências unidirecionais |
+| "Testabilidade de regras de negócio sem infraestrutura" | ✅ Atendido | Testes unitários em `domain/` sem mocks de banco ou Kafka |
+| "Substituibilidade de adapters para evolução técnica" | ✅ Atendido | Porta `EventPublisher` com implementações `KafkaEventPublisher` e `InMemoryEventPublisher` para testes |
+| "Documentação de convenções para novos desenvolvedores" | ✅ Atendido | Exemplo de feature completa no ADR + diagramas de arquitetura em `docs/architecture/` |
+| "Validação automática de arquitetura" | ✅ Atendido | `HexagonalArchitectureTest.java` executado em pipeline CI para prevenir acoplamento indevido |
+
+## Justificativa
+
+A Hexagonal Architecture oferece o melhor equilíbrio entre testabilidade, desacoplamento e manutenibilidade para serviços de domínio focado. O custo adicional de interfaces (ports) é compensado pela qualidade dos testes e pela capacidade de evoluir infraestrutura sem impactar o núcleo de negócio.

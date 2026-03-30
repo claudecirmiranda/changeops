@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -18,8 +19,10 @@ public class IdempotencyAdapter implements IdempotencyPort {
     private final ProcessedEventRepository repository;
 
     @Override
-    public boolean isAlreadyProcessed(UUID eventId) {
-        return repository.existsById(Objects.requireNonNull(eventId));
+    public boolean isAlreadyProcessed(UUID eventId, String serviceName) {
+        UUID requiredEventId = Objects.requireNonNull(eventId, "eventId must not be null");
+        String requiredServiceName = Objects.requireNonNull(serviceName, "serviceName must not be null");
+        return repository.existsById(new ProcessedEventId(requiredEventId, requiredServiceName));
     }
 
     @Override
@@ -41,6 +44,7 @@ public class IdempotencyAdapter implements IdempotencyPort {
     }
 
     @Override
+    @Transactional
     public boolean tryMarkAsProcessed(UUID eventId, String serviceName) {
         UUID requiredEventId = Objects.requireNonNull(eventId, "eventId must not be null");
         String requiredServiceName = Objects.requireNonNull(serviceName, "serviceName must not be null");

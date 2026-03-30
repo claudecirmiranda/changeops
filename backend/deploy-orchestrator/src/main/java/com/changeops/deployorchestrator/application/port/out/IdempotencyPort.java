@@ -3,7 +3,7 @@ package com.changeops.deployorchestrator.application.port.out;
 import java.util.UUID;
 
 public interface IdempotencyPort {
-    boolean isAlreadyProcessed(UUID eventId);
+    boolean isAlreadyProcessed(UUID eventId, String serviceName);
     void markAsProcessed(UUID eventId, String serviceName);
 
     /**
