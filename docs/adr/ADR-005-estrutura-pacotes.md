@@ -197,7 +197,7 @@ void domainShouldNotDependOnInfrastructure() {
 ### Mitigações
 - Exemplo de feature completa (`CreateChange`) documentado no próprio ADR como referência para novas implementações
 - Teste de arquitetura `HexagonalArchitectureTest` verifica que domínio não importa infraestrutura, executado em cada build
-- Guidelines de modelagem rica em `docs/ARCHITECTURE.md` com exemplos de entidades com comportamento, não apenas getters/setters
+- Guidelines de modelagem rica em `docs/architecture/` (diagramas C4 e de sequência) com exemplos de estrutura por camada
 
 ## Relacionado a
 - [ADR-002](./ADR-002-estrategia-idempotencia.md) — `IdempotencyAdapter` implementa porta de persistência em `infrastructure/persistence`
@@ -211,7 +211,7 @@ void domainShouldNotDependOnInfrastructure() {
 | "Organização por domínio com isolamento de infraestrutura" | ✅ Atendido | Pacotes `domain/`, `application/`, `infrastructure/` com dependências unidirecionais |
 | "Testabilidade de regras de negócio sem infraestrutura" | ✅ Atendido | Testes unitários em `domain/` sem mocks de banco ou Kafka |
 | "Substituibilidade de adapters para evolução técnica" | ✅ Atendido | Porta `EventPublisher` com implementações `KafkaEventPublisher` e `InMemoryEventPublisher` para testes |
-| "Documentação de convenções para novos desenvolvedores" | ✅ Atendido | Exemplo de feature completa no ADR + `docs/ARCHITECTURE.md` com guidelines |
+| "Documentação de convenções para novos desenvolvedores" | ✅ Atendido | Exemplo de feature completa no ADR + diagramas de arquitetura em `docs/architecture/` |
 | "Validação automática de arquitetura" | ✅ Atendido | `HexagonalArchitectureTest.java` executado em pipeline CI para prevenir acoplamento indevido |
 
 ## Justificativa

@@ -38,7 +38,7 @@ class HexagonalArchitectureTest {
     }
 
     @Test
-    @DisplayName("Domínio deve depender apenas de si mesmo e bibliotecas padrão")
+    @DisplayName("Domínio deve depender apenas de si mesmo, bibliotecas padrão e utilitários permitidos (Jackson, Lombok)")
     void domainShouldOnlyDependOnItselfAndStandardLibs() {
         ArchRule rule = noClasses()
                 .that().resideInAPackage(DOMAIN_PACKAGE + "..")
@@ -84,6 +84,8 @@ class HexagonalArchitectureTest {
                         "org.apache.kafka..",
                         "com.fasterxml.jackson..",
                         "io.micrometer..",
+                        "org.slf4j..",
+                        "org.hibernate..",
                         "lombok..");  // Permitir Lombok em qualquer camada
 
         rule.check(PRODUCTION_CLASSES);

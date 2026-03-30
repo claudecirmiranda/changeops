@@ -20,11 +20,11 @@ Adotamos **estratégia de idempotência em dois níveis**:
 
 ## Rastreabilidade
 
-A chave `event_id` utilizada na tabela `processed_events` é derivada da composição de **`correlationId + deployId`**, garantindo unicidade global do evento.
+A chave `event_id` utilizada na tabela `processed_events` corresponde ao **`deployId`** do evento (`payload.deployId()`), que é um `UUID` único por deploy dentro do `deploy-orchestrator`.
 Essa abordagem assegura:
-*   Vinculação direta com logs distribuídos (observabilidade end-to-end)
-*   Correlação entre eventos de entrada e saída
-*   Facilidade de auditoria e troubleshooting
+*   Vinculação direta com logs distribuídos (observabilidade end-to-end), dado que o `deployId` é propagado em logs e métricas
+*   Correlação entre eventos de entrada e saída por meio do `deployId` e demais metadados presentes no payload (como `correlationId`)
+*   Facilidade de auditoria e troubleshooting, pois o mesmo identificador é utilizado no evento, no banco e nos logs
 
 ## Implementação
 
