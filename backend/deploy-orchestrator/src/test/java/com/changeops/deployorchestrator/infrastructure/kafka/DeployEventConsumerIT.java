@@ -43,18 +43,17 @@ import static org.awaitility.Awaitility.await;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
 @ActiveProfiles("test")
+@SuppressWarnings("null")
 class DeployEventConsumerIT {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("changeops_test")
-            .withUsername("test")
-            .withPassword("test")
-            .withInitScript("init-test-schema.sql");
+    private static final PostgresHolder POSTGRES = new PostgresHolder();
+    private static final KafkaHolder KAFKA = new KafkaHolder();
 
     @Container
-    static KafkaContainer kafka = new KafkaContainer(
-            DockerImageName.parse("confluentinc/cp-kafka:7.6.0"));
+    static PostgreSQLContainer<?> postgres = POSTGRES.container();
+
+    @Container
+    static KafkaContainer kafka = KAFKA.container();
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
@@ -218,5 +217,28 @@ class DeployEventConsumerIT {
         kafkaTemplate.send(new ProducerRecord<>(
                 "changeops.deploy.finished", changeId.toString(), event));
         kafkaTemplate.flush();
+    }
+
+    @SuppressWarnings("all")
+    private static final class PostgresHolder {
+        private final PostgreSQLContainer<?> container = new PostgreSQLContainer<>("postgres:16-alpine")
+                .withDatabaseName("changeops_test")
+                .withUsername("test")
+                .withPassword("test")
+                .withInitScript("init-test-schema.sql");
+
+        private PostgreSQLContainer<?> container() {
+            return container;
+        }
+    }
+
+    @SuppressWarnings("all")
+    private static final class KafkaHolder {
+        private final KafkaContainer container = new KafkaContainer(
+                DockerImageName.parse("confluentinc/cp-kafka:7.6.0"));
+
+        private KafkaContainer container() {
+            return container;
+        }
     }
 }

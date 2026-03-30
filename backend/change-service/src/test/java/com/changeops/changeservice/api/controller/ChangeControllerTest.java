@@ -37,6 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(ChangeController.class)
 @Import(SecurityConfig.class)
 @ActiveProfiles("local")
+@SuppressWarnings("null")
 class ChangeControllerTest {
 
     @Autowired
@@ -127,7 +128,7 @@ class ChangeControllerTest {
     @Test
     void list_shouldForwardStatusFilterParam() throws Exception {
         when(listChangesUseCase.execute(any(), any()))
-                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+                .thenReturn(new PageImpl<>(List.<ListChangesUseCase.Result>of(), PageRequest.of(0, 20), 0));
 
         mockMvc.perform(get("/api/v1/changes")
                         .param("status", "PREPARED")

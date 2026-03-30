@@ -76,3 +76,4 @@ docker-compose.override.yml
 *.swp
 *~
 *.tmp
+.github/copilot-instructions.md

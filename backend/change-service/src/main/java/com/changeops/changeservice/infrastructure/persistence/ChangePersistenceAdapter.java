@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,15 +32,16 @@ public class ChangePersistenceAdapter
     private final ChangeEventJpaRepository changeEventJpaRepository;
 
     @Override
+    @SuppressWarnings("null")
     public Change save(Change change) {
-        ChangeEntity entity = toEntity(change);
+        ChangeEntity entity = toEntity(Objects.requireNonNull(change, "change must not be null"));
         ChangeEntity saved = changeJpaRepository.save(entity);
         return toDomain(saved);
     }
 
     @Override
     public Optional<Change> findById(UUID changeId) {
-        return changeJpaRepository.findById(changeId).map(this::toDomain);
+        return changeJpaRepository.findById(Objects.requireNonNull(changeId)).map(this::toDomain);
     }
 
     @Override
@@ -49,13 +51,14 @@ public class ChangePersistenceAdapter
     }
 
     @Override
+    @SuppressWarnings("null")
     public void save(UUID changeId, String eventType, String payload, Instant occurredAt) {
         ChangeEventEntity event = ChangeEventEntity.builder()
                 .eventId(UUID.randomUUID())
-                .changeId(changeId)
-                .eventType(eventType)
-                .payload(payload)
-                .occurredAt(occurredAt)
+                .changeId(Objects.requireNonNull(changeId, "changeId must not be null"))
+                .eventType(Objects.requireNonNull(eventType, "eventType must not be null"))
+                .payload(Objects.requireNonNull(payload, "payload must not be null"))
+                .occurredAt(Objects.requireNonNull(occurredAt, "occurredAt must not be null"))
                 .build();
         changeEventJpaRepository.save(event);
     }
@@ -85,12 +88,12 @@ public class ChangePersistenceAdapter
 
     @Override
     public boolean existsById(UUID changeId) {
-        return changeJpaRepository.existsById(changeId);
+        return changeJpaRepository.existsById(Objects.requireNonNull(changeId));
     }
 
     @Override
     public List<LoadChangeEventsPort.ChangeEventResult> findByChangeId(UUID changeId) {
-        return changeEventJpaRepository.findByChangeIdOrderByOccurredAtAsc(changeId)
+        return changeEventJpaRepository.findByChangeIdOrderByOccurredAtAsc(Objects.requireNonNull(changeId))
                 .stream()
                 .map(e -> new LoadChangeEventsPort.ChangeEventResult(
                         e.getEventId(), e.getChangeId(),

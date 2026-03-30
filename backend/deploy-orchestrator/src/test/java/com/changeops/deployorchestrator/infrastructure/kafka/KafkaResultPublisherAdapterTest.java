@@ -19,11 +19,13 @@ import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class KafkaResultPublisherAdapterTest {
 
     private static final String CHANGE_RESULT_TOPIC = "change-result";
@@ -45,16 +47,24 @@ class KafkaResultPublisherAdapterTest {
     void whenKafkaPublishSucceeds_shouldIncrementCounter() {
         ChangeResult result = ChangeResult.from(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), true);
         result.markFinished();
+        String key = result.getChangeId().toString();
 
         RecordMetadata metadata = new RecordMetadata(
                 new TopicPartition(CHANGE_RESULT_TOPIC, 0), 0L, 0, 0L, 0, 0);
         SendResult<String, IntegrationEvent> sendResult =
                 new SendResult<>(new ProducerRecord<>(CHANGE_RESULT_TOPIC, null), metadata);
-        when(kafkaTemplate.send(eq(CHANGE_RESULT_TOPIC), any(), any()))
+        when(kafkaTemplate.send(anyString(), anyString(), any()))
                 .thenReturn(CompletableFuture.completedFuture(sendResult));
 
         adapter.publish(result);
 
+        ArgumentCaptor<String> topicCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<IntegrationEvent> eventCaptor = ArgumentCaptor.forClass(IntegrationEvent.class);
+        verify(kafkaTemplate).send(topicCaptor.capture(), keyCaptor.capture(), eventCaptor.capture());
+        assertThat(topicCaptor.getValue()).isEqualTo(CHANGE_RESULT_TOPIC);
+        assertThat(keyCaptor.getValue()).isEqualTo(key);
+        assertThat(eventCaptor.getValue().eventType()).isEqualTo("ChangeCompletedEvent");
         double count = meterRegistry.counter("events_published_total", "type", "ChangeCompletedEvent").count();
         assertThat(count).isEqualTo(1.0);
     }
@@ -63,19 +73,28 @@ class KafkaResultPublisherAdapterTest {
     void whenKafkaPublishFails_shouldFallbackToDlqTopic() {
         ChangeResult result = ChangeResult.from(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), false);
         result.markFinished();
+        String key = result.getChangeId().toString();
 
         CompletableFuture<SendResult<String, IntegrationEvent>> failedFuture = new CompletableFuture<>();
         failedFuture.completeExceptionally(new RuntimeException("Kafka unavailable"));
+        RecordMetadata dlqMetadata = new RecordMetadata(
+                new TopicPartition(DLQ_TOPIC, 0), 0L, 0, 0L, 0, 0);
+        SendResult<String, IntegrationEvent> dlqSendResult =
+                new SendResult<>(new ProducerRecord<>(DLQ_TOPIC, null), dlqMetadata);
 
-        when(kafkaTemplate.send(eq(CHANGE_RESULT_TOPIC), any(), any()))
-                .thenReturn(failedFuture);
-        when(kafkaTemplate.send(eq(DLQ_TOPIC), any(), any()))
-                .thenReturn(CompletableFuture.<SendResult<String, IntegrationEvent>>completedFuture(null));
+        when(kafkaTemplate.send(anyString(), anyString(), any()))
+                .thenAnswer(invocation -> CHANGE_RESULT_TOPIC.equals(invocation.getArgument(0, String.class))
+                        ? failedFuture
+                        : CompletableFuture.completedFuture(dlqSendResult));
 
         adapter.publish(result);
 
-        ArgumentCaptor<IntegrationEvent> captor = ArgumentCaptor.forClass(IntegrationEvent.class);
-        verify(kafkaTemplate).send(eq(DLQ_TOPIC), any(String.class), captor.capture());
-        assertThat(captor.getValue().eventType()).isEqualTo("ChangeFailedEvent");
+        ArgumentCaptor<String> topicCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<IntegrationEvent> eventCaptor = ArgumentCaptor.forClass(IntegrationEvent.class);
+        verify(kafkaTemplate, times(2)).send(topicCaptor.capture(), keyCaptor.capture(), eventCaptor.capture());
+        assertThat(topicCaptor.getAllValues()).containsExactly(CHANGE_RESULT_TOPIC, DLQ_TOPIC);
+        assertThat(keyCaptor.getAllValues()).containsExactly(key, key);
+        assertThat(eventCaptor.getAllValues().get(1).eventType()).isEqualTo("ChangeFailedEvent");
     }
 }
