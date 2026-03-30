@@ -131,7 +131,7 @@ Change.create()
 | "Versionamento de contratos de evento" | ✅ Atendido | Campo `version` no envelope; estratégia `tolerant reader` documentada em consumidores |
 | "Rastreabilidade ponta a ponta via correlation ID" | ✅ Atendido | `correlationId` propagado de frontend → backend → Kafka → consumidor → logs estruturados |
 | "Evolução sem breaking changes" | ✅ Atendido | `@JsonIgnoreProperties(ignoreUnknown = true)` + versionamento major para mudanças incompatíveis |
-| "Documentação de contratos com AsyncAPI" | ✅ Atendido | `asyncapi.yaml` em `docs/contracts/` descrevendo envelope, payload e metadados |
+| "Documentação de contratos com AsyncAPI" | ✅ Atendido | `events.yml` em `contracts/asyncapi/` descrevendo envelope, payload e metadados |
 
 ## Consistência Transacional (Outbox)
 

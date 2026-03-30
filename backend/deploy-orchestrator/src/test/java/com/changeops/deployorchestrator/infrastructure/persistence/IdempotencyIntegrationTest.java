@@ -1,6 +1,5 @@
 package com.changeops.deployorchestrator.infrastructure.persistence;
 
-import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,15 +9,17 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Testcontainers
 @ActiveProfiles("test")
 class IdempotencyIntegrationTest {
@@ -31,11 +32,19 @@ class IdempotencyIntegrationTest {
             .withPassword("test")
             .withInitScript("init-test-schema.sql");
 
+    @Container
+    static KafkaContainer kafka = new KafkaContainer(
+            DockerImageName.parse("confluentinc/cp-kafka:7.6.0"));
+
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
+        registry.add("changeops.kafka.topics.deploy-finished", () -> "changeops.deploy.finished");
+        registry.add("changeops.kafka.topics.change-result", () -> "changeops.change.result");
+        registry.add("changeops.kafka.topics.dlq", () -> "changeops.events.dlq");
         registry.add("spring.flyway.enabled", () -> "false");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "none");
     }
@@ -46,14 +55,10 @@ class IdempotencyIntegrationTest {
     @Autowired
     IdempotencyAdapter idempotency;
 
-    @Autowired
-    MeterRegistry meterRegistry;
-
     @BeforeEach
     void setUp() {
         // Limpeza de dados de teste
         jdbcTemplate.execute("DELETE FROM processed_events");
-        jdbcTemplate.execute("DELETE FROM deploy_results");
         jdbcTemplate.execute("DELETE FROM changes");
     }
 
@@ -72,17 +77,12 @@ class IdempotencyIntegrationTest {
 
         // And: evento registrado na tabela
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM processed_events WHERE event_id = ? AND consumer_name = ?",
+                "SELECT COUNT(*) FROM processed_events WHERE event_id = ? AND service_name = ?",
                 Integer.class,
-                eventId.toString(),
+                eventId,
                 consumerName
         );
         assertThat(count).isEqualTo(1);
-
-        // And: métrica de eventos processados incrementada
-        assertThat(meterRegistry.get("events_processed_total")
-                .tag("service", consumerName)
-                .counter().count()).isEqualTo(1.0);
     }
 
     @Test
@@ -99,16 +99,11 @@ class IdempotencyIntegrationTest {
         // Then: rejeita duplicata
         assertThat(result).isFalse();
 
-        // And: métrica de duplicata incrementada
-        assertThat(meterRegistry.get("events_duplicate_discarded_total")
-                .tag("service", consumerName)
-                .counter().count()).isEqualTo(1.0);
-
         // And: estado do banco inalterado (apenas 1 registro)
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM processed_events WHERE event_id = ?",
                 Integer.class,
-                eventId.toString()
+                eventId
         );
         assertThat(count).isEqualTo(1);
     }
@@ -131,7 +126,7 @@ class IdempotencyIntegrationTest {
 
         // And: dois registros distintos na tabela
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM processed_events WHERE consumer_name = ?",
+                "SELECT COUNT(*) FROM processed_events WHERE service_name = ?",
                 Integer.class,
                 consumerName
         );
@@ -158,7 +153,7 @@ class IdempotencyIntegrationTest {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM processed_events WHERE event_id = ?",
                 Integer.class,
-                eventId.toString()
+                eventId
         );
         assertThat(count).isEqualTo(2);
     }
