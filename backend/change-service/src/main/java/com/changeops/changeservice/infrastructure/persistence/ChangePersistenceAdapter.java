@@ -41,7 +41,8 @@ public class ChangePersistenceAdapter
 
     @Override
     public Optional<Change> findById(UUID changeId) {
-        return changeJpaRepository.findById(Objects.requireNonNull(changeId)).map(this::toDomain);
+        return changeJpaRepository.findById(Objects.requireNonNull(changeId, "changeId must not be null"))
+                .map(this::toDomain);
     }
 
     @Override
@@ -88,12 +89,13 @@ public class ChangePersistenceAdapter
 
     @Override
     public boolean existsById(UUID changeId) {
-        return changeJpaRepository.existsById(Objects.requireNonNull(changeId));
+        return changeJpaRepository.existsById(Objects.requireNonNull(changeId, "changeId must not be null"));
     }
 
     @Override
     public List<LoadChangeEventsPort.ChangeEventResult> findByChangeId(UUID changeId) {
-        return changeEventJpaRepository.findByChangeIdOrderByOccurredAtAsc(Objects.requireNonNull(changeId))
+        return changeEventJpaRepository.findByChangeIdOrderByOccurredAtAsc(
+                        Objects.requireNonNull(changeId, "changeId must not be null"))
                 .stream()
                 .map(e -> new LoadChangeEventsPort.ChangeEventResult(
                         e.getEventId(), e.getChangeId(),

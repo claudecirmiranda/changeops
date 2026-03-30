@@ -17,7 +17,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Objects;
 
 /**
  * Rate limiter for POST /api/v1/changes.
@@ -41,7 +40,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
     protected void doFilterInternal(@NonNull HttpServletRequest request,
                                     @NonNull HttpServletResponse response,
                                     @NonNull FilterChain filterChain) throws ServletException, IOException {
-        if (HttpMethod.POST.matches(Objects.requireNonNull(request.getMethod()))
+        String method = request.getMethod();
+        if (method != null
+                && HttpMethod.POST.matches(method)
                 && CHANGES_PATH.equals(request.getRequestURI())) {
 
             String clientIp = resolveClientIp(request);

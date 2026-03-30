@@ -19,7 +19,7 @@ public class IdempotencyAdapter implements IdempotencyPort {
 
     @Override
     public boolean isAlreadyProcessed(UUID eventId) {
-        return repository.existsById(Objects.requireNonNull(eventId));
+        return repository.existsById(Objects.requireNonNull(eventId, "eventId must not be null"));
     }
 
     @Override
