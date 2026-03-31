@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -32,44 +33,51 @@ public class KafkaResultPublisherAdapter implements PublishResultEventPort {
             @Value("${changeops.kafka.topics.change-result}") String changeResultTopic,
             @Value("${changeops.kafka.topics.dlq}") String dlqTopic,
             MeterRegistry meterRegistry) {
-        this.kafkaTemplate = kafkaTemplate;
-        this.changeResultTopic = changeResultTopic;
-        this.dlqTopic = dlqTopic;
-        this.meterRegistry = meterRegistry;
+        this.kafkaTemplate = Objects.requireNonNull(kafkaTemplate, "kafkaTemplate must not be null");
+        this.changeResultTopic = Objects.requireNonNull(changeResultTopic, "changeResultTopic must not be null");
+        this.dlqTopic = Objects.requireNonNull(dlqTopic, "dlqTopic must not be null");
+        this.meterRegistry = Objects.requireNonNull(meterRegistry, "meterRegistry must not be null");
     }
 
     @Override
     public void publish(ChangeResult result) {
-        IntegrationEvent envelope = buildEnvelope(result);
-        String key = result.getChangeId().toString();
+        ChangeResult requiredResult = Objects.requireNonNull(result, "result must not be null");
+        String key = Objects.requireNonNull(requiredResult.getChangeId(), "changeId must not be null").toString();
+        IntegrationEvent envelope = buildEnvelope(requiredResult);
 
         try {
             SendResult<String, IntegrationEvent> sendResult =
-                    kafkaTemplate.send(changeResultTopic, key, envelope).get(10, TimeUnit.SECONDS);
+                    kafkaTemplate.send(
+                            Objects.requireNonNull(changeResultTopic, "changeResultTopic must not be null"),
+                            Objects.requireNonNull(key, "key must not be null"),
+                            envelope).get(10, TimeUnit.SECONDS);
             getOrCreateCounter(envelope.eventType()).increment();
             log.info("Result event published: eventType={}, changeId={}, correlationId={}, topic={}, partition={}, offset={}",
-                    envelope.eventType(), result.getChangeId(), result.getCorrelationId(),
+                    envelope.eventType(), requiredResult.getChangeId(), requiredResult.getCorrelationId(),
                     sendResult.getRecordMetadata().topic(),
                     sendResult.getRecordMetadata().partition(),
                     sendResult.getRecordMetadata().offset());
         } catch (ExecutionException e) {
             log.error("Failed to publish result event — sending to DLQ: changeId={}, correlationId={}",
-                    result.getChangeId(), result.getCorrelationId(), e.getCause());
+                    requiredResult.getChangeId(), requiredResult.getCorrelationId(), e.getCause());
             sendToDlq(key, envelope);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("Interrupted publishing result event — sending to DLQ: changeId={}",
-                    result.getChangeId());
+                    requiredResult.getChangeId());
             sendToDlq(key, envelope);
         } catch (TimeoutException e) {
             log.error("Timeout publishing result event — sending to DLQ: changeId={}",
-                    result.getChangeId());
+                    requiredResult.getChangeId());
             sendToDlq(key, envelope);
         }
     }
 
     private void sendToDlq(String key, IntegrationEvent envelope) {
-        kafkaTemplate.send(dlqTopic, key, envelope)
+        kafkaTemplate.send(
+                        Objects.requireNonNull(dlqTopic, "dlqTopic must not be null"),
+                        Objects.requireNonNull(key, "key must not be null"),
+                        envelope)
                 .whenComplete((r, ex) -> {
                     if (ex != null) {
                         log.error("CRITICAL: Failed to send event to DLQ — manual intervention required: key={}", key, ex);
@@ -80,7 +88,7 @@ public class KafkaResultPublisherAdapter implements PublishResultEventPort {
     }
 
     private Counter getOrCreateCounter(String eventType) {
-        return counterCache.computeIfAbsent(eventType, type ->
+        return counterCache.computeIfAbsent(Objects.requireNonNull(eventType, "eventType must not be null"), type ->
                 Counter.builder("events_published_total")
                         .tag("type", type)
                         .description("Total number of events published to Kafka")

@@ -26,9 +26,10 @@ CREATE TABLE change_events (
 );
 
 CREATE TABLE processed_events (
-    event_id        UUID          PRIMARY KEY,
+    event_id        UUID          NOT NULL,
     processed_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    service_name    VARCHAR(100)  NOT NULL
+    service_name    VARCHAR(100)  NOT NULL,
+    PRIMARY KEY (event_id, service_name)
 );
 
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -42,27 +43,3 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_changes_updated_at
     BEFORE UPDATE ON changes
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- Schema mínimo para testes de idempotência no deploy-orchestrator
-CREATE TABLE IF NOT EXISTS changes (
-    change_id UUID PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    component_id VARCHAR(100) NOT NULL,
-    requested_by VARCHAR(100) NOT NULL,
-    scheduled_at TIMESTAMP NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    correlation_id UUID NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS processed_events (
-    event_id VARCHAR(255) NOT NULL,
-    consumer_name VARCHAR(100) NOT NULL,
-    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (event_id, consumer_name)
-);
-
-CREATE INDEX IF NOT EXISTS idx_processed_events_consumer 
-    ON processed_events(consumer_name, processed_at);

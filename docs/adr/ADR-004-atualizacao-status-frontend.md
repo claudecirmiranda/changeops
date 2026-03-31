@@ -94,8 +94,8 @@ Esse padrão melhora a estabilidade do sistema sob carga e evita efeitos de _thu
 
 ### Mitigações
 - SLO definido: "95% das atualizações refletidas em < 10s" justifica intervalo de 5s para POC; reavaliação na Fase 2
-- Hook abstrato permite ajuste centralizado de intervalo; métrica `frontend_polling_requests_total` monitora volume
-- Documentação de edge cases em `useChangeStatus.ts` com recomendações para `visibilitychange` e `beforeunload`
+- Hook genérico `usePolling` permite ajuste centralizado de intervalo; backoff exponencial e parada por status HTTP planejados para Fase 2
+- Edge cases de UX (`visibilitychange`, `beforeunload`) a tratar na evolução do hook
 
 ## Ausência de Endpoint PUT/PATCH para Mutação Direta de Status
 
@@ -122,14 +122,14 @@ Permitir `PATCH /changes/{id}/status` criaria dois caminhos para a mesma transi�
 
 ### Relacionado a
 - [ADR-003](./ADR-003-eventos-dominio-vs-integracao.md) — `correlationId` do envelope é incluído em respostas HTTP para polling
-- [ADR-005](./ADR-005-estrutura-pacotes.md) — Hook `useChangeStatus` vive em `frontend/hooks/`, isolado de lógica de domínio
+- [ADR-005](./ADR-005-estrutura-pacotes.md) — Hook `usePolling` vive em `frontend/src/shared/hooks/`, isolado de lógica de domínio
 - [ADR-001](./ADR-001-escolha-message-broker.md) — Eventos assíncronos no Kafka justificam necessidade de polling no frontend
 
 ## Conformidade com a RFP
 
 | Requisito | Status | Evidência |
 |-----------|--------|-----------|
-| "Mecanismo de atualização de status para frontend" | ✅ Atendido | Hook `useChangeStatus` com polling configurável e tratamento de erro |
+| "Mecanismo de atualização de status para frontend" | ✅ Atendido | Hook genérico `usePolling` com intervalo fixo de 5s e tratamento básico de erro |
 | "Propagação de correlation ID para rastreabilidade" | ✅ Atendido | `correlationId` incluído em headers de resposta e logs estruturados |
 | "Estratégia evolutiva para comunicação em tempo real" | ✅ Atendido | Hook abstrato permite migração para SSE/WebSocket sem refatoração de componentes |
 | "Tratamento de erro e retry no cliente" | ✅ Atendido | Backoff exponencial no polling para erros 5xx; parada para erros 4xx |

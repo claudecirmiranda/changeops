@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -36,12 +37,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
             .build();
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
-        if (HttpMethod.POST.matches(request.getMethod())
+    protected void doFilterInternal(@NonNull HttpServletRequest request,
+                                    @NonNull HttpServletResponse response,
+                                    @NonNull FilterChain filterChain) throws ServletException, IOException {
+        String method = request.getMethod();
+        if (method != null
+                && HttpMethod.POST.matches(method)
                 && CHANGES_PATH.equals(request.getRequestURI())) {
 
             String clientIp = resolveClientIp(request);
+            if (clientIp == null || clientIp.isBlank()) {
+                clientIp = "unknown";
+            }
             Bucket bucket = buckets.get(clientIp, k -> newBucket());
 
             if (!bucket.tryConsume(1)) {
