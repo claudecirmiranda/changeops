@@ -481,9 +481,15 @@ Todos os campos são indexáveis — integração direta com Elasticsearch/Splun
 | Métrica | Tipo | Descrição |
 |---------|------|-----------|
 | `changes_created_total` | Counter | Total de mudanças criadas |
+| `changes_completed_total` | Counter | Total de mudanças com status COMPLETED |
+| `changes_failed_total` | Counter | Total de mudanças com status FAILED |
 | `events_published_total{type="..."}` | Counter | Eventos publicados no Kafka, dimensionado por tipo de evento |
 | `events_consumed_total` | Counter | Eventos consumidos pelo orchestrator |
-| `events_failed_total` | Counter | Eventos enviados para DLT |
+| `events_retries_total` | Counter | Tentativas de reprocessamento (retry) |
+| `events_failed_total` | Counter | Falhas permanentes (evento enviado para DLT) |
+| `events_dlt_total` | Counter | Total de eventos enviados para DLT |
+| `events_discarded_total` | Counter | Eventos descartados (duplicatas) |
+| `orchestration_duration_seconds` | Timer | Latência end-to-end do processamento |
 | `changes_by_status{status}` | Gauge | Distribuição atual por status (refresh 60s) |
 | `http_server_requests_seconds` | Histogram | Latência de API por método/path/status |
 
@@ -493,13 +499,20 @@ O dashboard **ChangeOps** é carregado automaticamente ao iniciar a stack. Sem c
 
 | Painel | Visualização | Query |
 |--------|--------------|-------|
-| Changes Created | Stat (total) | `sum(changes_created_total)` |
-| Events Published | Stat (total) | `sum(events_published_total)` |
-| Events Consumed | Stat (total) | `sum(events_consumed_total)` |
-| Events Failed | Stat (vermelho) | `sum(events_failed_total)` |
+| Changes - Created | Stat | `sum(changes_created_total)` |
+| Changes - Completed | Stat (verde) | `sum(changes_completed_total)` |
+| Changes - Failed | Stat (vermelho) | `sum(changes_failed_total)` |
+| Changes - Prepared | Stat (azul) | `created - completed - failed` |
+| Changes - By Status | PieChart | Completed / Failed / Prepared |
 | API Latency p95 | TimeSeries | `histogram_quantile(0.95, http_server_requests_seconds_bucket)` |
-| Changes by Status | PieChart | `sum by(status) changes_by_status` |
-| Event Throughput | TimeSeries | Published / Consumed / Failed por minuto |
+| Events - Published | Stat | `sum(events_published_total)` |
+| Events - Consumed | Stat | `sum(events_consumed_total)` |
+| Events - Retries | Stat (vermelho) | `sum(events_retries_total)` |
+| Events - Failed | Stat (vermelho) | `sum(events_failed_total)` — falhas permanentes |
+| Events - DLT | Stat (dark-red) | `sum(events_dlt_total)` |
+| Events - Discarded | Stat (roxo) | `sum(events_discarded_total)` |
+| Events Rate | TimeSeries | Published / Consumed / Retries / Failed / DLT / Discarded por minuto |
+| Orchestration Latency p95 | TimeSeries | `histogram_quantile(0.95, orchestration_duration_seconds_bucket)` |
 
 ---
 

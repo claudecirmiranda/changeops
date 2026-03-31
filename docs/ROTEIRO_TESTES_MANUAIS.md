@@ -434,14 +434,20 @@ Anotar o `changeId` retornado.
 - Acessar http://localhost:3001 (login: `admin` / `changeops`)
 - Navegar para **Dashboards → ChangeOps Dashboard**
 - Verificar que os painéis mostram dados:
-  - **"Changes Created (total)"** — valor > 0
-  - **"Events Published (total)"** — valor > 0
-  - **"Events Consumed (total)"** — valor > 0
-  - **"Events Failed (total)"** — valor > 0 (após o CT-13)
-  - **"Completed"** / **"Failed"** / **"Prepared"** — stats por status
-  - **"Changes by Status"** — pizza com distribuição de status
-  - **"API Request Duration (p95)"** — gráfico com dados de latência
-  - **"Events Published Rate (per min)"** — gráfico com linhas Published/Consumed/Failed
+  - **"Changes - Created (total)"** — valor > 0
+  - **"Changes - Completed"** — valor > 0 (após CT-10)
+  - **"Changes - Failed"** — valor > 0 (após CT-11)
+  - **"Changes - Prepared"** — stats por status
+  - **"Changes - By Status"** — pizza com distribuição de status
+  - **"Events - Published (total)"** — valor > 0
+  - **"Events - Consumed (total)"** — valor > 0
+  - **"Events - Retries (total)"** — valor ≥ 0 (tentativas de reprocessamento)
+  - **"Events - Failed (total)"** — valor ≥ 0 (falhas permanentes, após CT-13)
+  - **"Events - DLT (total)"** — valor ≥ 0 (após CT-13)
+  - **"Events - Discarded (total)"** — valor ≥ 0 (após CT-12)
+  - **"API Latency (p95)"** — gráfico com dados de latência
+  - **"Events - Rate (per min)"** — gráfico com linhas Published/Consumed/Retries/Failed/DLT/Discarded
+  - **"Orchestration Latency (p95)"** — gráfico com dados de latência do orquestrador
 
 **Passo 2 — Prometheus:**
 - Acessar http://localhost:9090

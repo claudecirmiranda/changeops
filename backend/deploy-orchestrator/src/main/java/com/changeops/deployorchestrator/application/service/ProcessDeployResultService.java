@@ -28,8 +28,9 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
     private final PublishResultEventPort publishResultEventPort;
     private final SaveChangeEventPort saveChangeEventPort; // ← aqui, junto aos outros campos
     private final Counter eventsConsumedCounter;
-    private final Counter eventsFailedCounter;
     private final Counter eventsDiscardedCounter;
+    private final Counter changesCompletedCounter;
+    private final Counter changesFailedCounter;
     private final Timer orchestrationTimer;
 
     public ProcessDeployResultService(
@@ -48,13 +49,15 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                 .tag("type", "DeployFinishedEvent")
                 .description("Total DeployFinishedEvents consumed")
                 .register(meterRegistry);
-        this.eventsFailedCounter = Counter.builder("events_failed_total")
-                .tag("consumer", "deploy-orchestrator")
-                .description("Total events that failed processing")
-                .register(meterRegistry);
         this.eventsDiscardedCounter = Counter.builder("events_discarded_total")
                 .tag("reason", "duplicate")
                 .description("Total events discarded (e.g. duplicates)")
+                .register(meterRegistry);
+        this.changesCompletedCounter = Counter.builder("changes_completed_total")
+                .description("Total changes transitioned to COMPLETED")
+                .register(meterRegistry);
+        this.changesFailedCounter = Counter.builder("changes_failed_total")
+                .description("Total changes transitioned to FAILED")
                 .register(meterRegistry);
         this.orchestrationTimer = Timer.builder("orchestration_duration_seconds")
                 .description("Time to process a DeployFinishedEvent end-to-end")
@@ -105,6 +108,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             // ── Step 4: Update change status + save event ──────────────
             if (changeResult.isSuccess()) {
                 updateChangeStatusPort.markCompleted(payload.changeId());
+                changesCompletedCounter.increment();
                 log.info("Change status updated to COMPLETED: changeId={}", payload.changeId());
                 saveChangeEventPort.save(
                         payload.changeId(),
@@ -114,6 +118,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                         Instant.now());
             } else {
                 updateChangeStatusPort.markFailed(payload.changeId());
+                changesFailedCounter.increment();
                 log.info("Change status updated to FAILED: changeId={}, reason={}",
                         payload.changeId(), changeResult.getFailureReason());
                 saveChangeEventPort.save(
@@ -134,7 +139,6 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             eventsConsumedCounter.increment();
 
         } catch (Exception e) {
-            eventsFailedCounter.increment();
             log.error("Error processing DeployFinishedEvent: deployId={}, changeId={}",
                     payload.deployId(), payload.changeId(), e);
             throw e;

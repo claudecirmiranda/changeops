@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -28,6 +29,8 @@ import com.changeops.deployorchestrator.application.port.out.SaveChangeEventPort
 @ExtendWith(MockitoExtension.class)
 class ProcessDeployResultServiceTest {
 
+    private SimpleMeterRegistry meterRegistry;
+
     @Mock IdempotencyPort idempotencyPort;
     @Mock UpdateChangeStatusPort updateChangeStatusPort;
     @Mock PublishResultEventPort publishResultEventPort;
@@ -38,13 +41,14 @@ class ProcessDeployResultServiceTest {
 
     @BeforeEach
     void setUp() {
+        meterRegistry = new SimpleMeterRegistry();
         service = new ProcessDeployResultService(
                 idempotencyPort,
                 new PostDeployChecklistService(),
                 updateChangeStatusPort,
                 publishResultEventPort,
                 saveChangeEventPort,          // ← adicionar
-                new SimpleMeterRegistry());
+                meterRegistry);
     }
 
     @Test
@@ -121,7 +125,29 @@ class ProcessDeployResultServiceTest {
                 eq("ChangeCompletedEvent"),
                 anyString(),
                 any(Instant.class));
-    }    
+    }
+
+    @Test
+    void shouldIncrementChangesCompletedCounter_whenDeploySucceeds() {
+        DeployFinishedEvent event = buildEvent("SUCCESS");
+        when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString())).thenReturn(true);
+
+        service.execute(event);
+
+        assertThat(meterRegistry.counter("changes_completed_total").count()).isEqualTo(1.0);
+        assertThat(meterRegistry.counter("changes_failed_total").count()).isEqualTo(0.0);
+    }
+
+    @Test
+    void shouldIncrementChangesFailedCounter_whenDeployFails() {
+        DeployFinishedEvent event = buildEvent("FAILURE");
+        when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString())).thenReturn(true);
+
+        service.execute(event);
+
+        assertThat(meterRegistry.counter("changes_failed_total").count()).isEqualTo(1.0);
+        assertThat(meterRegistry.counter("changes_completed_total").count()).isEqualTo(0.0);
+    }
 
     private DeployFinishedEvent buildEvent(String result) {
         UUID correlationId = UUID.randomUUID();
