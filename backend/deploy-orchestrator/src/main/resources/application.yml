@@ -68,3 +68,14 @@ changeops:
       deploy-finished: changeops.deploy.finished
       change-result: changeops.change.result
       dlq: changeops.change.result-dlt
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+    filter: true
+    display-request-duration: true

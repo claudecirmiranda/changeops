@@ -82,13 +82,14 @@ Isso sobe toda a stack. Aguarde todos os serviços ficarem `healthy` (`docker co
 |---------|-----|
 | Frontend | http://localhost:3000 |
 | change-service API | http://localhost:8080 |
-| **Swagger UI** | http://localhost:8080/swagger-ui.html |
+| **Swagger UI (change-service)** | http://localhost:8080/swagger-ui.html |
 | deploy-orchestrator | http://localhost:8081 |
+| **Swagger UI (orchestrator)** | http://localhost:8081/swagger-ui.html |
 | Kafka UI | http://localhost:8090 |
 | Prometheus | http://localhost:9090 |
 | **Grafana** | http://localhost:3001 (`admin` / `changeops`) |
 
-> **Swagger UI** — toda a API REST está documentada e executável em `http://localhost:8080/swagger-ui.html`. O contrato completo está em [contracts/openapi/change-service.yml](contracts/openapi/change-service.yml).
+> **Swagger UI** — ambos os serviços expõem sua documentação interativa: [change-service](http://localhost:8080/swagger-ui.html) (`:8080`) e [deploy-orchestrator](http://localhost:8081/swagger-ui.html) (`:8081`). O contrato estático está em [contracts/openapi/change-service.yml](contracts/openapi/change-service.yml).
 
 > **Grafana** — o dashboard **ChangeOps** é carregado automaticamente na inicialização, sem configuração manual. Exibe métricas ao vivo: changes criadas, eventos publicados/consumidos/falhos, latência de API (p95), distribuição de status.
 
@@ -184,7 +185,8 @@ Decisões deliberadas com justificativa e caminho de evolução documentados: ba
 
 | Contrato | Arquivo | Acesso live |
 |----------|---------|-------------|
-| REST API (OpenAPI 3.1) | [contracts/openapi/change-service.yml](contracts/openapi/change-service.yml) | http://localhost:8080/swagger-ui.html |
+| REST API — change-service (OpenAPI 3.1) | [contracts/openapi/change-service.yml](contracts/openapi/change-service.yml) | http://localhost:8080/swagger-ui.html |
+| REST API — deploy-orchestrator (OpenAPI 3.1) | gerado em runtime pelo springdoc | http://localhost:8081/swagger-ui.html |
 | Eventos Kafka (AsyncAPI 2.6) | [contracts/asyncapi/events.yml](contracts/asyncapi/events.yml) | — |
 
 ---

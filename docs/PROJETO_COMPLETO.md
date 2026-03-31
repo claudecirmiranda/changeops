@@ -56,7 +56,7 @@ flowchart TD
                 direction TB
                 obs_pad[ ]:::hidden
                 obs_pad ~~~ grafana
-                grafana["Grafana<br/>v10.3.3<br/>:3001"]
+                grafana["Grafana<br/>v12.4.1<br/>:3001"]
                 prometheus["Prometheus<br/>v2.50.1<br/>:9090"]
             end
         end
@@ -1552,7 +1552,7 @@ Acesso: http://localhost:3001 (`admin` / `changeops`)
 | change-service | build local | 8080 |
 | deploy-orchestrator | build local | 8081 |
 | prometheus | prom/prometheus:v2.50.1 | 9090 |
-| grafana | grafana/grafana:10.3.3 | 3001 |
+| grafana | grafana/grafana:12.4.1 | 3001 |
 
 Todos os serviços com `healthcheck` configurado. Dependências via `condition: service_healthy`.
 
@@ -1793,8 +1793,8 @@ Decisões deliberadas, alinhadas ao objetivo da POC, com caminho de evolução d
 | Frontend — ChangeForm, ChangeList, ChangeTimeline, StatusBadge | ✅ |
 | Frontend — ChangesPage (composição completa) | ✅ |
 | Frontend — Testes com Testing Library + Vitest | ✅ |
-| Docker Compose — 8 serviços com healthchecks e dependências | ✅ |
-| Dockerfiles multi-stage (build + jre-alpine runtime) | ✅ |
+| Docker Compose — 9 serviços com healthchecks e dependências | ✅ |
+| Dockerfiles multi-stage — backend (Maven + JRE Alpine) e frontend (Node + Nginx) | ✅ |
 | Prometheus scrape config | ✅ |
 | Grafana dashboard pré-provisionado | ✅ |
 | OpenAPI 3.1 — change-service | ✅ |

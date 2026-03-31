@@ -11,8 +11,9 @@
 | Serviço | URL |
 |---------|-----|
 | Change Service API | http://localhost:8080/api/v1 |
-| Swagger UI | http://localhost:8080/swagger-ui.html |
+| Swagger UI (change-service) | http://localhost:8080/swagger-ui.html |
 | Deploy Orchestrator | http://localhost:8081 |
+| Swagger UI (orchestrator) | http://localhost:8081/swagger-ui.html |
 | Kafka UI | http://localhost:8090 |
 | Grafana | http://localhost:3001 (login: `admin` / `changeops`) |
 | Prometheus | http://localhost:9090 |
