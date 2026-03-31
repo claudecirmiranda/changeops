@@ -1,7 +1,7 @@
 {
   "id": null,
   "uid": "changeops-main",
-  "version": 4,
+  "version": 8,
   "title": "ChangeOps Dashboard",
   "tags": ["changeops"],
   "timezone": "browser",
@@ -18,26 +18,10 @@
       "panels": []
     },
     {
-      "id": 1,
-      "title": "Changes - Total",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 1 },
-      "fieldConfig": {
-        "defaults": { "decimals": 0 }
-      },
-      "maxDataPoints": 100,
-      "targets": [{
-        "expr": "sum(increase(changes_created_total[$__range]))",
-        "legendFormat": "Total",
-        "instant": true,
-        "interval": "5s"
-      }]
-    },
-    {
       "id": 25,
       "title": "Changes - Created (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 5, "x": 5, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
       "fieldConfig": {
         "defaults": { "decimals": 0 }
       },
@@ -53,7 +37,7 @@
       "id": 8,
       "title": "Changes - Completed",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 5, "x": 10, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
       "fieldConfig": {
         "defaults": { "decimals": 0, "color": { "fixedColor": "green", "mode": "fixed" } }
       },
@@ -69,7 +53,7 @@
       "id": 9,
       "title": "Changes - Failed",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 5, "x": 15, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
       "fieldConfig": {
         "defaults": { "decimals": 0, "color": { "fixedColor": "red", "mode": "fixed" } }
       },
@@ -85,7 +69,7 @@
       "id": 10,
       "title": "Changes - Prepared",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
       "fieldConfig": {
         "defaults": { "decimals": 0, "color": { "fixedColor": "blue", "mode": "fixed" } }
       },
@@ -195,7 +179,7 @@
       "id": 2,
       "title": "Events - Published (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 14 },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 14 },
       "fieldConfig": {
         "defaults": { "decimals": 0 }
       },
@@ -211,7 +195,7 @@
       "id": 3,
       "title": "Events - Consumed (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 5, "x": 5, "y": 14 },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 14 },
       "fieldConfig": {
         "defaults": { "decimals": 0 }
       },
@@ -225,16 +209,16 @@
     },
     {
       "id": 4,
-      "title": "Events - Failed (total)",
+      "title": "Events - Retries (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 5, "x": 10, "y": 14 },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 14 },
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "decimals": 0 }
       },
       "maxDataPoints": 100,
       "targets": [{
-        "expr": "sum(increase(events_failed_total[$__range]))",
-        "legendFormat": "Failed",
+        "expr": "sum(increase(events_retries_total[$__range]))",
+        "legendFormat": "Retries",
         "instant": true,
         "interval": "5s"
       }]
@@ -243,7 +227,7 @@
       "id": 23,
       "title": "Events - DLT (total)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 5, "x": 15, "y": 14 },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 14 },
       "fieldConfig": {
         "defaults": { "color": { "fixedColor": "dark-red", "mode": "fixed" }, "decimals": 0 }
       },
@@ -272,6 +256,32 @@
       }]
     },
     {
+      "id": 28,
+      "title": "Events - Failed (total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 14 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "red", "mode": "fixed" },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      },
+      "maxDataPoints": 100,
+      "targets": [{
+        "expr": "sum(increase(events_failed_total{consumer=\"deploy-orchestrator\"}[$__range])) or vector(0)",
+        "legendFormat": "Failed",
+        "instant": true,
+        "interval": "5s"
+      }]
+    },
+    {
       "id": 7,
       "title": "Events - Rate (per min)",
       "type": "timeseries",
@@ -289,8 +299,23 @@
           "interval": "30s"
         },
         {
+          "expr": "sum(rate(events_retries_total[$__rate_interval])) * 60",
+          "legendFormat": "Retries/min",
+          "interval": "30s"
+        },
+        {
           "expr": "sum(rate(events_failed_total[$__rate_interval])) * 60",
           "legendFormat": "Failed/min",
+          "interval": "30s"
+        },
+        {
+          "expr": "sum(rate(events_dlt_total[$__rate_interval])) * 60",
+          "legendFormat": "DLT/min",
+          "interval": "30s"
+        },
+        {
+          "expr": "sum(rate(events_discarded_total[$__rate_interval])) * 60",
+          "legendFormat": "Discarded/min",
           "interval": "30s"
         }
       ]

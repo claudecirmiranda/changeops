@@ -1,0 +1,88 @@
+package com.changeops.deployorchestrator.infrastructure.kafka;
+
+import com.changeops.deployorchestrator.application.port.in.ProcessDeployResultUseCase;
+import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.Instant;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@ExtendWith(MockitoExtension.class)
+class DeployEventConsumerTest {
+
+    @Mock
+    ProcessDeployResultUseCase processDeployResultUseCase;
+
+    private SimpleMeterRegistry registry;
+    private DeployEventConsumer consumer;
+
+    @BeforeEach
+    void setUp() {
+        registry = new SimpleMeterRegistry();
+        consumer = new DeployEventConsumer(processDeployResultUseCase, registry);
+    }
+
+    @Test
+    void shouldIncrementEventsFailedAndDltCounters_whenDltHandlerIsCalled() {
+        ConsumerRecord<String, DeployFinishedEvent> record = buildRecord("changeops.deploy.finished-dlt");
+
+        consumer.onDlt(record);
+
+        assertThat(registry.counter("events_failed_total", "consumer", "deploy-orchestrator").count())
+                .isEqualTo(1.0);
+        assertThat(registry.counter("events_dlt_total", "consumer", "deploy-orchestrator").count())
+                .isEqualTo(1.0);
+    }
+
+    @Test
+    void shouldIncrementEventsRetriesCounter_whenTopicIsRetryTopic() {
+        ConsumerRecord<String, DeployFinishedEvent> record = buildRecord("changeops.deploy.finished-retry-0");
+
+        consumer.onDeployFinished(record, "changeops.deploy.finished-retry-0", 0L);
+
+        assertThat(registry.counter("events_retries_total", "consumer", "deploy-orchestrator").count())
+                .isEqualTo(1.0);
+    }
+
+    @Test
+    void shouldNotIncrementEventsRetriesCounter_whenTopicIsOriginalTopic() {
+        ConsumerRecord<String, DeployFinishedEvent> record = buildRecord("changeops.deploy.finished");
+
+        consumer.onDeployFinished(record, "changeops.deploy.finished", 0L);
+
+        assertThat(registry.counter("events_retries_total", "consumer", "deploy-orchestrator").count())
+                .isEqualTo(0.0);
+    }
+
+    @Test
+    void shouldIncrementRetriesForEachRetryTopic() {
+        consumer.onDeployFinished(buildRecord("changeops.deploy.finished-retry-0"), "changeops.deploy.finished-retry-0", 0L);
+        consumer.onDeployFinished(buildRecord("changeops.deploy.finished-retry-1"), "changeops.deploy.finished-retry-1", 1L);
+        consumer.onDeployFinished(buildRecord("changeops.deploy.finished-retry-2"), "changeops.deploy.finished-retry-2", 2L);
+
+        assertThat(registry.counter("events_retries_total", "consumer", "deploy-orchestrator").count())
+                .isEqualTo(3.0);
+    }
+
+    private ConsumerRecord<String, DeployFinishedEvent> buildRecord(String topic) {
+        return new ConsumerRecord<>(
+                topic, 0, 0L,
+                UUID.randomUUID().toString(),
+                new DeployFinishedEvent(
+                        "DeployFinishedEvent", "1.0",
+                        UUID.randomUUID(), Instant.now(),
+                        new DeployFinishedEvent.Payload(
+                                UUID.randomUUID(),
+                                UUID.randomUUID(),
+                                "SUCCESS",
+                                Instant.now())));
+    }
+}

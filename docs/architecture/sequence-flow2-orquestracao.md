@@ -48,15 +48,17 @@ sequenceDiagram
         Note over K,DO: Cenário de Falha — Retry + DLQ
 
         K->>DO: Consumo falha (exceção)
-        DO->>DO: Retry 1 (500ms)
-        DO->>DO: Retry 2 (1s)
-        DO->>DO: Retry 3 (2s)
-        DO->>DO: Retry 4 (4s)
-        DO->>K: Envia para DLT
+        DO->>DO: Retry 1 — entra em changeops.deploy.finished-retry-0
+        DO->>DO: events_retries_total.increment() (+1)
+        DO->>DO: Retry 2 — entra em changeops.deploy.finished-retry-1
+        DO->>DO: events_retries_total.increment() (+1)
+        DO->>DO: Retry 3 — entra em changeops.deploy.finished-retry-2
+        DO->>DO: events_retries_total.increment() (+1)
+        DO->>K: Esgotou retries → Envia para DLT
         Note over K: changeops.deploy.finished-dlt
 
         K->>DO: @KafkaListener(dlt) consome de DLT
-        DO->>DO: log.error + events_failed_total.increment()
+        DO->>DO: log.error + events_failed_total.increment() + events_dlt_total.increment()
     end
 
     rect rgb(69, 26, 26)
@@ -77,4 +79,4 @@ sequenceDiagram
 4. **Dois caminhos de DLQ:**
    - **Consumo:** `@RetryableTopic` com DLT suffix — tópico `changeops.deploy.finished-dlt`.
    - **Publicação:** Fallback no adapter — tópico `changeops.events.dlq`.
-5. **Observabilidade:** MDC com `correlation_id`, `change_id`, `deploy_id` em todos os logs do fluxo. Métricas: `events_consumed_total`, `events_published_total`, `events_failed_total`.
+5. **Observabilidade:** MDC com `correlation_id`, `change_id`, `deploy_id` em todos os logs do fluxo. Métricas: `events_consumed_total`, `events_published_total`, `events_retries_total` (tentativas de retry), `events_failed_total` (falhas permanentes), `events_dlt_total`.

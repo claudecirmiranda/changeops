@@ -1500,9 +1500,15 @@ Em `prod/staging`: JSON completo via `LogstashEncoder`.
 | Métrica | Tipo | Serviço |
 |---------|------|---------|
 | `changes_created_total` | Counter | change-service |
+| `changes_completed_total` | Counter | deploy-orchestrator |
+| `changes_failed_total` | Counter | deploy-orchestrator |
 | `events_published_total{type="..."}` | Counter | change-service (`ChangePreparedEvent`), deploy-orchestrator (`ChangeCompletedEvent`, `ChangeFailedEvent`) |
 | `events_consumed_total{type="DeployFinishedEvent"}` | Counter | deploy-orchestrator |
-| `events_failed_total{consumer="deploy-orchestrator"}` | Counter | deploy-orchestrator |
+| `events_retries_total{consumer="deploy-orchestrator"}` | Counter | deploy-orchestrator — tentativas de reprocessamento |
+| `events_failed_total{consumer="deploy-orchestrator"}` | Counter | deploy-orchestrator — falhas permanentes (evento enviado para DLT) |
+| `events_dlt_total{consumer="deploy-orchestrator"}` | Counter | deploy-orchestrator |
+| `events_discarded_total{reason="duplicate"}` | Counter | deploy-orchestrator |
+| `orchestration_duration_seconds` | Timer/Histogram | deploy-orchestrator |
 | `http_server_requests_seconds` | Histogram | change-service |
 
 ### `prometheus.yml`
@@ -1521,11 +1527,13 @@ scrape_configs:
 
 ### Grafana Dashboard — `infra/grafana/dashboards/changeops.json`
 
-Painéis pré-provisionados:
-- **Stat**: Changes Created / Events Published / Events Consumed / Events Failed
-- **Timeseries**: API Request Duration p95 por URI
-- **Piechart**: Changes by Status
-- **Timeseries**: Published / Consumed / Failed rate (por minuto)
+Painéis pré-provisionados (14 painéis):
+- **Stat (Changes)**: Created, Completed, Failed, Prepared
+- **PieChart**: Changes by Status (Completed / Failed / Prepared)
+- **Stat (Events)**: Published, Consumed, Failed (permanente), Retries, DLT, Discarded
+- **Timeseries**: API Latency p95 (change-service + deploy-orchestrator)
+- **Timeseries**: Events Rate/min (Published, Consumed, Retries, Failed, DLT, Discarded)
+- **Timeseries**: Orchestration Latency p95
 
 Acesso: http://localhost:3001 (`admin` / `changeops`)
 

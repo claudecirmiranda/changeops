@@ -28,7 +28,6 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
     private final PublishResultEventPort publishResultEventPort;
     private final SaveChangeEventPort saveChangeEventPort; // ← aqui, junto aos outros campos
     private final Counter eventsConsumedCounter;
-    private final Counter eventsFailedCounter;
     private final Counter eventsDiscardedCounter;
     private final Counter changesCompletedCounter;
     private final Counter changesFailedCounter;
@@ -49,10 +48,6 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
         this.eventsConsumedCounter = Counter.builder("events_consumed_total")
                 .tag("type", "DeployFinishedEvent")
                 .description("Total DeployFinishedEvents consumed")
-                .register(meterRegistry);
-        this.eventsFailedCounter = Counter.builder("events_failed_total")
-                .tag("consumer", "deploy-orchestrator")
-                .description("Total events that failed processing")
                 .register(meterRegistry);
         this.eventsDiscardedCounter = Counter.builder("events_discarded_total")
                 .tag("reason", "duplicate")
@@ -144,7 +139,6 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             eventsConsumedCounter.increment();
 
         } catch (Exception e) {
-            eventsFailedCounter.increment();
             log.error("Error processing DeployFinishedEvent: deployId={}, changeId={}",
                     payload.deployId(), payload.changeId(), e);
             throw e;

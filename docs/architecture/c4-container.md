@@ -89,5 +89,5 @@ flowchart TD
 | **deploy-orchestrator** | Consumer Kafka com idempotência via `processed_events`, checklist pós-deploy, atualização de status, publicação de evento de resultado, retry com backoff + DLQ |
 | **PostgreSQL** | Banco compartilhado com schema único: `changes`, `change_events`, `processed_events`. Flyway migrations independentes por serviço |
 | **Kafka** | Broker de eventos com 3 tópicos principais + DLT. Produtor idempotente, consumer groups com ACK por registro |
-| **Prometheus** | Scraper de métricas HTTP a cada 15s. Coleta: `changes_created_total`, `events_published_total`, `events_consumed_total`, `events_failed_total` |
-| **Grafana** | 7 painéis: counters de criação/publicação/consumo/falha, latência p95, distribuição por status, taxa de eventos |
+| **Prometheus** | Scraper de métricas HTTP a cada 15s. Coleta: `changes_created_total`, `changes_completed_total`, `changes_failed_total`, `events_published_total`, `events_consumed_total`, `events_retries_total`, `events_failed_total`, `events_dlt_total`, `events_discarded_total`, `orchestration_duration_seconds` |
+| **Grafana** | 14 painéis: stats de Changes (Created, Completed, Failed, Prepared), pie chart por status, stats de Events (Published, Consumed, Failed, Retries, DLT, Discarded), latência API p95, taxa de eventos/min, latência de orquestração p95 |

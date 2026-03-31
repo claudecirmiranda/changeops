@@ -23,6 +23,8 @@ public class DeployEventConsumer {
 
     private final ProcessDeployResultUseCase processDeployResultUseCase;
     private final Counter dltCounter;
+    private final Counter eventsFailedCounter;
+    private final Counter eventsRetriesCounter;
 
     public DeployEventConsumer(
             ProcessDeployResultUseCase processDeployResultUseCase,
@@ -31,6 +33,14 @@ public class DeployEventConsumer {
         this.dltCounter = Counter.builder("events_dlt_total")
                 .tag("consumer", "deploy-orchestrator")
                 .description("Total events sent to DLT after max retries")
+                .register(meterRegistry);
+        this.eventsFailedCounter = Counter.builder("events_failed_total")
+                .tag("consumer", "deploy-orchestrator")
+                .description("Total events that permanently failed processing")
+                .register(meterRegistry);
+        this.eventsRetriesCounter = Counter.builder("events_retries_total")
+                .tag("consumer", "deploy-orchestrator")
+                .description("Total retry hops (incremented each time an event is picked up from a retry topic)")
                 .register(meterRegistry);
     }
 
@@ -53,6 +63,10 @@ public class DeployEventConsumer {
             @Header(KafkaHeaders.OFFSET) long offset) {
 
         DeployFinishedEvent event = record.value();
+
+        if (topic.contains("-retry-")) {
+            eventsRetriesCounter.increment();
+        }
 
         MDC.put("correlation_id", event.correlationId() != null
                 ? event.correlationId().toString() : "unknown");
@@ -92,6 +106,7 @@ public class DeployEventConsumer {
                 log.error("Event sent to DLQ after max retries: key={}, payload=null", record.key());
             }
             dltCounter.increment();
+            eventsFailedCounter.increment();
         } finally {
             MDC.remove("correlation_id");
             MDC.remove("change_id");
