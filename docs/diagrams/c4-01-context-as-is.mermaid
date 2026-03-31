@@ -1,0 +1,18 @@
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'15px'}}}%%
+C4Context
+    title C4 Level 1 — System Context (AS-IS, Phase 1)
+
+    Person(operator, "Operador", "Cria e acompanha mudanças via interface web ou API REST")
+    Person(admin, "Administrador", "Monitora métricas, observa dashboards e audita eventos")
+
+    System(changeops, "ChangeOps Dashboard", "Gerencia o ciclo de vida de mudanças técnicas: criação, orquestração de deploy e auditoria de eventos")
+
+    System_Ext(cicd, "Sistema de CI/CD", "Pipeline externo que executa o deploy e publica o resultado via evento Kafka")
+    System_Ext(idp, "Identity Provider", "OAuth2/OIDC — desabilitado na POC, ativado na Phase 2 (Keycloak)")
+
+    Rel(operator, changeops, "Cria mudanças, acompanha status", "HTTPS / React UI")
+    Rel(admin, changeops, "Monitora métricas e logs", "Grafana / Prometheus")
+    Rel(cicd, changeops, "Publica resultado do deploy", "Kafka: changeops.deploy.finished")
+    Rel(changeops, idp, "Valida tokens JWT [Phase 2]", "OAuth2 JWKS")
+
+    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")

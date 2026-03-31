@@ -1,0 +1,60 @@
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'14px','lineColor':'#94A3B8','edgeLabelBackground':'transparent'}}}%%
+flowchart LR
+
+    subgraph producers["Produtores"]
+        CS["change-service\n:8080"]
+        DO["deploy-orchestrator\n:8081"]
+        CICD["Sistema de CI/CD\n(externo)"]
+    end
+
+    subgraph kafka["Apache Kafka · Confluent CP 7.6.0"]
+        direction TB
+
+        subgraph topics_main["Tópicos Principais"]
+            T1[["changeops.change.prepared\npartições: 3 | key: changeId\nretenção: 7 dias"]]
+            T2[["changeops.deploy.finished\npartições: 3 | key: changeId\nretenção: 7 dias"]]
+            T3[["changeops.change.result\npartições: 3 | key: changeId\nretenção: 7 dias"]]
+        end
+
+        subgraph topics_dlt["Dead Letter Topics"]
+            DLT1[["changeops.deploy.finished-dlt\nDead Letter após 4 retries"]]
+            DLQ[["changeops.events.dlq\nFallback de publicação"]]
+        end
+    end
+
+    subgraph consumers["Consumidores"]
+        DO2["deploy-orchestrator\ngroup: deploy-orchestrator-group\nconcurrency: 3"]
+        MON["Kafka UI\nprovetcuslabs\n:8090"]
+    end
+
+    subgraph envelope["Envelope: IntegrationEvent"]
+        ENV["eventType: 'ChangePreparedEvent'\nversion: '1.0'\ncorrelationId: UUID\noccurredAt: Instant\npayload: { changeId, componentId,\n  requestedBy, scheduledAt }"]
+    end
+
+    CS -->|"ChangePreparedEvent\n(acks=all, idempotent producer)"| T1
+    CICD -->|"DeployFinishedEvent\n{ deployId, changeId, deploySucceeded }"| T2
+    DO -->|"ChangeCompletedEvent\nou ChangeFailedEvent"| T3
+
+    T2 -->|"@KafkaListener\n@RetryableTopic"| DO2
+    DO2 -->|"após 4 retries"| DLT1
+    DO -->|"fallback on publish failure"| DLQ
+
+    T1 -.->|"monitora"| MON
+    T2 -.->|"monitora"| MON
+    T3 -.->|"monitora"| MON
+
+    T1 -.->|"estrutura"| ENV
+
+    classDef svc fill:#4338CA,stroke:#6366F1,color:#E0E7FF,stroke-width:2px
+    classDef topic fill:#C2410C,stroke:#FB923C,color:#FFF7ED,stroke-width:2px
+    classDef dlt fill:#991B1B,stroke:#F87171,color:#FEE2E2,stroke-width:2px
+    classDef consumer fill:#047857,stroke:#34D399,color:#D1FAE5,stroke-width:2px
+    classDef ext fill:#334155,stroke:#64748B,color:#E2E8F0,stroke-width:2px
+    classDef env fill:#1E1B4B,stroke:#6366F1,color:#A5B4FC,stroke-width:1px,stroke-dasharray:5
+
+    class CS,DO svc
+    class CICD ext
+    class T1,T2,T3 topic
+    class DLT1,DLQ dlt
+    class DO2,MON consumer
+    class ENV env

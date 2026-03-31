@@ -1,0 +1,53 @@
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'14px'}}}%%
+C4Container
+    title C4 Level 2 — Container Diagram (TO-BE, Phase 2: Production Hardening)
+
+    Person(operator, "Operador", "Autenticado via OIDC / PKCE")
+    Person(admin, "Administrador", "Monitora traces, métricas e logs")
+    System_Ext(cicd, "Sistema de CI/CD", "Publica resultado do deploy")
+    System_Ext(keycloak, "Keycloak 24", "Identity Provider OAuth2/OIDC. Realms: changeops. Roles: OPERATOR, ADMIN.")
+
+    System_Boundary(changeops, "ChangeOps Dashboard — Phase 2") {
+
+        Container(frontend, "Frontend", "React 18 + oidc-client-ts", "SPA com fluxo PKCE: login via Keycloak, token em memória, refresh silencioso. Evolução de polling para SSE em Phase 2 final.")
+
+        Container(change_service, "change-service", "Spring Boot 3.2 · Java 17 · :8080", "API REST. JWT validado via Keycloak JWKS. Outbox Pattern: escreve em outbox_events atomicamente com mudança. Relay publica no Kafka.")
+
+        Container(outbox_relay, "Outbox Relay", "Spring @Scheduled ou Debezium CDC", "Lê outbox_events não processados, publica no Kafka, marca como processed. Garante at-least-once sem perda de evento.")
+
+        Container(deploy_orchestrator, "deploy-orchestrator", "Spring Boot 3.2 · Java 17 · :8081", "Consome DeployFinishedEvent. Checklist com integrações reais: healthcheck HTTP, smoke test via runner, error rate via Prometheus API.")
+
+        ContainerDb(postgres, "PostgreSQL 16", "PostgreSQL · :5432", "Tabelas adicionais: outbox_events, audit_log. Read replica para queries de relatório. Particionamento mensal de change_events.")
+
+        ContainerQueue(kafka, "Apache Kafka (KRaft)", "Confluent CP 7.8+ sem ZooKeeper", "Tópicos expandidos. Schema Registry para contratos Avro. Monitoramento de consumer lag ativo.")
+
+        Container(prometheus, "Prometheus", ":9090", "Scrape inclui métricas de OpenTelemetry via OTLP exporter")
+
+        Container(tempo, "Grafana Tempo", ":3200", "Backend de distributed tracing. Recebe spans via OTLP. Correlacionado com logs e métricas no Grafana.")
+
+        Container(grafana, "Grafana", ":3001", "Painéis expandidos: traces (Tempo), logs (Loki), métricas (Prometheus). Correlação por trace_id / correlation_id.")
+    }
+
+    Rel(operator, frontend, "Login PKCE + uso", "HTTPS")
+    Rel(admin, grafana, "Traces, métricas, logs", "HTTPS")
+    Rel(frontend, keycloak, "Autenticação PKCE", "OIDC")
+    Rel(frontend, change_service, "REST + Bearer JWT", "HTTPS")
+    Rel(cicd, kafka, "Publica resultado", "Kafka Producer")
+
+    Rel(change_service, keycloak, "Valida JWT via JWKS", "OAuth2 Resource Server")
+    Rel(change_service, postgres, "Grava change + outbox atomicamente", "JDBC @Transactional")
+    Rel(outbox_relay, postgres, "Lê outbox_events não processados", "JDBC / CDC")
+    Rel(outbox_relay, kafka, "Publica ChangePreparedEvent (at-least-once)", "Kafka Producer")
+
+    Rel(kafka, deploy_orchestrator, "DeployFinishedEvent", "Kafka Consumer")
+    Rel(deploy_orchestrator, postgres, "Status + idempotência", "JDBC")
+    Rel(deploy_orchestrator, kafka, "ChangeCompletedEvent / ChangeFailedEvent", "Kafka Producer")
+
+    Rel(change_service, tempo, "Exporta spans", "OTLP gRPC")
+    Rel(deploy_orchestrator, tempo, "Exporta spans", "OTLP gRPC")
+    Rel(prometheus, change_service, "Scrape métricas", "HTTP")
+    Rel(prometheus, deploy_orchestrator, "Scrape métricas", "HTTP")
+    Rel(grafana, prometheus, "PromQL", "HTTP")
+    Rel(grafana, tempo, "TraceQL", "HTTP")
+
+    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")

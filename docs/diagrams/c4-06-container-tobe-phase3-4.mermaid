@@ -1,0 +1,47 @@
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'14px'}}}%%
+C4Container
+    title C4 Level 2 — Container Diagram (TO-BE, Phase 3–4: Scale & Multi-Tenancy)
+
+    Person(operator, "Operador (Multi-Tenant)", "Contexto de tenant derivado do JWT claim tenant_id")
+    Person(admin, "Administrador SRE", "Monitora cluster, SLOs, alertas")
+    System_Ext(cicd, "Sistema de CI/CD", "Publica resultado do deploy")
+    System_Ext(keycloak, "Keycloak (HA)", "Multi-realm: um realm por tenant ou claims de tenant no token")
+
+    System_Boundary(k8s, "Kubernetes Cluster (Phase 3)") {
+
+        Container(frontend, "Frontend", "React 18 · Nginx · HPA", "Multi-tenant SPA. Tenant ID extraído do JWT. SSE para atualizações em tempo real (substitui polling).")
+
+        Container(ingress, "Ingress / API Gateway", "Kong ou nginx-ingress", "TLS termination, rate limiting global, auth middleware, routing por serviço")
+
+        Container(change_service, "change-service", "Spring Boot · Java 17 · HPA: 2–10 pods", "Stateless. Particionamento Kafka por changeId garante ordenação. Outbox Relay como sidecar ou job separado.")
+
+        Container(deploy_orchestrator, "deploy-orchestrator", "Spring Boot · Java 17 · HPA: 2–5 pods", "Consumer concurrency alinhado ao número de partições Kafka. Circuit Breaker (Resilience4j) em checklist calls.")
+
+        Container(checklist_service, "Checklist Integration Service", "Spring Boot · Phase 3 extract", "Serviço dedicado para execução de checks pós-deploy: healthcheck HTTP, smoke test runner, Prometheus query API. Substituível por webhook.")
+
+        ContainerDb(postgres, "PostgreSQL (CloudNativePG)", "Primary + Read Replica · HA", "Schema-per-tenant com Row-Level Security. Particionamento de change_events por mês. Audit log append-only.")
+
+        ContainerQueue(kafka, "Apache Kafka (Strimzi)", "KRaft · 3 brokers · Schema Registry (Avro)", "Partições escalonadas por demanda. Tópicos versionados via Schema Registry. Consumer lag monitorado com alertas.")
+
+        Container(observability, "Stack de Observabilidade", "Prometheus + Tempo + Loki + Grafana", "SLOs definidos. Alertas via Alertmanager. Correlação trace_id / correlation_id entre logs, métricas e traces.")
+    }
+
+    System_Ext(gdpr_api, "GDPR Erasure API [Phase 4]", "Right-to-be-forgotten: pseudonymization de requested_by, exportação de dados por tenant")
+
+    Rel(operator, ingress, "HTTPS + Bearer JWT", "mTLS")
+    Rel(admin, observability, "SLO dashboards, alertas", "HTTPS")
+    Rel(cicd, kafka, "Publica resultado", "Kafka Producer")
+
+    Rel(ingress, frontend, "Roteia tráfego UI", "HTTP")
+    Rel(ingress, change_service, "Roteia API calls (auth validado)", "HTTP")
+    Rel(ingress, keycloak, "Introspection / JWKS", "OAuth2")
+
+    Rel(change_service, postgres, "Multi-tenant: SET search_path = tenant_id", "JDBC + RLS")
+    Rel(change_service, kafka, "Publica eventos particionados por changeId", "Kafka Producer")
+    Rel(kafka, deploy_orchestrator, "Consome por partição", "Kafka Consumer Group")
+    Rel(deploy_orchestrator, checklist_service, "Executa checks pós-deploy", "REST / Circuit Breaker")
+    Rel(deploy_orchestrator, postgres, "Status + idempotência por tenant", "JDBC")
+    Rel(deploy_orchestrator, kafka, "Evento de resultado", "Kafka Producer")
+    Rel(postgres, gdpr_api, "Pseudonymization + export", "JDBC")
+
+    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")

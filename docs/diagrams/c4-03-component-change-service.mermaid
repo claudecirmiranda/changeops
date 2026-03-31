@@ -1,0 +1,45 @@
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'13px'}}}%%
+C4Component
+    title C4 Level 3 — Componentes: change-service (AS-IS)
+
+    Person(operator, "Operador")
+    ContainerDb(postgres, "PostgreSQL 16", "DB")
+    ContainerQueue(kafka, "Apache Kafka", "Broker")
+
+    Container_Boundary(cs, "change-service") {
+
+        Component(controller, "ChangeController", "Spring @RestController", "Endpoints: POST /api/v1/changes, GET /api/v1/changes, GET /api/v1/changes/{id}, GET /api/v1/changes/{id}/events. Injeta use cases via ports.")
+
+        Component(correlation_filter, "CorrelationIdFilter", "javax.servlet.Filter · Order=1", "Propaga X-Correlation-Id via MDC em todos os requests. Gera UUID se ausente. Limpa MDC no finally.")
+
+        Component(rate_limit, "RateLimitFilter", "javax.servlet.Filter · Bucket4j", "100 req/min por IP em POST /api/v1/changes. Cache Caffeine com TTL 10min. Retorna 429 + Retry-After.")
+
+        Component(create_uc, "CreateChangeService", "Spring @Service · @Transactional", "Implementa CreateChangeUseCase. Executa Change.create(), persiste, drena domain events, publica no Kafka, registra na timeline.")
+
+        Component(list_uc, "ListChangesService", "Spring @Service", "Implementa ListChangesUseCase. Consulta paginada com filtros por status e componentId.")
+
+        Component(get_uc, "GetChangeService", "Spring @Service", "Implementa GetChangeUseCase. Busca mudança por changeId, lança ChangeNotFoundException se não encontrado.")
+
+        Component(domain, "Change (Aggregate Root)", "Pure Java · domain/model", "Factory Change.create() → status PREPARED. State machine: complete() / fail() / cancel(). pullDomainEvents() drena lista interna.")
+
+        Component(kafka_adapter, "KafkaEventPublisherAdapter", "Spring @Component · infrastructure/kafka", "Implementa PublishEventPort. Envolve DomainEvent em IntegrationEvent{eventType, version:'1.0', correlationId, payload}. Timeout 10s.")
+
+        Component(jpa_adapter, "ChangePersistenceAdapter", "Spring @Component · infrastructure/persistence", "Implementa SaveChangePort, LoadChangesPort, ChangeExistsPort. Mapeia Change ↔ ChangeEntity via JPA.")
+
+        Component(metrics, "ObservabilityConfig", "Micrometer · infrastructure/observability", "Counters: changes_created_total, events_published_total. Timer: change_creation_duration. Tags por status e componentId.")
+
+        Component(security, "SecurityConfig", "Spring Security · OAuth2 Resource Server", "Perfil prod: JWT validation, roles OPERATOR/ADMIN. Perfil local/test: all-permit (sem IDP externo).")
+    }
+
+    Rel(operator, controller, "HTTP Request", "REST/JSON")
+    Rel(correlation_filter, controller, "Propaga MDC antes do request", "Filter chain")
+    Rel(rate_limit, controller, "Throttle POST /changes", "Filter chain")
+    Rel(controller, create_uc, "execute(CreateChangeCommand)", "Port: CreateChangeUseCase")
+    Rel(controller, list_uc, "execute(ListChangesQuery)", "Port: ListChangesUseCase")
+    Rel(controller, get_uc, "execute(changeId)", "Port: GetChangeUseCase")
+    Rel(create_uc, domain, "Change.create() / pullDomainEvents()", "Pure Java")
+    Rel(create_uc, jpa_adapter, "save(change)", "Port: SaveChangePort")
+    Rel(create_uc, kafka_adapter, "publish(domainEvent)", "Port: PublishEventPort")
+    Rel(create_uc, metrics, "increment()", "Micrometer")
+    Rel(jpa_adapter, postgres, "INSERT/SELECT", "JDBC")
+    Rel(kafka_adapter, kafka, "send(topic, IntegrationEvent)", "KafkaTemplate")

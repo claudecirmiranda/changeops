@@ -1,0 +1,62 @@
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'14px','actorTextColor':'#E0E7FF','actorBkg':'#4338CA','actorBorder':'#6366F1','activationBorderColor':'#6366F1','signalColor':'#CBD5E1','signalTextColor':'#E2E8F0','noteBkgColor':'#1E293B','noteBorderColor':'#6366F1','noteTextColor':'#E2E8F0'},'sequence':{'mirrorActors':false,'messageFontSize':13,'actorFontSize':14,'noteMargin':10,'messageMargin':35,'width':220}}}%%
+sequenceDiagram
+    autonumber
+    participant K   as Apache Kafka
+    participant DC  as DeployEventConsumer
+    participant IA  as IdempotencyAdapter (DB)
+    participant PS  as ProcessDeployResultService
+
+    Note over K,PS: CENÁRIO 1 — Primeiro processamento (happy path)
+
+    K->>DC: DeployFinishedEvent {deployId: "deploy-abc-001"}
+    DC->>IA: tryMarkAsProcessed("deploy-abc-001", "deploy-orchestrator")
+    IA->>IA: INSERT INTO processed_events (event_id='deploy-abc-001', ...)<br/>ON CONFLICT (event_id) DO NOTHING
+    Note over IA: PostgreSQL: nenhum conflito → linha inserida
+    IA-->>DC: true (novo evento)
+    DC->>PS: execute(ProcessDeployCommand)
+    PS-->>DC: ✓ status atualizado, resultado publicado
+    DC-->>K: commitOffset
+
+    Note over K,PS: CENÁRIO 2 — Evento duplicado (Kafka re-entrega por retry/rebalance)
+
+    K->>DC: DeployFinishedEvent {deployId: "deploy-abc-001"} (re-entrega)
+    DC->>IA: tryMarkAsProcessed("deploy-abc-001", "deploy-orchestrator")
+    IA->>IA: INSERT INTO processed_events (event_id='deploy-abc-001', ...)<br/>ON CONFLICT (event_id) DO NOTHING
+    Note over IA: PostgreSQL: conflito detectado → 0 linhas afetadas
+    IA-->>DC: false (duplicata)
+    DC->>DC: events_discarded_total.increment()
+    DC->>DC: log.warn("Duplicate event discarded: deployId=deploy-abc-001")
+    DC-->>K: commitOffset (sem reprocessamento)
+
+    Note over K,PS: CENÁRIO 3 — Race condition (duas réplicas do serviço processam simultaneamente)
+
+    par Réplica A
+        K->>DC: DeployFinishedEvent {deployId: "deploy-xyz-999"}
+        DC->>IA: tryMarkAsProcessed("deploy-xyz-999", ...)
+        IA->>IA: INSERT ON CONFLICT DO NOTHING
+        Note over IA: Réplica A vence a corrida
+        IA-->>DC: true → processa normalmente
+    and Réplica B
+        K->>DC: DeployFinishedEvent {deployId: "deploy-xyz-999"}
+        DC->>IA: tryMarkAsProcessed("deploy-xyz-999", ...)
+        IA->>IA: INSERT ON CONFLICT DO NOTHING
+        Note over IA: Conflito: Réplica A já inseriu
+        IA-->>DC: false → descarta silenciosamente
+    end
+
+    Note over IA: Atomicidade garantida pelo PostgreSQL.<br/>Exatamente UM processamento em qualquer cenário.
+
+    Note over K,PS: CENÁRIO 4 — Falha após idempotência (evento não reprocessado na re-entrega)
+
+    K->>DC: DeployFinishedEvent {deployId: "deploy-fail-777"}
+    DC->>IA: tryMarkAsProcessed("deploy-fail-777", ...)
+    IA-->>DC: true (novo evento)
+    DC->>PS: execute(ProcessDeployCommand)
+    PS->>PS: Exceção durante atualização de status (ex: DB timeout)
+    PS-->>DC: throws RuntimeException
+    Note over DC: @Transactional rollback:<br/>processed_events registro revertido
+    DC->>DC: Retry automático pelo @RetryableTopic
+    K->>DC: Re-entrega (retry 1)
+    DC->>IA: tryMarkAsProcessed("deploy-fail-777", ...)
+    Note over IA: Rollback reverteu o INSERT → linha não existe
+    IA-->>DC: true (processa novamente — correto!)

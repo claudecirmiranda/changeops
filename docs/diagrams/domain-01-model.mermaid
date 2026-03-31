@@ -1,0 +1,100 @@
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'14px','classBkg':'#1E1B4B','classBorder':'#6366F1','classTextColor':'#E0E7FF','lineColor':'#94A3B8','labelColor':'#A5B4FC'}}}%%
+classDiagram
+    direction TB
+
+    class Change {
+        <<Aggregate Root>>
+        -UUID changeId
+        -String title
+        -String description
+        -String componentId
+        -String requestedBy
+        -Instant scheduledAt
+        -ChangeStatus status
+        -UUID correlationId
+        -Instant createdAt
+        -List~DomainEvent~ domainEvents
+        +create(title, componentId, requestedBy, scheduledAt) Change$
+        +complete() void
+        +fail(reason) void
+        +cancel() void
+        +pullDomainEvents() List~DomainEvent~
+    }
+
+    class ChangeStatus {
+        <<Enumeration>>
+        DRAFT
+        PREPARED
+        COMPLETED
+        FAILED
+        CANCELLED
+    }
+
+    class DomainEvent {
+        <<Interface>>
+        +occurredAt() Instant
+    }
+
+    class ChangePreparedEvent {
+        <<Domain Event>>
+        -UUID changeId
+        -String componentId
+        -String requestedBy
+        -Instant scheduledAt
+        -UUID correlationId
+        -Instant occurredAt
+    }
+
+    class IntegrationEvent {
+        <<Integration Envelope>>
+        -String eventType
+        -String version
+        -UUID correlationId
+        -Instant occurredAt
+        -Object payload
+    }
+
+    class CreateChangeUseCase {
+        <<Port - Inbound>>
+        +execute(CreateChangeCommand) CreateChangeResult
+    }
+
+    class PublishEventPort {
+        <<Port - Outbound>>
+        +publish(DomainEvent) void
+    }
+
+    class SaveChangePort {
+        <<Port - Outbound>>
+        +save(Change) Change
+    }
+
+    class CreateChangeService {
+        <<Application Service>>
+        -SaveChangePort saveChangePort
+        -PublishEventPort publishEventPort
+        -SaveChangeEventPort saveEventPort
+        +execute(CreateChangeCommand) CreateChangeResult
+    }
+
+    class KafkaEventPublisherAdapter {
+        <<Infrastructure Adapter>>
+        +publish(DomainEvent) void
+    }
+
+    class ChangePersistenceAdapter {
+        <<Infrastructure Adapter>>
+        +save(Change) Change
+        +findById(UUID) Optional~Change~
+        +findAll(Pageable) Page~Change~
+    }
+
+    Change "1" --> "1" ChangeStatus : tem
+    Change "1" o-- "0..*" DomainEvent : registra
+    ChangePreparedEvent ..|> DomainEvent : implementa
+    CreateChangeService ..|> CreateChangeUseCase : implementa
+    CreateChangeService --> SaveChangePort : usa
+    CreateChangeService --> PublishEventPort : usa
+    KafkaEventPublisherAdapter ..|> PublishEventPort : implementa
+    KafkaEventPublisherAdapter --> IntegrationEvent : cria
+    ChangePersistenceAdapter ..|> SaveChangePort : implementa

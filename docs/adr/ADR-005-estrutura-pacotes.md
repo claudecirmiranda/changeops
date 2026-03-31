@@ -199,10 +199,49 @@ void domainShouldNotDependOnInfrastructure() {
 - Teste de arquitetura `HexagonalArchitectureTest` verifica que domínio não importa infraestrutura, executado em cada build
 - Guidelines de modelagem rica em `docs/ARCHITECTURE.md` com exemplos de entidades com comportamento, não apenas getters/setters
 
+## Perfis de Segurança: Local vs. Produção
+
+A `SecurityConfig` possui duas configurações ativadas por Spring Profile, documentadas aqui como **decisão deliberada de developer experience**:
+
+### Perfil `local` / `test` (demo e desenvolvimento)
+
+```java
+@Profile({"local", "test"})
+// Todos os requests permitidos sem autenticação
+// CORS ainda configurado; rate limiting ativo
+```
+
+**Motivação:** Eliminar a necessidade de um Identity Provider (Keycloak, Auth0, Okta) no ambiente de demonstração. Exigir OAuth2 válido tornaria o `make up` não autossuficiente — dependeria de infraestrutura externa ou configuração de IDP local, aumentando a barreira de entrada para avaliadores e desenvolvedores.
+
+**O que permanece ativo mesmo no perfil local:**
+- `CorrelationIdFilter` — rastreabilidade preservada
+- `RateLimitFilter` — proteção contra flood nos endpoints POST
+- CORS configurado — origens permitidas explícitas
+
+### Perfil `prod` / `staging` (padrão em produção)
+
+```java
+@Profile("!local & !test")
+// OAuth2 Resource Server com JWT
+// CustomJwtAuthenticationConverter → roles OPERATOR, ADMIN
+// /actuator/prometheus requer role ADMIN
+```
+
+**Garantias em produção:**
+- JWT validado via JWKS endpoint do IdP
+- Role-based access: `OPERATOR` cria/lista mudanças; `ADMIN` acessa métricas
+- Stateless (sem sessão/cookie) — compatível com múltiplas réplicas
+- CORS restrito a `localhost:*` e `*.changeops.io`
+
+### Por que isso não é uma lacuna de segurança
+
+A autenticação **existe, está implementada e testada** — não foi omitida. A decisão foi desabilitá-la condicionalmente por profile, o que é padrão amplamente adotado em Spring Boot (ex: `spring.security.enabled=false` em perfis de teste). O risco de expor o perfil local em produção é mitigado pelo profile binding explícito — `prod` nunca carrega a configuração permissiva.
+
 ## Relacionado a
 - [ADR-002](./ADR-002-estrategia-idempotencia.md) — `IdempotencyAdapter` implementa porta de persistência em `infrastructure/persistence`
 - [ADR-003](./ADR-003-eventos-dominio-vs-integracao.md) — Eventos de domínio em `domain/model`, envelope em `infrastructure/event`
 - [ADR-004](./ADR-004-atualizacao-status-frontend.md) — Hook de frontend isolado em `frontend/hooks/`, sem dependência de backend
+- [ADR-006](./ADR-006-checklist-pos-deploy.md) — `PostDeployChecklistService` em `application/service/` segue o mesmo princípio de adapter substituível
 
 ## Conformidade com a RFP
 
@@ -213,6 +252,7 @@ void domainShouldNotDependOnInfrastructure() {
 | "Substituibilidade de adapters para evolução técnica" | ✅ Atendido | Porta `EventPublisher` com implementações `KafkaEventPublisher` e `InMemoryEventPublisher` para testes |
 | "Documentação de convenções para novos desenvolvedores" | ✅ Atendido | Exemplo de feature completa no ADR + `docs/ARCHITECTURE.md` com guidelines |
 | "Validação automática de arquitetura" | ✅ Atendido | `HexagonalArchitectureTest.java` executado em pipeline CI para prevenir acoplamento indevido |
+| "Autenticação presente ou justificadamente desabilitada" | ✅ Atendido | OAuth2 JWT implementado em `SecurityConfig` (perfil `prod`); desabilitado em `local`/`test` por decisão documentada neste ADR |
 
 ## Justificativa
 

@@ -1,0 +1,41 @@
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'13px'}}}%%
+C4Component
+    title C4 Level 3 — Componentes: deploy-orchestrator (AS-IS)
+
+    ContainerQueue(kafka, "Apache Kafka", "Broker")
+    ContainerDb(postgres, "PostgreSQL 16", "DB")
+
+    Container_Boundary(do, "deploy-orchestrator") {
+
+        Component(consumer, "DeployEventConsumer", "Spring @KafkaListener · infrastructure/kafka", "Consome changeops.deploy.finished. Configura MDC com correlation_id, change_id, deploy_id. 4 retries + backoff exponencial (500ms→10s). DLT handler.")
+
+        Component(idempotency_adapter, "IdempotencyAdapter", "Spring @Component · infrastructure/persistence", "Implementa IdempotencyPort. INSERT INTO processed_events ON CONFLICT DO NOTHING. Retorna true (novo) / false (duplicata).")
+
+        Component(process_service, "ProcessDeployResultService", "Spring @Service · @Transactional", "Orquestra: 1-check idempotência, 2-checklist, 3-build ChangeResult, 4-update status + persist event, 5-publish result event. Métricas por step.")
+
+        Component(checklist, "PostDeployChecklistService", "Spring @Service · application/service", "4 checks: deploy-result-gate, healthcheck, smoke-test, error-rate-threshold. Stubs derivados de deploySucceeded. Retorna ChecklistResult{passed, failedStep, reason}.")
+
+        Component(status_adapter, "UpdateChangeStatusAdapter", "Spring @Component · infrastructure/persistence", "Implementa UpdateChangeStatusPort. UPDATE changes SET status = ? WHERE change_id = ?. Usado para COMPLETED e FAILED.")
+
+        Component(event_adapter, "ChangeEventAdapter", "Spring @Component · infrastructure/persistence", "Implementa SaveChangeEventPort. INSERT INTO change_events — persiste ChangeCompletedEvent / ChangeFailedEvent na timeline.")
+
+        Component(result_publisher, "KafkaResultPublisherAdapter", "Spring @Component · infrastructure/kafka", "Implementa PublishResultEventPort. Publica ChangeCompletedEvent ou ChangeFailedEvent no tópico changeops.change.result.")
+
+        Component(cleanup_job, "ProcessedEventsCleanupJob", "Spring @Scheduled · infrastructure/persistence", "Executa diariamente às 03:00. Remove processed_events com processed_at > 90 dias. Configurável via property.")
+
+        Component(dlt_handler, "DltHandler (DeployEventConsumer)", "Spring @KafkaListener · -dlt suffix", "Captura eventos após esgotamento de retries. Incrementa events_failed_total. Loga com contexto completo do MDC.")
+    }
+
+    Rel(kafka, consumer, "Entrega DeployFinishedEvent", "consumer group: deploy-orchestrator-group")
+    Rel(consumer, process_service, "execute(ProcessDeployCommand)", "Port: ProcessDeployResultUseCase")
+    Rel(process_service, idempotency_adapter, "tryMarkAsProcessed(deployId)", "Port: IdempotencyPort")
+    Rel(process_service, checklist, "execute(deploySucceeded, componentId)", "Direct call")
+    Rel(process_service, status_adapter, "updateStatus(changeId, COMPLETED|FAILED)", "Port: UpdateChangeStatusPort")
+    Rel(process_service, event_adapter, "save(changeEvent)", "Port: SaveChangeEventPort")
+    Rel(process_service, result_publisher, "publish(resultEvent)", "Port: PublishResultEventPort")
+    Rel(idempotency_adapter, postgres, "INSERT processed_events ON CONFLICT", "JDBC")
+    Rel(status_adapter, postgres, "UPDATE changes.status", "JDBC")
+    Rel(event_adapter, postgres, "INSERT change_events", "JDBC")
+    Rel(result_publisher, kafka, "send(changeops.change.result)", "KafkaTemplate")
+    Rel(kafka, dlt_handler, "Entrega evento após max retries", "topic: changeops.deploy.finished-dlt")
+    Rel(cleanup_job, postgres, "DELETE processed_events (TTL 90d)", "JDBC @Scheduled")

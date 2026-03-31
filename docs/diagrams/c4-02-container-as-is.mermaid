@@ -1,0 +1,43 @@
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'14px'}}}%%
+C4Container
+    title C4 Level 2 — Container Diagram (AS-IS, Phase 1)
+
+    Person(operator, "Operador", "Cria e acompanha mudanças")
+    Person(admin, "Administrador", "Monitora métricas")
+    System_Ext(cicd, "Sistema de CI/CD", "Publica resultado do deploy")
+
+    System_Boundary(changeops, "ChangeOps Dashboard") {
+
+        Container(frontend, "Frontend", "React 18 + TypeScript + Vite", "SPA: formulário de criação, listagem paginada com polling a cada 5s, timeline de eventos por mudança")
+
+        Container(change_service, "change-service", "Spring Boot 3.2 · Java 17 · :8080", "API REST para criação e consulta de mudanças. Publica ChangePreparedEvent no Kafka. Hexagonal Architecture.")
+
+        Container(deploy_orchestrator, "deploy-orchestrator", "Spring Boot 3.2 · Java 17 · :8081", "Consome DeployFinishedEvent, executa checklist pós-deploy, atualiza status (COMPLETED/FAILED), publica evento de resultado.")
+
+        ContainerDb(postgres, "PostgreSQL 16", "PostgreSQL · :5432", "Schemas: changes, change_events (ambos serviços), processed_events (orquestrador). Migrations via Flyway independentes por serviço.")
+
+        ContainerQueue(kafka, "Apache Kafka", "Confluent CP 7.6.0 · :9092", "Tópicos: changeops.change.prepared, changeops.deploy.finished, changeops.change.result, changeops.deploy.finished-dlt")
+
+        Container(prometheus, "Prometheus", "prom/prometheus:v2.50.1 · :9090", "Scrape de métricas a cada 15s dos dois serviços via /actuator/prometheus")
+
+        Container(grafana, "Grafana", "grafana/grafana · :3001", "7 painéis pré-provisionados: counters, latência p95, distribuição de status, taxa de eventos")
+    }
+
+    Rel(operator, frontend, "Usa", "HTTPS")
+    Rel(admin, grafana, "Monitora", "HTTPS")
+
+    Rel(frontend, change_service, "Cria / lista mudanças", "REST / JSON · HTTP")
+    Rel(cicd, kafka, "Publica resultado", "Kafka Producer")
+
+    Rel(change_service, postgres, "Persiste mudanças e eventos", "JDBC / JPA / Flyway")
+    Rel(change_service, kafka, "Publica ChangePreparedEvent", "Kafka Producer (acks=all)")
+
+    Rel(kafka, deploy_orchestrator, "Entrega DeployFinishedEvent", "Kafka Consumer (@KafkaListener)")
+    Rel(deploy_orchestrator, postgres, "Lê/grava status e idempotência", "JDBC / JPA")
+    Rel(deploy_orchestrator, kafka, "Publica ChangeCompletedEvent / ChangeFailedEvent", "Kafka Producer")
+
+    Rel(prometheus, change_service, "Coleta métricas", "HTTP scrape /actuator/prometheus")
+    Rel(prometheus, deploy_orchestrator, "Coleta métricas", "HTTP scrape /actuator/prometheus")
+    Rel(grafana, prometheus, "Consulta", "PromQL")
+
+    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")

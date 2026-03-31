@@ -1,0 +1,36 @@
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'15px','stateBkg':'#1E1B4B','stateBorder':'#6366F1','stateTextColor':'#E0E7FF','transitionColor':'#94A3B8','labelColor':'#A5B4FC','fontSize':'15px'}}}%%
+stateDiagram-v2
+    direction LR
+
+    [*] --> PREPARED : Change.create()\n[POST /api/v1/changes]\nPublica ChangePreparedEvent
+
+    PREPARED --> COMPLETED : DeployFinishedEvent{success=true}\n+ PostDeployChecklist.passed\nPublica ChangeCompletedEvent
+
+    PREPARED --> FAILED : DeployFinishedEvent{success=false}\nou checklist.failed\nPublica ChangeFailedEvent
+
+    PREPARED --> CANCELLED : [Phase 2]\nPOST /api/v1/changes/{id}/cancel\n(comando direto do operador)
+
+    COMPLETED --> [*] : Estado terminal\nAuditável via change_events
+    FAILED --> [*] : Estado terminal\nMotivo em change_events.reason
+    CANCELLED --> [*] : Estado terminal\nRegistrado com requestedBy
+
+    note right of PREPARED
+        Status inicial imediato.
+        Não existe transição DRAFT→PREPARED
+        na implementação atual (ADR-005).
+        DRAFT reservado para Phase 2
+        (fluxo de aprovação).
+    end note
+
+    note right of COMPLETED
+        Persiste ChangeCompletedEvent
+        na timeline change_events.
+        Frontend reflete em até 5s
+        via polling.
+    end note
+
+    note right of FAILED
+        Persiste ChangeFailedEvent
+        com failedStep e reason
+        do PostDeployChecklistService.
+    end note

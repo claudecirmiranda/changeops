@@ -1,0 +1,89 @@
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'14px','actorTextColor':'#E0E7FF','actorBkg':'#4338CA','actorBorder':'#6366F1','activationBorderColor':'#6366F1','signalColor':'#CBD5E1','signalTextColor':'#E2E8F0','noteBkgColor':'#1E293B','noteBorderColor':'#6366F1','noteTextColor':'#E2E8F0'},'sequence':{'mirrorActors':false,'messageFontSize':13,'actorFontSize':14,'noteMargin':10,'messageMargin':35,'width':200}}}%%
+sequenceDiagram
+    autonumber
+    participant ES as Sistema de CI/CD
+    participant K  as Apache Kafka
+    participant DC as DeployEventConsumer
+    participant PS as ProcessDeployResultService
+    participant CK as PostDeployChecklistService
+    participant IA as IdempotencyAdapter
+    participant SA as UpdateChangeStatusAdapter
+    participant EA as ChangeEventAdapter
+    participant RP as KafkaResultPublisherAdapter
+    participant DB as PostgreSQL
+
+    ES->>K: Publica DeployFinishedEvent
+    Note over ES,K: topic: changeops.deploy.finished<br/>{deployId, changeId, componentId,<br/>correlationId, deploySucceeded, executedAt}
+
+    K->>DC: @KafkaListener consome evento
+    DC->>DC: MDC.put(correlation_id, change_id, deploy_id)
+    DC->>DC: events_consumed_total.increment()
+
+    DC->>PS: execute(ProcessDeployCommand)
+    Note over PS: @Transactional
+
+    PS->>IA: tryMarkAsProcessed(deployId + correlationId)
+    IA->>DB: INSERT INTO processed_events ON CONFLICT DO NOTHING
+    DB-->>IA: 1 (novo) ou 0 (duplicata)
+
+    alt Evento já processado (retorno = 0)
+        IA-->>PS: false
+        PS->>PS: events_discarded_total.increment()
+        PS->>PS: log.warn("Duplicate event discarded")
+        PS-->>DC: return (sem reprocessamento)
+    end
+
+    IA-->>PS: true (primeiro processamento)
+
+    PS->>CK: execute(deploySucceeded, componentId)
+    Note over CK: 4 checks sequenciais:
+    CK->>CK: 1. deploy-result-gate → passed = deploySucceeded
+    CK->>CK: 2. healthcheck → passed = resultado anterior
+    CK->>CK: 3. smoke-test → passed = resultado anterior
+    CK->>CK: 4. error-rate-threshold → passed = resultado anterior
+    CK-->>PS: ChecklistResult{passed, failedStep, reason}
+
+    alt Deploy SUCCESS (checklist.passed = true)
+        PS->>SA: updateStatus(changeId, COMPLETED)
+        SA->>DB: UPDATE changes SET status='COMPLETED'
+        DB-->>SA: ✓
+
+        PS->>EA: save(ChangeCompletedEvent, changeId, correlationId)
+        EA->>DB: INSERT INTO change_events
+        DB-->>EA: ✓
+
+        PS->>RP: publish(ChangeCompletedEvent)
+        RP->>K: send("changeops.change.result", changeId, envelope)
+        K-->>RP: ACK
+
+    else Deploy FAILURE (checklist.passed = false)
+        PS->>SA: updateStatus(changeId, FAILED)
+        SA->>DB: UPDATE changes SET status='FAILED'
+        DB-->>SA: ✓
+
+        PS->>EA: save(ChangeFailedEvent{reason: checklist.failedStep})
+        EA->>DB: INSERT INTO change_events
+        DB-->>EA: ✓
+
+        PS->>RP: publish(ChangeFailedEvent{reason})
+        RP->>K: send("changeops.change.result", changeId, envelope)
+        K-->>RP: ACK
+    end
+
+    PS-->>DC: ✓ processamento concluído
+    DC->>DC: MDC.clear()
+    K-->>DC: ACK (commitOffset)
+
+    rect rgb(60, 20, 20)
+        Note over K,DC: Cenário: Falha no Consumo (Retry + DLT)
+        K->>DC: Evento com exceção não tratada
+        DC->>DC: Retry 1 após 500ms
+        DC->>DC: Retry 2 após 1.000ms
+        DC->>DC: Retry 3 após 2.000ms
+        DC->>DC: Retry 4 após 4.000ms
+        DC->>K: Encaminha para DLT
+        Note over K: topic: changeops.deploy.finished-dlt
+        K->>DC: @KafkaListener(dlt) captura
+        DC->>DC: events_failed_total.increment()
+        DC->>DC: log.error com contexto MDC completo
+    end

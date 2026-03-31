@@ -1,0 +1,70 @@
+%%{init: {'theme':'dark','themeVariables':{'fontSize':'14px','actorTextColor':'#E0E7FF','actorBkg':'#4338CA','actorBorder':'#6366F1','activationBorderColor':'#6366F1','signalColor':'#CBD5E1','signalTextColor':'#E2E8F0','noteBkgColor':'#1E293B','noteBorderColor':'#6366F1','noteTextColor':'#E2E8F0'},'sequence':{'mirrorActors':false,'messageFontSize':13,'actorFontSize':14,'noteMargin':10,'messageMargin':35,'width':200}}}%%
+sequenceDiagram
+    autonumber
+    participant U  as Operador (Browser)
+    participant FE as Frontend · React
+    participant CF as CorrelationIdFilter
+    participant RL as RateLimitFilter
+    participant CS as ChangeController
+    participant SV as CreateChangeService
+    participant DM as Change (Domain)
+    participant DB as PostgreSQL
+    participant KA as KafkaEventPublisherAdapter
+    participant K  as Apache Kafka
+
+    U->>FE: Preenche formulário e submete
+    FE->>FE: Validação client-side (HTML5 + JS)
+
+    FE->>CF: POST /api/v1/changes
+    CF->>CF: Lê X-Correlation-Id ou gera UUID
+    CF->>CF: MDC.put(correlation_id, service)
+    CF->>RL: Repassa request
+
+    RL->>RL: Bucket4j: 100 req/min por IP
+    alt Rate limit excedido
+        RL-->>FE: 429 Too Many Requests (Retry-After: 60)
+    end
+
+    RL->>CS: Request com MDC propagado
+    CS->>CS: @Valid — Bean Validation
+
+    alt Validação falha (title, componentId, scheduledAt)
+        CS-->>FE: 400 Bad Request (ProblemDetail RFC 7807)
+        FE-->>U: Exibe erros por campo
+    end
+
+    CS->>SV: execute(CreateChangeCommand)
+    Note over SV: @Transactional
+
+    SV->>DM: Change.create(title, componentId, requestedBy, scheduledAt)
+    Note over DM: changeId = UUID.randomUUID()<br/>correlationId = UUID.randomUUID()<br/>status = PREPARED<br/>domainEvents.add(ChangePreparedEvent)
+
+    DM-->>SV: Change entity com event registrado
+
+    SV->>DB: INSERT INTO changes (changeId, status=PREPARED, ...)
+    DB-->>SV: ✓ persistido
+
+    SV->>DM: saved.pullDomainEvents()
+    DM-->>SV: [ChangePreparedEvent]
+
+    SV->>KA: publish(ChangePreparedEvent)
+    KA->>KA: wrap → IntegrationEvent{eventType:"ChangePreparedEvent", version:"1.0", correlationId, payload}
+    KA->>K: kafkaTemplate.send("changeops.change.prepared", changeId, integrationEvent)
+    K-->>KA: ACK (acks=all, timeout 10s)
+    KA-->>SV: ✓ publicado
+
+    SV->>DB: INSERT INTO change_events (changeId, PREPARED, correlationId)
+    DB-->>SV: ✓ timeline registrada
+
+    SV->>SV: changesCreatedCounter.increment()
+    SV-->>CS: CreateChangeResult{changeId, status, correlationId}
+
+    CS-->>FE: 201 Created<br/>Location: /api/v1/changes/{changeId}<br/>{changeId, status:"PREPARED", correlationId}
+
+    FE->>FE: Fecha formulário, exibe confirmação
+    FE-->>U: Mudança listada com status PREPARED
+
+    loop Polling a cada 5s (usePolling hook)
+        FE->>CS: GET /api/v1/changes?page=0&size=20
+        CS-->>FE: Lista atualizada com status corrente
+    end
