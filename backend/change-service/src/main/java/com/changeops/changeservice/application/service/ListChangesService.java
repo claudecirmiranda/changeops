@@ -21,8 +21,8 @@ public class ListChangesService implements ListChangesUseCase {
     @Override
     @Transactional(readOnly = true)
     public Page<ListChangesUseCase.Result> execute(ListChangesUseCase.Query query, Pageable pageable) {
-        log.debug("Listing changes: status={}, componentId={}", query.status(), query.componentId());
-        return loadChangesPort.findAll(query.status(), query.componentId(), pageable)
+        log.debug("Listing changes: status={}, componentId={}, since={}", query.status(), query.componentId(), query.since());
+        return loadChangesPort.findAll(query.status(), query.componentId(), query.since(), pageable)
                 .map(this::toResult);
     }
 

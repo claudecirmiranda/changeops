@@ -72,6 +72,29 @@ describe('changeService', () => {
     })
   })
 
+  describe('getStats', () => {
+    it('gets /changes/stats with since param', async () => {
+      const stats = { total: 5, prepared: 2, completed: 2, failed: 1 }
+      mockGet.mockResolvedValueOnce({ data: stats })
+
+      const since = '2024-06-15T10:00:00Z'
+      const result = await changeService.getStats(since)
+
+      expect(mockGet).toHaveBeenCalledWith('/changes/stats', { params: { since } })
+      expect(result).toEqual(stats)
+    })
+
+    it('gets /changes/stats without params when since is undefined', async () => {
+      const stats = { total: 10, prepared: 3, completed: 6, failed: 1 }
+      mockGet.mockResolvedValueOnce({ data: stats })
+
+      const result = await changeService.getStats(undefined)
+
+      expect(mockGet).toHaveBeenCalledWith('/changes/stats', { params: {} })
+      expect(result).toEqual(stats)
+    })
+  })
+
   describe('getEvents', () => {
     it('gets /changes/:id/events and returns events array', async () => {
       const events: ChangeEvent[] = [

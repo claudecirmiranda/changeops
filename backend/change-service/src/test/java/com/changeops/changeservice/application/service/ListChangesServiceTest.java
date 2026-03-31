@@ -45,28 +45,28 @@ class ListChangesServiceTest {
                 Instant.now().plus(1, ChronoUnit.DAYS));
         change.pullDomainEvents();
         Pageable pageable = PageRequest.of(0, 10);
-        when(loadChangesPort.findAll(null, null, pageable))
+        when(loadChangesPort.findAll(null, null, null, pageable))
                 .thenReturn(new PageImpl<>(List.of(change)));
 
         Page<ListChangesUseCase.Result> results =
-                service.execute(new ListChangesUseCase.Query(null, null), pageable);
+                service.execute(new ListChangesUseCase.Query(null, null, null), pageable);
 
         assertThat(results.getContent()).hasSize(1);
         ListChangesUseCase.Result r = results.getContent().get(0);
         assertThat(r.changeId()).isEqualTo(change.getChangeId());
         assertThat(r.title()).isEqualTo("Deploy v1");
         assertThat(r.status()).isEqualTo(ChangeStatus.PREPARED);
-        verify(loadChangesPort).findAll(null, null, pageable);
+        verify(loadChangesPort).findAll(null, null, null, pageable);
     }
 
     @Test
     void shouldReturnEmptyPage_whenNoChanges() {
         Pageable pageable = PageRequest.of(0, 10);
-        when(loadChangesPort.findAll(any(), any(), eq(pageable)))
+        when(loadChangesPort.findAll(any(), any(), any(), eq(pageable)))
                 .thenReturn(new PageImpl<>(Collections.emptyList()));
 
         Page<ListChangesUseCase.Result> results =
-                service.execute(new ListChangesUseCase.Query(null, null), pageable);
+                service.execute(new ListChangesUseCase.Query(null, null, null), pageable);
 
         assertThat(results.getContent()).isEmpty();
         assertThat(results.getTotalElements()).isZero();
@@ -75,11 +75,23 @@ class ListChangesServiceTest {
     @Test
     void shouldPassFilters_toPort() {
         Pageable pageable = PageRequest.of(0, 5);
-        when(loadChangesPort.findAll(eq(ChangeStatus.PREPARED), eq("payment-service"), eq(pageable)))
+        when(loadChangesPort.findAll(eq(ChangeStatus.PREPARED), eq("payment-service"), any(), eq(pageable)))
                 .thenReturn(new PageImpl<>(Collections.emptyList()));
 
-        service.execute(new ListChangesUseCase.Query(ChangeStatus.PREPARED, "payment-service"), pageable);
+        service.execute(new ListChangesUseCase.Query(ChangeStatus.PREPARED, "payment-service", null), pageable);
 
-        verify(loadChangesPort).findAll(ChangeStatus.PREPARED, "payment-service", pageable);
+        verify(loadChangesPort).findAll(eq(ChangeStatus.PREPARED), eq("payment-service"), any(), eq(pageable));
+    }
+
+    @Test
+    void shouldPassSince_toPort() {
+        Instant since = Instant.now().minus(5, ChronoUnit.MINUTES);
+        Pageable pageable = PageRequest.of(0, 10);
+        when(loadChangesPort.findAll(null, null, since, pageable))
+                .thenReturn(new PageImpl<>(Collections.emptyList()));
+
+        service.execute(new ListChangesUseCase.Query(null, null, since), pageable);
+
+        verify(loadChangesPort).findAll(null, null, since, pageable);
     }
 }

@@ -35,6 +35,13 @@ export interface CreateChangeResponse {
   createdAt: string
 }
 
+export interface ChangeStats {
+  total: number
+  prepared: number
+  completed: number
+  failed: number
+}
+
 export interface PageResponse<T> {
   content: T[]
   totalElements: number

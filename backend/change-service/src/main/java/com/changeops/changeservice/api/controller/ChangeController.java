@@ -5,8 +5,10 @@ import com.changeops.changeservice.api.dto.CreateChangeResponse;
 import com.changeops.changeservice.api.dto.ChangeDetailDto;
 import com.changeops.changeservice.api.dto.ChangeDto;
 import com.changeops.changeservice.api.dto.ChangeEventDto;
+import com.changeops.changeservice.api.dto.ChangeStatsDto;
 import com.changeops.changeservice.application.port.in.CreateChangeUseCase;
 import com.changeops.changeservice.application.port.in.GetChangeEventsUseCase;
+import com.changeops.changeservice.application.port.in.GetChangeStatsUseCase;
 import com.changeops.changeservice.application.port.in.GetChangeUseCase;
 import com.changeops.changeservice.application.port.in.ListChangesUseCase;
 import com.changeops.changeservice.domain.valueobject.ChangeStatus;
@@ -34,6 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -48,6 +51,7 @@ public class ChangeController {
     private final ListChangesUseCase listChangesUseCase;
     private final GetChangeUseCase getChangeUseCase;
     private final GetChangeEventsUseCase getChangeEventsUseCase;
+    private final GetChangeStatsUseCase getChangeStatsUseCase;
     private final Environment environment;
 
     public ChangeController(
@@ -55,11 +59,13 @@ public class ChangeController {
             ListChangesUseCase listChangesUseCase,
             GetChangeUseCase getChangeUseCase,
             GetChangeEventsUseCase getChangeEventsUseCase,
+            GetChangeStatsUseCase getChangeStatsUseCase,
             Environment environment) {
         this.createChangeUseCase = createChangeUseCase;
         this.listChangesUseCase = listChangesUseCase;
         this.getChangeUseCase = getChangeUseCase;
         this.getChangeEventsUseCase = getChangeEventsUseCase;
+        this.getChangeStatsUseCase = getChangeStatsUseCase;
         this.environment = environment;
     }
 
@@ -97,14 +103,25 @@ public class ChangeController {
     public ResponseEntity<Page<ChangeDto>> list(
             @RequestParam(required = false) ChangeStatus status,
             @RequestParam(required = false) String componentId,
+            @RequestParam(required = false) Instant since,
             @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
 
         Page<ListChangesUseCase.Result> results = listChangesUseCase.execute(
-                new ListChangesUseCase.Query(status, componentId), pageable);
+                new ListChangesUseCase.Query(status, componentId, since), pageable);
 
         return ResponseEntity.ok(results.map(r -> new ChangeDto(
                 r.changeId(), r.title(), r.componentId(),
                 r.status(), r.correlationId(), r.createdAt(), r.updatedAt())));
+    }
+
+    @GetMapping("/stats")
+    @Operation(summary = "Get change counts grouped by status")
+    public ResponseEntity<ChangeStatsDto> stats(
+            @RequestParam(required = false) Instant since) {
+
+        GetChangeStatsUseCase.Result result = getChangeStatsUseCase.execute(since);
+        return ResponseEntity.ok(new ChangeStatsDto(
+                result.total(), result.prepared(), result.completed(), result.failed()));
     }
 
     @GetMapping("/{changeId}")

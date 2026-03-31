@@ -2,6 +2,7 @@ package com.changeops.changeservice.api.controller;
 
 import com.changeops.changeservice.application.port.in.CreateChangeUseCase;
 import com.changeops.changeservice.application.port.in.GetChangeEventsUseCase;
+import com.changeops.changeservice.application.port.in.GetChangeStatsUseCase;
 import com.changeops.changeservice.application.port.in.GetChangeUseCase;
 import com.changeops.changeservice.application.port.in.ListChangesUseCase;
 import com.changeops.changeservice.domain.exception.ChangeNotFoundException;
@@ -54,6 +55,9 @@ class ChangeControllerTest {
 
     @MockBean
     GetChangeEventsUseCase getChangeEventsUseCase;
+
+    @MockBean
+    GetChangeStatsUseCase getChangeStatsUseCase;
 
     // ─── POST /api/v1/changes ────────────────────────────────────────────────
 
@@ -135,6 +139,41 @@ class ChangeControllerTest {
                         .param("componentId", "svc-a"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(0)));
+    }
+
+    @Test
+    void list_shouldAcceptSinceParam() throws Exception {
+        when(listChangesUseCase.execute(any(), any()))
+                .thenReturn(new PageImpl<>(List.<ListChangesUseCase.Result>of(), PageRequest.of(0, 20), 0));
+
+        mockMvc.perform(get("/api/v1/changes")
+                        .param("since", Instant.now().minus(5, java.time.temporal.ChronoUnit.MINUTES).toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(0)));
+    }
+
+    @Test
+    void stats_shouldReturn200WithCounts() throws Exception {
+        when(getChangeStatsUseCase.execute(any()))
+                .thenReturn(new GetChangeStatsUseCase.Result(8L, 2L, 5L, 1L));
+
+        mockMvc.perform(get("/api/v1/changes/stats"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(8))
+                .andExpect(jsonPath("$.prepared").value(2))
+                .andExpect(jsonPath("$.completed").value(5))
+                .andExpect(jsonPath("$.failed").value(1));
+    }
+
+    @Test
+    void stats_shouldAcceptSinceParam() throws Exception {
+        when(getChangeStatsUseCase.execute(any()))
+                .thenReturn(new GetChangeStatsUseCase.Result(0L, 0L, 0L, 0L));
+
+        mockMvc.perform(get("/api/v1/changes/stats")
+                        .param("since", Instant.now().minus(5, java.time.temporal.ChronoUnit.MINUTES).toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(0));
     }
 
     // ─── GET /api/v1/changes/{changeId} ──────────────────────────────────────

@@ -17,7 +17,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,9 +48,22 @@ public class ChangePersistenceAdapter
     }
 
     @Override
-    public Page<Change> findAll(ChangeStatus status, String componentId, Pageable pageable) {
-        return changeJpaRepository.findAllFiltered(status, componentId, pageable)
+    public Page<Change> findAll(ChangeStatus status, String componentId, Instant since, Pageable pageable) {
+        return changeJpaRepository.findAllFiltered(status, componentId, since, pageable)
                 .map(this::toDomain);
+    }
+
+    @Override
+    public Map<ChangeStatus, Long> countByStatusFiltered(Instant since) {
+        List<Object[]> rows = changeJpaRepository.countByStatusFiltered(since);
+        Map<ChangeStatus, Long> counts = new EnumMap<>(ChangeStatus.class);
+        for (ChangeStatus s : ChangeStatus.values()) {
+            counts.put(s, 0L);
+        }
+        for (Object[] row : rows) {
+            counts.put((ChangeStatus) row[0], (Long) row[1]);
+        }
+        return counts;
     }
 
     @Override

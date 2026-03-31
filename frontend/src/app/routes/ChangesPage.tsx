@@ -1,29 +1,33 @@
 // src/app/routes/ChangesPage.tsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChangeForm } from '@/features/changes/components/ChangeForm'
 import { ChangeList } from '@/features/changes/components/ChangeList'
 import { ChangeTimeline } from '@/features/changes/components/ChangeTimeline'
 import { useChangesStore } from '@/features/changes/store/useChangesStore'
+import type { TimeRange } from '@/features/changes/store/useChangesStore'
+import changeService from '@/features/changes/services/changeService'
+import type { ChangeStats } from '@/features/changes/types'
+import { toSinceParam } from '@/features/changes/utils/timeRange'
+
+const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
+  { value: '5m', label: 'Last 5 min' },
+  { value: '15m', label: 'Last 15 min' },
+  { value: '1h', label: 'Last 1 hour' },
+  { value: '6h', label: 'Last 6 hours' },
+  { value: '24h', label: 'Last 24 hours' },
+  { value: 'all', label: 'All time' },
+]
 
 export function ChangesPage() {
   const [showForm, setShowForm] = useState(false)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const { selectedChangeId, setSelectedChangeId, page } = useChangesStore()
+  const { selectedChangeId, setSelectedChangeId, timeRange, setTimeRange } = useChangesStore()
 
   const handleSuccess = (changeId: string) => {
     setShowForm(false)
     setSuccessMsg(`Change ${changeId.slice(0, 8)}… created successfully.`)
     setTimeout(() => setSuccessMsg(null), 5_000)
   }
-
-  const stats = page
-    ? {
-        total: page.totalElements,
-        prepared: page.content.filter((c) => c.status === 'PREPARED').length,
-        completed: page.content.filter((c) => c.status === 'COMPLETED').length,
-        failed: page.content.filter((c) => c.status === 'FAILED').length,
-      }
-    : null
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -72,15 +76,28 @@ export function ChangesPage() {
           </div>
         )}
 
-        {/* Stats cards */}
-        {stats && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard label="Total Changes" value={stats.total} valueClass="text-slate-700" bg="bg-white" border="border-slate-200" />
-            <StatCard label="Prepared" value={stats.prepared} valueClass="text-blue-600" bg="bg-blue-50" border="border-blue-100" />
-            <StatCard label="Completed" value={stats.completed} valueClass="text-emerald-600" bg="bg-emerald-50" border="border-emerald-100" />
-            <StatCard label="Failed" value={stats.failed} valueClass="text-red-500" bg="bg-red-50" border="border-red-100" />
+        {/* Global time filter */}
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Time range:</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {TIME_RANGE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setTimeRange(opt.value)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-150 border ${
+                  timeRange === opt.value
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
+
+        {/* Stats cards — driven by the /stats endpoint so counts reflect the full time window */}
+        <StatsSection timeRange={timeRange} />
 
         {/* Create form */}
         {showForm && (
@@ -121,6 +138,33 @@ export function ChangesPage() {
           <span>&copy; {new Date().getFullYear()}</span>
         </div>
       </footer>
+    </div>
+  )
+}
+
+// ─── StatsSection ─────────────────────────────────────────────────────────────
+// Fetches stats from the dedicated /changes/stats endpoint so counts reflect
+// ALL records in the selected time window (not just the current page).
+
+function StatsSection({ timeRange }: { timeRange: TimeRange }) {
+  const [stats, setStats] = useState<ChangeStats | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    changeService.getStats(toSinceParam(timeRange)).then((s) => {
+      if (!cancelled) setStats(s)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [timeRange])
+
+  if (!stats) return null
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <StatCard label="Total Changes" value={stats.total} valueClass="text-slate-700" bg="bg-white" border="border-slate-200" />
+      <StatCard label="Prepared" value={stats.prepared} valueClass="text-blue-600" bg="bg-blue-50" border="border-blue-100" />
+      <StatCard label="Completed" value={stats.completed} valueClass="text-emerald-600" bg="bg-emerald-50" border="border-emerald-100" />
+      <StatCard label="Failed" value={stats.failed} valueClass="text-red-500" bg="bg-red-50" border="border-red-100" />
     </div>
   )
 }

@@ -41,6 +41,7 @@ describe('ChangeList', () => {
       page: null,
       currentPage: 0,
       selectedChangeId: null,
+      timeRange: '1h',
     })
   })
 

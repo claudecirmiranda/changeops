@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public interface ChangeJpaRepository extends JpaRepository<ChangeEntity, UUID> {
@@ -18,10 +20,19 @@ public interface ChangeJpaRepository extends JpaRepository<ChangeEntity, UUID> {
             SELECT c FROM ChangeEntity c
             WHERE (:status IS NULL OR c.status = :status)
               AND (:componentId IS NULL OR c.componentId = :componentId)
+              AND (:since IS NULL OR c.createdAt >= :since)
             ORDER BY c.createdAt DESC
             """)
     Page<ChangeEntity> findAllFiltered(
             @Param("status") ChangeStatus status,
             @Param("componentId") String componentId,
+            @Param("since") Instant since,
             Pageable pageable);
+
+    @Query("""
+            SELECT c.status, COUNT(c) FROM ChangeEntity c
+            WHERE (:since IS NULL OR c.createdAt >= :since)
+            GROUP BY c.status
+            """)
+    List<Object[]> countByStatusFiltered(@Param("since") Instant since);
 }

@@ -11,7 +11,7 @@ public interface ListChangesUseCase {
 
     Page<Result> execute(Query query, Pageable pageable);
 
-    record Query(ChangeStatus status, String componentId) {}
+    record Query(ChangeStatus status, String componentId, Instant since) {}
 
     record Result(
             UUID changeId,

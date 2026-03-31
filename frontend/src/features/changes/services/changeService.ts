@@ -3,6 +3,7 @@ import { http } from '@/shared/lib/http'
 import type {
   Change,
   ChangeEvent,
+  ChangeStats,
   CreateChangePayload,
   CreateChangeResponse,
   PageResponse,
@@ -12,6 +13,7 @@ import type {
 export interface ListChangesParams {
   status?: ChangeStatus
   componentId?: string
+  since?: string
   page?: number
   size?: number
   sort?: string
@@ -25,6 +27,11 @@ const changeService = {
 
   async list(params: ListChangesParams = {}): Promise<PageResponse<Change>> {
     const { data } = await http.get<PageResponse<Change>>('/changes', { params })
+    return data
+  },
+
+  async getStats(since?: string): Promise<ChangeStats> {
+    const { data } = await http.get<ChangeStats>('/changes/stats', { params: since ? { since } : {} })
     return data
   },
 
