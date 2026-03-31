@@ -35,5 +35,5 @@ http.interceptors.response.use(
       timestamp: data?.timestamp ?? new Date().toISOString(),
     }
     return Promise.reject(apiError)
-  }
+  },
 )

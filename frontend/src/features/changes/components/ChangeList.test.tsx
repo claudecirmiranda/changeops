@@ -56,7 +56,11 @@ describe('ChangeList', () => {
   })
 
   it('shows empty state when there are no changes', async () => {
-    mockList.mockResolvedValueOnce({ ...fakePage, content: [], totalElements: 0 })
+    mockList.mockResolvedValueOnce({
+      ...fakePage,
+      content: [],
+      totalElements: 0,
+    })
     render(<ChangeList />)
 
     await waitFor(() => {
@@ -88,7 +92,9 @@ describe('ChangeList', () => {
     })
 
     await userEvent.click(screen.getByText('Deploy v2'))
-    expect(useChangesStore.getState().selectedChangeId).toBe('aaaa-bbbb-cccc-dddd')
+    expect(useChangesStore.getState().selectedChangeId).toBe(
+      'aaaa-bbbb-cccc-dddd',
+    )
   })
 
   it('deselects when the same row is clicked again', async () => {

@@ -1,14 +1,20 @@
 // src/features/changes/hooks/useCreateChange.ts
 import { useState } from 'react'
 import changeService from '../services/changeService'
-import type { CreateChangePayload, CreateChangeResponse, ApiError } from '../types'
+import type {
+  CreateChangePayload,
+  CreateChangeResponse,
+  ApiError,
+} from '../types'
 
 export function useCreateChange() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
   const [result, setResult] = useState<CreateChangeResponse | null>(null)
 
-  const create = async (payload: CreateChangePayload): Promise<CreateChangeResponse | null> => {
+  const create = async (
+    payload: CreateChangePayload,
+  ): Promise<CreateChangeResponse | null> => {
     setLoading(true)
     setError(null)
     try {
@@ -23,5 +29,14 @@ export function useCreateChange() {
     }
   }
 
-  return { create, loading, error, result, reset: () => { setError(null); setResult(null) } }
+  return {
+    create,
+    loading,
+    error,
+    result,
+    reset: () => {
+      setError(null)
+      setResult(null)
+    },
+  }
 }

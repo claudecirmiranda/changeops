@@ -1,6 +1,11 @@
 // src/features/changes/types/index.ts
 
-export type ChangeStatus = 'DRAFT' | 'PREPARED' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
+export type ChangeStatus =
+  | 'DRAFT'
+  | 'PREPARED'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'CANCELLED'
 
 export interface Change {
   changeId: string
