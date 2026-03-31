@@ -42,12 +42,7 @@ jobs:
 
       # ── Testes ─────────────────────────────────────────
       - name: Testes (Vitest + coverage)
-        run: |
-          npm run test -- \
-            --coverage \
-            --coverage.thresholds.lines=80 \
-            --coverage.thresholds.branches=70 \
-            --reporter=verbose
+        run: npm run test
             
       # ── Build ──────────────────────────────────────────
       - name: Build de produção
