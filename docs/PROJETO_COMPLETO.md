@@ -107,8 +107,8 @@ flowchart TD
 | **deploy-orchestrator** | Consumer Kafka com idempotência via `processed_events`, checklist pós-deploy, atualização de status, publicação de evento de resultado, retry com backoff + DLQ |
 | **PostgreSQL** | Banco compartilhado com schema único: `changes`, `change_events`, `processed_events`. Flyway migrations independentes por serviço |
 | **Kafka** | Broker de eventos com 3 tópicos principais + DLT. Produtor idempotente, consumer groups com ACK por registro |
-| **Prometheus** | Scraper de métricas HTTP a cada 15s. Coleta: `changes_created_total`, `events_published_total`, `events_consumed_total`, `events_failed_total` |
-| **Grafana** | 7 painéis: counters de criação/publicação/consumo/falha, latência p95, distribuição por status, taxa de eventos |
+| **Prometheus** | Scraper de métricas HTTP a cada 15s. Coleta: `changes_created_total`, `changes_completed_total`, `changes_failed_total`, `events_published_total`, `events_consumed_total`, `events_retries_total`, `events_failed_total`, `events_dlt_total`, `events_discarded_total`, `orchestration_duration_seconds` |
+| **Grafana** | 14 painéis: stats de Changes (Created, Completed, Failed, Prepared), pie chart por status, stats de Events (Published, Consumed, Failed, Retries, DLT, Discarded), latência API p95, taxa de eventos/min, latência de orquestração p95 |
 
 ---
 
@@ -124,21 +124,22 @@ Serviço responsável pelo **Fluxo 1** completo: recebimento da requisição HTT
 change-service/
 ├── api/
 │   ├── controller/       ChangeController, GlobalExceptionHandler
-│   └── dto/              CreateChangeRequest/Response, ChangeDto, ChangeEventDto
+│   └── dto/              CreateChangeRequest/Response, ChangeDto, ChangeDetailDto, ChangeEventDto
 ├── application/
-│   ├── port/in/          CreateChangeUseCase, ListChangesUseCase, GetChangeEventsUseCase
-│   ├── port/out/         SaveChangePort, LoadChangesPort, PublishEventPort, SaveChangeEventPort
-│   └── service/          CreateChangeService, ListChangesService, GetChangeEventsService
+│   ├── port/in/          CreateChangeUseCase, GetChangeUseCase, ListChangesUseCase, GetChangeEventsUseCase
+│   ├── port/out/         SaveChangePort, LoadChangesPort, LoadChangeEventsPort, ChangeExistsPort, PublishEventPort, SaveChangeEventPort
+│   └── service/          CreateChangeService, GetChangeService, ListChangesService, GetChangeEventsService
 ├── domain/
 │   ├── model/            Change (Aggregate Root)
 │   ├── event/            ChangePreparedEvent (domínio)
 │   ├── exception/        ChangeNotFoundException, InvalidChangeStateException
 │   └── valueobject/      ChangeStatus
 └── infrastructure/
-    ├── config/           KafkaConfig
+    ├── config/           KafkaConfig, ObservabilityConfig
     ├── kafka/            KafkaEventPublisherAdapter, IntegrationEvent (envelope)
-    ├── observability/    CorrelationIdFilter (MDC)
+    ├── observability/    CorrelationIdFilter (MDC), ChangeMetricsCollector
     ├── persistence/      ChangePersistenceAdapter, ChangeEntity, ChangeEventEntity
+    ├── ratelimit/        RateLimitFilter
     └── security/         SecurityConfig, CustomJwtAuthenticationConverter
 ```
 
@@ -159,9 +160,9 @@ flowchart TB
         app_sp ~~~ UC_IN
         app_sp ~~~ SVC
         app_sp ~~~ UC_OUT
-        UC_IN["ports/in<br/>CreateChangeUseCase<br/>ListChangesUseCase<br/>GetChangeEventsUseCase"]
-        SVC["services<br/>CreateChangeService<br/>ListChangesService<br/>GetChangeEventsService"]
-        UC_OUT["ports/out<br/>SaveChangePort<br/>LoadChangesPort<br/>PublishEventPort<br/>SaveChangeEventPort"]
+        UC_IN["ports/in<br/>CreateChangeUseCase<br/>GetChangeUseCase<br/>ListChangesUseCase<br/>GetChangeEventsUseCase"]
+        SVC["services<br/>CreateChangeService<br/>GetChangeService<br/>ListChangesService<br/>GetChangeEventsService"]
+        UC_OUT["ports/out<br/>SaveChangePort<br/>LoadChangesPort<br/>LoadChangeEventsPort<br/>ChangeExistsPort<br/>PublishEventPort<br/>SaveChangeEventPort"]
     end
     subgraph DOM["🟡 Domain — Pure Java"]
         direction TB
@@ -181,7 +182,9 @@ flowchart TB
         infra_sp ~~~ SEC
         JPA["ChangePersistenceAdapter"]
         KAFKA["KafkaEventPublisherAdapter"]
-        SEC["SecurityConfig<br/>CorrelationIdFilter"]
+        OBS["ChangeMetricsCollector<br/>CorrelationIdFilter"]
+        RL["RateLimitFilter"]
+        SEC["SecurityConfig"]
     end
 
     API -->|uses| APP
@@ -198,7 +201,7 @@ flowchart TB
     class CTRL,EXC api
     class UC_IN,SVC,UC_OUT app
     class AGG,EVT,VO domain
-    class JPA,KAFKA,SEC infra
+    class JPA,KAFKA,OBS,RL,SEC infra
     class api_sp,app_sp,dom_sp,infra_sp hidden
 
     style API fill:#1E1B4B,stroke:#4338CA,stroke-width:2px,color:#A5B4FC
@@ -319,6 +322,14 @@ public interface ListChangesUseCase {
                   UUID correlationId, Instant createdAt, Instant updatedAt) {}
 }
 
+// port/in/GetChangeUseCase.java
+public interface GetChangeUseCase {
+    Result execute(UUID changeId);
+    record Result(UUID changeId, String title, String description, String componentId,
+                  String requestedBy, String status, UUID correlationId,
+                  Instant scheduledAt, Instant createdAt, Instant updatedAt) {}
+}
+
 // port/in/GetChangeEventsUseCase.java
 public interface GetChangeEventsUseCase {
     List<Result> execute(UUID changeId);
@@ -329,10 +340,12 @@ public interface GetChangeEventsUseCase {
 
 ```java
 // port/out/ interfaces
-public interface SaveChangePort    { Change save(Change change); }
-public interface LoadChangesPort   { Optional<Change> findById(UUID id);
-                                     Page<Change> findAll(ChangeStatus, String, Pageable); }
-public interface PublishEventPort  { void publish(Object domainEvent); }
+public interface SaveChangePort      { Change save(Change change); }
+public interface LoadChangesPort     { Optional<Change> findById(UUID id);
+                                       Page<Change> findAll(ChangeStatus, String, Pageable); }
+public interface LoadChangeEventsPort { List<ChangeEventResult> findByChangeId(UUID changeId); }
+public interface ChangeExistsPort    { boolean existsById(UUID changeId); }
+public interface PublishEventPort    { void publish(Object domainEvent); }
 public interface SaveChangeEventPort { void save(UUID changeId, String type,
                                                   String payload, Instant at); }
 ```

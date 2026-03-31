@@ -97,10 +97,10 @@ make publish-deploy-event CHANGE_ID=<changeId>
 
 ### Observabilidade (Grafana: localhost:3001)
 
-- Dashboard "ChangeOps" com 7 painéis
-- Métricas ao vivo: changes criadas, eventos publicados, consumidos, falhas
-- Latência de API (histograma p95)
-- Distribuição de status em pizza
+- Dashboard "ChangeOps" com 14 painéis (3 seções: Changes, Events, Orchestration)
+- Métricas ao vivo: changes criadas/completadas/falhadas/preparadas, eventos publicados/consumidos/falhados/retries/DLT/descartados
+- Latência de API (histograma p95) e latência de orquestração p95
+- Distribuição de status em pizza, taxa de eventos/min
 
 ---
 

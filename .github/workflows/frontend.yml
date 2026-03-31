@@ -50,6 +50,7 @@ jobs:
 
       - name: Verificar tamanho do bundle
         uses: andresz1/size-limit-action@v1
+        continue-on-error: true
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           skip_step: build

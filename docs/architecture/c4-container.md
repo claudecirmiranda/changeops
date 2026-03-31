@@ -36,7 +36,7 @@ flowchart TD
                 direction TB
                 obs_pad[ ]:::hidden
                 obs_pad ~~~ grafana
-                grafana["Grafana<br/>v10.3.3<br/>:3001"]
+                grafana["Grafana<br/>v12.4.1<br/>:3001"]
                 prometheus["Prometheus<br/>v2.50.1<br/>:9090"]
             end
         end
