@@ -126,4 +126,80 @@ describe('ChangeList', () => {
     expect(screen.getByText(/55 changes/i)).toBeInTheDocument()
     expect(screen.getByText(/next/i)).toBeEnabled()
   })
+
+  it('navigates to next page when Next is clicked', async () => {
+    const page2Response: PageResponse<Change> = {
+      ...fakePage,
+      number: 1,
+      totalPages: 3,
+      totalElements: 55,
+      first: false,
+      last: false,
+      content: [{ ...fakeChange, changeId: 'page2-id', title: 'Deploy v3' }],
+    }
+    mockList.mockResolvedValueOnce({
+      ...fakePage,
+      totalPages: 3,
+      totalElements: 55,
+      first: true,
+      last: false,
+    })
+    render(<ChangeList />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/next/i)).toBeEnabled()
+    })
+
+    mockList.mockResolvedValueOnce(page2Response)
+    await userEvent.click(screen.getByText(/next/i))
+
+    await waitFor(() => {
+      expect(screen.getByText('Deploy v3')).toBeInTheDocument()
+    })
+  })
+
+  it('navigates to previous page when Prev is clicked', async () => {
+    // Start on page 2
+    useChangesStore.setState({ currentPage: 1 })
+    mockList.mockResolvedValueOnce({
+      ...fakePage,
+      number: 1,
+      totalPages: 3,
+      totalElements: 55,
+      first: false,
+      last: false,
+    })
+    render(<ChangeList />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/page 2 of 3/i)).toBeInTheDocument()
+    })
+
+    mockList.mockResolvedValueOnce({
+      ...fakePage,
+      totalPages: 3,
+      totalElements: 55,
+      first: true,
+      last: false,
+    })
+    await userEvent.click(screen.getByText(/prev/i))
+
+    await waitFor(() => {
+      expect(screen.getByText(/page 1 of 3/i)).toBeInTheDocument()
+    })
+  })
+
+  it('opens timeline when Timeline button is clicked', async () => {
+    mockList.mockResolvedValueOnce(fakePage)
+    render(<ChangeList />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Deploy v2')).toBeInTheDocument()
+    })
+
+    await userEvent.click(screen.getByText(/timeline/i))
+    expect(useChangesStore.getState().selectedChangeId).toBe(
+      'aaaa-bbbb-cccc-dddd',
+    )
+  })
 })
