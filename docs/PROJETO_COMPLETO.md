@@ -210,72 +210,211 @@ flowchart TB
     style INFRA fill:#2E1065,stroke:#7C3AED,stroke-width:2px,color:#C4B5FD
 ```
 
-### pom.xml
+### [pom.xml](../backend/change-service/pom.xml)
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" ...>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
     <version>3.2.3</version>
+    <relativePath />
   </parent>
+
   <groupId>com.changeops</groupId>
   <artifactId>change-service</artifactId>
   <version>1.0.0-SNAPSHOT</version>
+  <name>change-service</name>
+  <description>ChangeOps - Change Management Service</description>
+
   <properties>
     <java.version>17</java.version>
-    <mapstruct.version>1.5.5.Final</mapstruct.version>
     <testcontainers.version>1.19.6</testcontainers.version>
+    <lombok.version>1.18.30</lombok.version>
   </properties>
-  <!-- spring-boot-starter-web, validation, data-jpa, actuator, security -->
-  <!-- spring-boot-starter-oauth2-resource-server -->
-  <!-- spring-kafka, postgresql, flyway-core -->
-  <!-- micrometer-registry-prometheus, logstash-logback-encoder:7.4 -->
-  <!-- mapstruct, lombok, springdoc-openapi-starter-webmvc-ui:2.3.0 -->
-  <!-- test: spring-boot-starter-test, spring-kafka-test, testcontainers -->
+
+  <dependencies>
+    <!-- Spring Boot -->
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-validation</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-aop</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-security</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-oauth2-resource-server</artifactId></dependency>
+
+    <!-- Kafka -->
+    <dependency><groupId>org.springframework.kafka</groupId><artifactId>spring-kafka</artifactId></dependency>
+
+    <!-- Database -->
+    <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
+    <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-core</artifactId></dependency>
+
+    <!-- Observability -->
+    <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency>
+    <dependency>
+      <groupId>net.logstash.logback</groupId>
+      <artifactId>logstash-logback-encoder</artifactId>
+      <version>7.4</version>   <!-- JSON structured logs for prod/staging -->
+    </dependency>
+
+    <!-- Utilities -->
+    <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId><version>${lombok.version}</version><optional>true</optional></dependency>
+    <dependency><groupId>org.springdoc</groupId><artifactId>springdoc-openapi-starter-webmvc-ui</artifactId><version>2.3.0</version></dependency>
+    <dependency><groupId>com.bucket4j</groupId><artifactId>bucket4j-core</artifactId><version>8.10.1</version></dependency><!-- Rate limiting -->
+    <dependency><groupId>com.github.ben-manes.caffeine</groupId><artifactId>caffeine</artifactId></dependency><!-- Bucket4j backing cache -->
+
+    <!-- Test -->
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
+    <dependency><groupId>org.springframework.kafka</groupId><artifactId>spring-kafka-test</artifactId><scope>test</scope></dependency>
+    <dependency><groupId>org.testcontainers</groupId><artifactId>junit-jupiter</artifactId><version>${testcontainers.version}</version><scope>test</scope></dependency>
+    <dependency><groupId>org.testcontainers</groupId><artifactId>postgresql</artifactId><version>${testcontainers.version}</version><scope>test</scope></dependency>
+    <dependency><groupId>org.testcontainers</groupId><artifactId>kafka</artifactId><version>${testcontainers.version}</version><scope>test</scope></dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- JaCoCo: 80% line coverage (excludes infrastructure, entry-point) -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>0.8.11</version>
+        <configuration>
+          <excludes>
+            <exclude>com/changeops/changeservice/ChangeServiceApplication.class</exclude>
+            <exclude>com/changeops/changeservice/infrastructure/**/*.class</exclude>
+          </excludes>
+          <rules>
+            <rule>
+              <element>BUNDLE</element>
+              <limits>
+                <limit><counter>LINE</counter><value>COVEREDRATIO</value><minimum>0.80</minimum></limit>
+              </limits>
+            </rule>
+          </rules>
+        </configuration>
+        <executions>
+          <execution><id>prepare-agent</id><goals><goal>prepare-agent</goal></goals></execution>
+          <execution><id>report</id><phase>verify</phase><goals><goal>report</goal></goals></execution>
+          <execution><id>check</id><goals><goal>check</goal></goals></execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>
 ```
 
 ### Domínio
 
-#### `Change` — Aggregate Root
+#### [`Change`](../backend/change-service/src/main/java/com/changeops/changeservice/domain/model/Change.java) — Aggregate Root
 
 ```java
-// domain/model/Change.java
+// domain/model/Change.java  — zero Spring/Kafka imports; pure Java domain object
+@Getter
+@Builder(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Change {
-    private final UUID changeId;
-    private final String title, description, componentId, requestedBy;
-    private final Instant scheduledAt;
-    private ChangeStatus status;         // DRAFT → PREPARED → COMPLETED/FAILED
-    private final UUID correlationId;    // UUID v4, gerado na criação
-    private final Instant createdAt;
-    private Instant updatedAt;
-    private final List<Object> domainEvents = new ArrayList<>();
 
-    public static Change create(String title, String description,
-                                String componentId, String requestedBy,
-                                Instant scheduledAt) {
-        // Gera changeId, correlationId, define status=PREPARED
-        // Adiciona ChangePreparedEvent à lista de domainEvents
+    private final UUID changeId;
+    private final String title;
+    private final String description;
+    private final String componentId;
+    private final String requestedBy;
+    private final Instant scheduledAt;
+    private ChangeStatus status;          // MUTABLE: transitions via complete()/fail()/cancel()
+    private final UUID correlationId;     // UUID v4, generated on Change.create()
+    private final Instant createdAt;
+    private Instant updatedAt;            // MUTABLE: updated by trigger + domain transitions
+
+    @Builder.Default
+    private final List<DomainEvent> domainEvents = new ArrayList<>();  // Event sourcing
+
+    // Factory method — the only way to create a new Change
+    public static Change create(
+            String title, String description,
+            String componentId, String requestedBy, Instant scheduledAt) {
+
+        UUID changeId     = UUID.randomUUID();
+        UUID correlationId = UUID.randomUUID();
+        Instant now       = Instant.now();
+
+        Change change = Change.builder()
+                .changeId(changeId).title(title).description(description)
+                .componentId(componentId).requestedBy(requestedBy)
+                .scheduledAt(scheduledAt).status(ChangeStatus.PREPARED)
+                .correlationId(correlationId).createdAt(now).updatedAt(now)
+                .build();
+
+        // Raise domain event — drained by CreateChangeService.execute()
+        change.domainEvents.add(new ChangePreparedEvent(
+                changeId, componentId, requestedBy, scheduledAt, correlationId, now));
+        return change;
     }
 
-    public void complete() { /* PREPARED → COMPLETED */ }
-    public void fail()     { /* PREPARED → FAILED    */ }
-    public List<Object> pullDomainEvents() { /* drains list */ }
+    // Reconstitution path — used by persistence adapter when loading from DB
+    public static Change reconstitute(
+            UUID changeId, String title, String description,
+            String componentId, String requestedBy, Instant scheduledAt,
+            ChangeStatus status, UUID correlationId,
+            Instant createdAt, Instant updatedAt) {
+        return Change.builder()
+                .changeId(changeId).title(title).description(description)
+                .componentId(componentId).requestedBy(requestedBy)
+                .scheduledAt(scheduledAt).status(status)
+                .correlationId(correlationId).createdAt(createdAt).updatedAt(updatedAt)
+                .build();
+    }
+
+    public void complete() {
+        if (this.status != ChangeStatus.PREPARED)
+            throw new InvalidChangeStateException("Cannot complete change in status: " + this.status);
+        this.status = ChangeStatus.COMPLETED;
+        this.updatedAt = Instant.now();
+    }
+
+    public void fail() {
+        if (this.status != ChangeStatus.PREPARED)
+            throw new InvalidChangeStateException("Cannot fail change in status: " + this.status);
+        this.status = ChangeStatus.FAILED;
+        this.updatedAt = Instant.now();
+    }
+
+    public void cancel() {
+        if (this.status != ChangeStatus.PREPARED)
+            throw new InvalidChangeStateException("Cannot cancel change in status: " + this.status);
+        this.status = ChangeStatus.CANCELLED;
+        this.updatedAt = Instant.now();
+    }
+
+    // Drains the list — events are published exactly once per lifecycle
+    public List<DomainEvent> pullDomainEvents() {
+        List<DomainEvent> events = Collections.unmodifiableList(new ArrayList<>(this.domainEvents));
+        this.domainEvents.clear();
+        return events;
+    }
 }
 ```
 
-#### `ChangePreparedEvent` — Domain Event
+#### [`ChangePreparedEvent`](../backend/change-service/src/main/java/com/changeops/changeservice/domain/event/ChangePreparedEvent.java) — Domain Event
 
 ```java
+// Implements DomainEvent marker interface; no Spring/Kafka annotations
 public record ChangePreparedEvent(
-    UUID changeId, String componentId, String requestedBy,
-    Instant scheduledAt, UUID correlationId, Instant occurredAt
-) {}
+    UUID changeId,
+    String componentId,
+    String requestedBy,
+    Instant scheduledAt,
+    UUID correlationId,
+    Instant occurredAt
+) implements DomainEvent {}
 ```
 
-#### `ChangeStatus` — Value Object
+#### [`ChangeStatus`](../backend/change-service/src/main/java/com/changeops/changeservice/domain/valueobject/ChangeStatus.java) — Value Object
 
 ```java
 public enum ChangeStatus { DRAFT, PREPARED, COMPLETED, FAILED, CANCELLED }
@@ -350,7 +489,7 @@ public interface SaveChangeEventPort { void save(UUID changeId, String type,
                                                   String payload, Instant at); }
 ```
 
-### CreateChangeService
+### [`CreateChangeService`](../backend/change-service/src/main/java/com/changeops/changeservice/application/service/CreateChangeService.java)
 
 ```java
 @Slf4j @Service
@@ -359,17 +498,23 @@ public class CreateChangeService implements CreateChangeUseCase {
     @Override
     @Transactional
     public Result execute(Command command) {
+        // 1. Factory method — generates changeId, correlationId, raises ChangePreparedEvent
         Change change = Change.create(command.title(), command.description(),
                 command.componentId(), command.requestedBy(), command.scheduledAt());
 
         Change saved = saveChangePort.save(change);
 
+        // 2. Drain domain events, publish to Kafka, persist to timeline
         saved.pullDomainEvents().forEach(event -> {
-            publishEventPort.publish(event);          // → Kafka
-            saveChangeEventPort.save(...);            // → timeline store
+            publishEventPort.publish(event);                          // → KafkaEventPublisherAdapter
+            saveChangeEventPort.save(                                 // → change_events row
+                saved.getChangeId(),
+                event.getClass().getSimpleName(),
+                toJson(event),
+                Instant.now());
         });
 
-        changesCreatedCounter.increment();            // Prometheus
+        changesCreatedCounter.increment();                           // Prometheus
         log.info("Change created: changeId={}, correlationId={}",
                  saved.getChangeId(), saved.getCorrelationId());
 
@@ -381,50 +526,112 @@ public class CreateChangeService implements CreateChangeUseCase {
 
 ### Infrastructure — Kafka
 
-#### `IntegrationEvent` — Envelope externo
+#### [`IntegrationEvent`](../backend/change-service/src/main/java/com/changeops/changeservice/infrastructure/kafka/IntegrationEvent.java) — Envelope externo
 
 ```java
-// infrastructure/kafka/IntegrationEvent.java
+// Wraps every domain event before publishing to Kafka (ADR-003)
+@Getter
 @Builder
-public record IntegrationEvent(
-    String eventType,   // "ChangePreparedEvent"
-    String version,     // "1.0"
-    UUID correlationId,
-    Instant occurredAt,
-    Object payload
-) {}
+@NoArgsConstructor
+@AllArgsConstructor
+public class IntegrationEvent {
+    private String  eventType;    // e.g. "ChangePreparedEvent"
+    private String  version;      // "1.0" — tolerant reader versioning
+    private UUID    correlationId; // end-to-end tracing UUID
+    private Instant occurredAt;
+    private Object  payload;       // domain-specific DTO (not the domain event itself)
+}
 ```
 
-#### `KafkaEventPublisherAdapter`
+#### [`KafkaEventPublisherAdapter`](../backend/change-service/src/main/java/com/changeops/changeservice/infrastructure/kafka/KafkaEventPublisherAdapter.java)
 
 ```java
+@Slf4j
 @Component
 public class KafkaEventPublisherAdapter implements PublishEventPort {
 
+    private final KafkaTemplate<String, IntegrationEvent> kafkaTemplate;
+    private final String changePreparedTopic;
+    private final Counter eventsPublishedCounter;
+
     @Override
     public void publish(Object domainEvent) {
-        if (domainEvent instanceof ChangePreparedEvent event) {
-            IntegrationEvent envelope = IntegrationEvent.builder()
-                .eventType("ChangePreparedEvent").version("1.0")
+        if (domainEvent == null) {
+            log.warn("Cannot publish a null domain event");
+        } else if (domainEvent instanceof ChangePreparedEvent event) {
+            publishChangePrepared(event);
+        } else {
+            log.warn("No publisher found for event type: {}", domainEvent.getClass().getSimpleName());
+        }
+    }
+
+    private void publishChangePrepared(ChangePreparedEvent event) {
+        String key = event.changeId().toString();
+        IntegrationEvent envelope = IntegrationEvent.builder()
+                .eventType("ChangePreparedEvent")
+                .version("1.0")
                 .correlationId(event.correlationId())
                 .occurredAt(Instant.now())
-                .payload(new ChangePreparedPayload(event.changeId(),
-                         event.componentId(), event.requestedBy(), event.scheduledAt()))
+                .payload(new ChangePreparedPayload(
+                        event.changeId(), event.componentId(),
+                        event.requestedBy(), event.scheduledAt()))
                 .build();
 
-            kafkaTemplate.send(changePreparedTopic, event.changeId().toString(), envelope)
-                .whenComplete((result, ex) -> {
-                    if (ex != null) log.error("Failed to publish: correlationId={}", ...);
-                    else            eventsPublishedCounter.increment();
-                });
+        try {
+            // Synchronous with 10s timeout — acks=all, idempotent producer
+            CompletableFuture<SendResult<String, IntegrationEvent>> future =
+                    kafkaTemplate.send(changePreparedTopic, key, envelope);
+            future.get(10, TimeUnit.SECONDS);
+            eventsPublishedCounter.increment();
+            log.info("ChangePreparedEvent published: changeId={}, correlationId={}",
+                    event.changeId(), event.correlationId());
+        } catch (ExecutionException | InterruptedException | TimeoutException ex) {
+            log.error("Failed to publish ChangePreparedEvent: changeId={}, correlationId={}",
+                    event.changeId(), event.correlationId(), ex);
+            throw new RuntimeException("Kafka publish failed", ex);
         }
+    }
+}
+```
+
+#### [`KafkaConfig`](../backend/change-service/src/main/java/com/changeops/changeservice/infrastructure/config/KafkaConfig.java) — Producer idempotente
+
+```java
+@Configuration
+public class KafkaConfig {
+
+    @Bean
+    public ProducerFactory<String, IntegrationEvent> producerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.ACKS_CONFIG, "all");                     // Durabilidade máxima
+        props.put(ProducerConfig.RETRIES_CONFIG, 3);                      // Retry automático
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);        // Exactly-once na produção
+        props.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1); // Ordem garantida
+        JsonSerializer<IntegrationEvent> valueSerializer = new JsonSerializer<>(objectMapper);
+        valueSerializer.setAddTypeInfo(false);  // Sem @class no JSON
+        return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), valueSerializer);
+    }
+
+    @Bean
+    public KafkaTemplate<String, IntegrationEvent> kafkaTemplate() {
+        return new KafkaTemplate<>(producerFactory());
+    }
+
+    @Bean
+    public NewTopic changePreparedTopic() {
+        // 3 partições: key=changeId distribui uniformemente; replica factor via env var
+        return TopicBuilder.name(changePreparedTopic)
+                .partitions(3)
+                .replicas(replicationFactor)   // ${KAFKA_REPLICATION_FACTOR:1}
+                .build();
     }
 }
 ```
 
 ### Infrastructure — Persistência
 
-#### `ChangePersistenceAdapter`
+#### [`ChangePersistenceAdapter`](../backend/change-service/src/main/java/com/changeops/changeservice/infrastructure/persistence/ChangePersistenceAdapter.java)
 
 ```java
 @Component
@@ -451,7 +658,7 @@ public class ChangePersistenceAdapter
 }
 ```
 
-#### `ChangeJpaRepository`
+#### [`ChangeJpaRepository`](../backend/change-service/src/main/java/com/changeops/changeservice/infrastructure/persistence/ChangeJpaRepository.java)
 
 ```java
 public interface ChangeJpaRepository extends JpaRepository<ChangeEntity, UUID> {
@@ -470,7 +677,7 @@ public interface ChangeJpaRepository extends JpaRepository<ChangeEntity, UUID> {
 
 ### API Layer
 
-#### `ChangeController`
+#### [`ChangeController`](../backend/change-service/src/main/java/com/changeops/changeservice/api/controller/ChangeController.java)
 
 ```java
 @RestController
@@ -508,7 +715,7 @@ public class ChangeController {
 }
 ```
 
-#### `CreateChangeRequest` — Validações
+#### [`CreateChangeRequest`](../backend/change-service/src/main/java/com/changeops/changeservice/api/dto/CreateChangeRequest.java) — Validações
 
 ```java
 public record CreateChangeRequest(
@@ -534,7 +741,7 @@ public record CreateChangeRequest(
 ) {}
 ```
 
-#### `GlobalExceptionHandler` — RFC 7807 Problem Details
+#### [`GlobalExceptionHandler`](../backend/change-service/src/main/java/com/changeops/changeservice/api/filter/GlobalExceptionHandler.java) — RFC 7807 Problem Details
 
 ```java
 @RestControllerAdvice
@@ -627,7 +834,7 @@ changeops.kafka.topics.change-prepared: changeops.change.prepared
 
 ### Testes
 
-#### `ChangeTest` — Unitário (domínio)
+#### [`ChangeTest`](../backend/change-service/src/test/java/com/changeops/changeservice/domain/model/ChangeTest.java) — Unitário (domínio)
 
 ```java
 class ChangeTest {
@@ -639,7 +846,7 @@ class ChangeTest {
 }
 ```
 
-#### `CreateChangeIT` — Integração (Testcontainers)
+#### [`CreateChangeIT`](../backend/change-service/src/test/java/com/changeops/changeservice/infrastructure/CreateChangeIT.java) — Integração (Testcontainers)
 
 ```java
 @SpringBootTest(webEnvironment = RANDOM_PORT)
@@ -795,7 +1002,7 @@ flowchart TB
     style INFRA fill:#2E1065,stroke:#7C3AED,stroke-width:2px,color:#C4B5FD
 ```
 
-### `DeployFinishedEvent` — Consumed
+### [`DeployFinishedEvent`](../backend/deploy-orchestrator/src/main/java/com/changeops/deployorchestrator/domain/event/DeployFinishedEvent.java) — Consumed
 
 ```java
 public record DeployFinishedEvent(
@@ -807,7 +1014,7 @@ public record DeployFinishedEvent(
 }
 ```
 
-### `ProcessDeployResultService` — Orquestração
+### [`ProcessDeployResultService`](../backend/deploy-orchestrator/src/main/java/com/changeops/deployorchestrator/application/service/ProcessDeployResultService.java) — Orquestração
 
 ```java
 @Slf4j @Service
@@ -854,7 +1061,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
 }
 ```
 
-### `DeployEventConsumer` — Kafka com Retry + DLQ
+### [`DeployEventConsumer`](../backend/deploy-orchestrator/src/main/java/com/changeops/deployorchestrator/infrastructure/kafka/DeployEventConsumer.java) — Kafka com Retry + DLQ
 
 ```java
 @Component
@@ -903,32 +1110,193 @@ public class DeployEventConsumer {
 }
 ```
 
-### `IdempotencyAdapter`
+### [`IdempotencyAdapter`](../backend/deploy-orchestrator/src/main/java/com/changeops/deployorchestrator/infrastructure/persistence/IdempotencyAdapter.java)
 
 ```java
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class IdempotencyAdapter implements IdempotencyPort {
 
+    private final ProcessedEventRepository repository;
+
+    // Level 1 check — fast read before any processing
     @Override
-    public boolean isAlreadyProcessed(UUID eventId) {
-        return repository.existsById(eventId);
+    public boolean isAlreadyProcessed(UUID eventId, String serviceName) {
+        UUID req = Objects.requireNonNull(eventId, "eventId must not be null");
+        String svc = Objects.requireNonNull(serviceName, "serviceName must not be null");
+        return repository.existsById(new ProcessedEventId(req, svc));
     }
 
+    // Level 2 — safe write with race-condition guard
     @Override
     public void markAsProcessed(UUID eventId, String serviceName) {
+        UUID req = Objects.requireNonNull(eventId, "eventId must not be null");
+        String svc = Objects.requireNonNull(serviceName, "serviceName must not be null");
         try {
             repository.save(ProcessedEventEntity.builder()
-                .eventId(eventId).processedAt(Instant.now())
-                .serviceName(serviceName).build());
+                    .eventId(req).processedAt(Instant.now()).serviceName(svc).build());
         } catch (DataIntegrityViolationException e) {
-            // Race condition: another instance already processed — safe to ignore
-            log.warn("Concurrent idempotency conflict for eventId={}", eventId);
+            log.warn("Concurrent idempotency conflict for eventId={} — already processed", req);
         }
+    }
+
+    // Atomic insert (INSERT … ON CONFLICT DO NOTHING) — returns false if duplicate
+    @Override
+    @Transactional
+    public boolean tryMarkAsProcessed(UUID eventId, String serviceName) {
+        UUID req = Objects.requireNonNull(eventId, "eventId must not be null");
+        String svc = Objects.requireNonNull(serviceName, "serviceName must not be null");
+        int inserted = repository.insertIfAbsent(req, svc);
+        if (inserted == 0) {
+            log.debug("Event already processed (atomic check): eventId={}", req);
+            return false;
+        }
+        log.debug("Event atomically marked as processed: eventId={}", req);
+        return true;
     }
 }
 ```
 
-### `PostDeployChecklistService` — Simulado / Extensível
+### [`KafkaConfig`](../backend/deploy-orchestrator/src/main/java/com/changeops/deployorchestrator/infrastructure/kafka/KafkaConfig.java) — Consumer + Producer
+
+```java
+@Configuration
+public class KafkaConfig {
+
+    // ── Consumer ──────────────────────────────────────────────────────────────
+
+    @Bean
+    public ConsumerFactory<String, DeployFinishedEvent> deployEventConsumerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+        JsonDeserializer<DeployFinishedEvent> valueDeserializer =
+                new JsonDeserializer<>(DeployFinishedEvent.class, objectMapper, false);
+        valueDeserializer.addTrustedPackages("com.changeops.*");
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), valueDeserializer);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, DeployFinishedEvent>
+    deployEventListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, DeployFinishedEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(deployEventConsumerFactory());
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
+        factory.setConcurrency(3); // 3 threads for 3 partitions
+        return factory;
+    }
+
+    // ── Producer ──────────────────────────────────────────────────────────────
+
+    @Bean
+    public ProducerFactory<String, IntegrationEvent> resultProducerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.ACKS_CONFIG, "all");
+        props.put(ProducerConfig.RETRIES_CONFIG, 3);
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        JsonSerializer<IntegrationEvent> valueSerializer = new JsonSerializer<>(objectMapper);
+        valueSerializer.setAddTypeInfo(false); // clean JSON, no Spring type headers
+        return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), valueSerializer);
+    }
+
+    @Bean
+    public KafkaTemplate<String, IntegrationEvent> resultKafkaTemplate() {
+        return new KafkaTemplate<>(resultProducerFactory());
+    }
+
+    // ── Topics ────────────────────────────────────────────────────────────────
+
+    @Bean public NewTopic deployFinishedTopic() {
+        return TopicBuilder.name(deployFinishedTopic).partitions(3).replicas(replicationFactor).build();
+    }
+    @Bean public NewTopic changeResultTopic() {
+        return TopicBuilder.name(changeResultTopic).partitions(3).replicas(replicationFactor).build();
+    }
+    @Bean public NewTopic changeResultDltTopic() {
+        return TopicBuilder.name(changeResultTopic + "-dlt").partitions(1).replicas(replicationFactor).build();
+    }
+}
+```
+
+### `application.yml` — [`deploy-orchestrator`](../backend/deploy-orchestrator/src/main/resources/application.yml)
+
+```yaml
+spring:
+  application:
+    name: deploy-orchestrator
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:changeops}
+    username: ${DB_USER:changeops}
+    password: ${DB_PASS:changeops}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Separate history table — avoids conflicts with change-service migrations
+    table: flyway_schema_history_orchestrator
+    # baseline-on-migrate: schema already populated by change-service at startup
+    baseline-on-migrate: true
+    baseline-version: 1
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      properties:
+        spring.json.trusted.packages: com.changeops.*
+
+changeops:
+  kafka:
+    consumer:
+      group-id: ${KAFKA_GROUP_ID:deploy-orchestrator-group}
+    topics:
+      deploy-finished: ${KAFKA_TOPIC_DEPLOY_FINISHED:changeops.deploy.finished}
+      change-result:   ${KAFKA_TOPIC_CHANGE_RESULT:changeops.change.result}
+
+management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        spring.kafka.listener: true
+    export:
+      prometheus:
+        enabled: true
+        step: 5s
+    tags:
+      application: deploy-orchestrator
+```
+
+### Testes — [`deploy-orchestrator`](../backend/deploy-orchestrator/src/test/java/com/changeops/deployorchestrator/)
+
+```java
+// ProcessDeployResultServiceTest.java
+class ProcessDeployResultServiceTest {
+    @Test void shouldMarkCompleted_andPublishEvent_whenDeploySucceeds() { ... }
+    @Test void shouldMarkFailed_andPublishEvent_whenDeployFails() { ... }
+    @Test void shouldDiscardEvent_whenDeployIdAlreadyProcessed() { ... }
+    @Test void shouldNotMarkCompleted_whenSameEventDeliveredTwice() { ... }
+}
+
+// DeployEventConsumerIT.java — Testcontainers (Kafka 7.6.0 + PostgreSQL 16)
+@SpringBootTest
+@EmbeddedKafka
+class DeployEventConsumerIT {
+    @Test void fullFlow_success(); // Kafka → DB COMPLETED + change.result published
+    @Test void fullFlow_failure(); // Kafka → DB FAILED
+    @Test void idempotency_sameEventTwice_stateUnchanged();
+}
+
+// IdempotencyIntegrationTest.java — Testcontainers (PostgreSQL 16)
+class IdempotencyIntegrationTest {
+    @Test void tryMarkAsProcessed_returnsTrueFirstTime();
+    @Test void tryMarkAsProcessed_returnsFalseOnDuplicate();
+    @Test void concurrent_insertions_onlyOneSucceeds(); // simulates race condition
+}
+```
+
+### [`PostDeployChecklistService`](../backend/deploy-orchestrator/src/main/java/com/changeops/deployorchestrator/application/service/PostDeployChecklistService.java) — Simulado / Extensível
 
 ```java
 @Service
@@ -1096,7 +1464,43 @@ flowchart TD
     class SVC service
 ```
 
-### `changeService.ts`
+### [`http.ts`](../frontend/src/shared/lib/http.ts) — Axios Client
+
+```typescript
+export const http = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api/v1',
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 10_000,
+})
+
+// SECURITY NOTE: localStorage auth is a POC placeholder.
+// Production replaces this with httpOnly cookie via OAuth2 PKCE flow (ROADMAP § 2.2).
+http.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  const userId = localStorage.getItem('user_id') ?? 'dev-user-001'
+  config.headers['X-User-Id'] = userId  // dev-only fallback (local profile)
+  return config
+})
+
+// Normalise errors into RFC 7807 ApiError shape
+http.interceptors.response.use(
+  (res) => res,
+  (err: AxiosError) => {
+    const data = err.response?.data as Partial<ApiError> | undefined
+    const apiError: ApiError = {
+      title:     data?.title  ?? 'Unexpected Error',
+      detail:    data?.detail ?? err.message,
+      status:    err.response?.status ?? 0,
+      fields:    data?.fields,
+      timestamp: data?.timestamp ?? new Date().toISOString(),
+    }
+    return Promise.reject(apiError)
+  },
+)
+```
+
+### [`changeService.ts`](../frontend/src/features/changes/services/changeService.ts)
 
 ```typescript
 const changeService = {
@@ -1115,7 +1519,7 @@ const changeService = {
 }
 ```
 
-### `useChangesStore.ts` — Zustand
+### [`useChangesStore.ts`](../frontend/src/features/changes/store/useChangesStore.ts) — Zustand
 
 ```typescript
 export const useChangesStore = create<ChangesState>((set) => ({
@@ -1133,19 +1537,38 @@ export const useChangesStore = create<ChangesState>((set) => ({
 }))
 ```
 
-### `usePolling.ts`
+### [`usePolling.ts`](../frontend/src/shared/hooks/usePolling.ts)
 
 ```typescript
 export function usePolling(
   callback: () => void | Promise<void>,
-  { interval = 5_000, enabled = true }: UsePollingOptions = {}
+  { interval = 5_000, enabled = true }: UsePollingOptions = {},
 ) {
-  // Schedules callback on a self-rescheduling setTimeout
-  // Cleans up on unmount; runs after first interval (background refresh)
+  const savedCallback = useRef(callback)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Keep ref in sync without recreating the effect
+  useEffect(() => { savedCallback.current = callback }, [callback])
+
+  const stop = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+  }, [])
+
+  useEffect(() => {
+    if (!enabled) return
+    const tick = async () => {
+      try   { await savedCallback.current() }
+      finally { timerRef.current = setTimeout(tick, interval) } // self-reschedule
+    }
+    timerRef.current = setTimeout(tick, interval)
+    return stop // cleanup on unmount / dependency change
+  }, [enabled, interval, stop])
+
+  return { stop }
 }
 ```
 
-### `useChanges.ts` — Lista com Polling
+### [`useChanges.ts`](../frontend/src/features/changes/hooks/useChanges.ts) — Lista com Polling
 
 ```typescript
 export function useChanges(params: ListChangesParams = {}) {
@@ -1165,7 +1588,7 @@ export function useChanges(params: ListChangesParams = {}) {
 }
 ```
 
-### `ChangeForm.tsx` — Formulário com Validação Dupla
+### [`ChangeForm.tsx`](../frontend/src/features/changes/components/ChangeForm.tsx) — Formulário com Validação Dupla
 
 ```typescript
 export function ChangeForm({ onSuccess }: Props) {
@@ -1190,7 +1613,7 @@ export function ChangeForm({ onSuccess }: Props) {
 }
 ```
 
-### `ChangeList.tsx` — Tabela com Loading Skeleton
+### [`ChangeList.tsx`](../frontend/src/features/changes/components/ChangeList.tsx) — Tabela com Loading Skeleton
 
 ```typescript
 export function ChangeList() {
@@ -1202,7 +1625,7 @@ export function ChangeList() {
 }
 ```
 
-### `ChangeTimeline.tsx` — Histórico Visual
+### [`ChangeTimeline.tsx`](../frontend/src/features/changes/components/ChangeTimeline.tsx) — Histórico Visual
 
 ```typescript
 export function ChangeTimeline({ changeId, onClose }: Props) {
@@ -1215,7 +1638,7 @@ export function ChangeTimeline({ changeId, onClose }: Props) {
 }
 ```
 
-### `ChangesPage.tsx` — Composição Final
+### [`ChangesPage.tsx`](../frontend/src/app/routes/ChangesPage.tsx) — Composição Final
 
 ```typescript
 export function ChangesPage() {
@@ -1248,7 +1671,7 @@ describe('ChangeForm', () => {
 
 ## 4. Contratos
 
-### OpenAPI — `contracts/openapi/change-service.yml`
+### OpenAPI — [`contracts/openapi/change-service.yml`](../contracts/openapi/change-service.yml)
 
 ```yaml
 openapi: "3.1.0"
@@ -1279,7 +1702,7 @@ components:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
 ```
 
-### AsyncAPI — `contracts/asyncapi/events.yml`
+### AsyncAPI — [`contracts/asyncapi/events.yml`](../contracts/asyncapi/events.yml)
 
 ```yaml
 asyncapi: "2.6.0"
@@ -1394,7 +1817,7 @@ erDiagram
 
 ### Migrations Flyway
 
-#### `V1__create_changes_schema.sql`
+#### [`V1__create_changes_schema.sql`](../backend/change-service/src/main/resources/db/migration/V1__create_changes_schema.sql)
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -1443,7 +1866,7 @@ CREATE TRIGGER trg_changes_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 ```
 
-#### `V2__seed_test_data.sql`
+#### [`V2__seed_test_data.sql`](../backend/change-service/src/main/resources/db/migration/V2__seed_test_data.sql)
 
 Insere 3 mudanças de exemplo (PREPARED, COMPLETED, FAILED) com eventos na timeline para desenvolvimento local.
 
@@ -1462,7 +1885,7 @@ Insere 3 mudanças de exemplo (PREPARED, COMPLETED, FAILED) com eventos na timel
 | Sessão | Stateless (`SessionCreationPolicy.STATELESS`) |
 | CSRF | Desabilitado (API REST stateless) |
 
-### `CustomJwtAuthenticationConverter`
+### [`CustomJwtAuthenticationConverter`](../backend/change-service/src/main/java/com/changeops/changeservice/infrastructure/security/CustomJwtAuthenticationConverter.java)
 
 ```java
 public class CustomJwtAuthenticationConverter
@@ -1524,21 +1947,31 @@ Em `prod/staging`: JSON completo via `LogstashEncoder`.
 | `orchestration_duration_seconds` | Timer/Histogram | deploy-orchestrator |
 | `http_server_requests_seconds` | Histogram | change-service |
 
-### `prometheus.yml`
+### [`prometheus.yml`](../infra/prometheus/prometheus.yml)
 
 ```yaml
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
 scrape_configs:
   - job_name: 'change-service'
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['change-service:8080']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
   - job_name: 'deploy-orchestrator'
     metrics_path: '/actuator/prometheus'
     static_configs:
       - targets: ['deploy-orchestrator:8081']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
 ```
 
-### Grafana Dashboard — `infra/grafana/dashboards/changeops.json`
+### Grafana Dashboard — [`infra/grafana/dashboards/changeops.json`](../infra/grafana/dashboards/changeops.json)
 
 Painéis pré-provisionados (14 painéis):
 - **Stat (Changes)**: Created, Completed, Failed, Prepared
@@ -1554,7 +1987,7 @@ Acesso: http://localhost:3001 (`admin` / `changeops`)
 
 ## 8. Automação
 
-### Docker Compose — Serviços
+### Docker Compose — [`docker-compose.yml`](../docker-compose.yml)
 
 | Serviço | Imagem | Porta |
 |---------|--------|-------|
@@ -1620,6 +2053,8 @@ flowchart TD
 
 ### Dockerfiles — Multi-stage
 
+[`backend/change-service/Dockerfile`](../backend/change-service/Dockerfile) | [`backend/deploy-orchestrator/Dockerfile`](../backend/deploy-orchestrator/Dockerfile) | [`frontend/Dockerfile`](../frontend/Dockerfile)
+
 ```dockerfile
 # Stage 1: Build (maven:3.9.6-eclipse-temurin-17)
 FROM maven:3.9.6-eclipse-temurin-17 AS builder
@@ -1635,7 +2070,7 @@ COPY --from=builder /build/target/*.jar app.jar
 ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
 ```
 
-### Makefile — Comandos principais
+### [`Makefile`](../Makefile) — Comandos principais
 
 ```bash
 make up                  # Sobe toda a stack (infra + serviços)
@@ -1656,7 +2091,7 @@ make clean               # Remove artefatos de build
 
 ### CI/CD — GitHub Actions
 
-#### `change-service.yml`
+#### [`change-service.yml`](../.github/workflows/change-service.yml)
 
 ```yaml
 on:
@@ -1670,13 +2105,13 @@ jobs:
     if: github.ref == 'refs/heads/main'
 ```
 
-#### `deploy-orchestrator.yml`
+#### [`deploy-orchestrator.yml`](../.github/workflows/deploy-orchestrator.yml)
 
 ```yaml
 # Mesma estrutura: test → build → push ghcr.io
 ```
 
-#### `frontend.yml`
+#### [`frontend.yml`](../.github/workflows/frontend.yml)
 
 ```yaml
 on:
