@@ -7,6 +7,9 @@ on:
       - 'frontend/**'
       - '.github/workflows/frontend.yml'
 
+permissions:
+  pull-requests: write
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -54,3 +57,5 @@ jobs:
         uses: andresz1/size-limit-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          skip_step: build
+          directory: frontend/

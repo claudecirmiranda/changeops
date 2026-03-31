@@ -11,8 +11,15 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint src --ext ts,tsx --fix",
-    "format": "prettier --write src"
+    "format": "prettier --write src",
+    "size-limit": "size-limit"
   },
+  "size-limit": [
+    {
+      "path": "dist/assets/*.js",
+      "limit": "500 kB"
+    }
+  ],
   "dependencies": {
     "@tanstack/react-query": "^5.29.2",
     "axios": "^1.6.8",
@@ -43,6 +50,8 @@
     "tailwindcss": "^3.4.19",
     "typescript": "^5.4.5",
     "vite": "^7.3.1",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.0",
+    "@size-limit/file": "^11.0.2",
+    "size-limit": "^11.0.2"
   }
 }
