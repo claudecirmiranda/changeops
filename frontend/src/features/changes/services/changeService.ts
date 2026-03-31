@@ -24,12 +24,16 @@ const changeService = {
   },
 
   async list(params: ListChangesParams = {}): Promise<PageResponse<Change>> {
-    const { data } = await http.get<PageResponse<Change>>('/changes', { params })
+    const { data } = await http.get<PageResponse<Change>>('/changes', {
+      params,
+    })
     return data
   },
 
   async getEvents(changeId: string): Promise<ChangeEvent[]> {
-    const { data } = await http.get<ChangeEvent[]>(`/changes/${changeId}/events`)
+    const { data } = await http.get<ChangeEvent[]>(
+      `/changes/${changeId}/events`,
+    )
     return data
   },
 }

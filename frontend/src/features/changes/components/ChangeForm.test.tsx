@@ -10,14 +10,18 @@ vi.mock('../services/changeService')
 const mockCreate = vi.mocked(changeService.create)
 
 describe('ChangeForm', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   it('renders all required fields', () => {
     render(<ChangeForm />)
     expect(screen.getByLabelText(/title/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/component id/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/scheduled at/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /create change/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /create change/i }),
+    ).toBeInTheDocument()
   })
 
   it('calls onSuccess with changeId when form is valid', async () => {
@@ -32,10 +36,18 @@ describe('ChangeForm', () => {
     render(<ChangeForm onSuccess={onSuccess} />)
 
     await userEvent.type(screen.getByLabelText(/title/i), 'Deploy v2')
-    await userEvent.type(screen.getByLabelText(/component id/i), 'payment-service')
-    await userEvent.type(screen.getByLabelText(/scheduled at/i), '2099-12-01T10:00')
+    await userEvent.type(
+      screen.getByLabelText(/component id/i),
+      'payment-service',
+    )
+    await userEvent.type(
+      screen.getByLabelText(/scheduled at/i),
+      '2099-12-01T10:00',
+    )
 
-    await userEvent.click(screen.getByRole('button', { name: /create change/i }))
+    await userEvent.click(
+      screen.getByRole('button', { name: /create change/i }),
+    )
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalledWith('abc-123'))
   })
@@ -50,14 +62,24 @@ describe('ChangeForm', () => {
     })
 
     render(<ChangeForm />)
-    await userEvent.type(screen.getByLabelText(/component id/i), 'payment-service')
-    await userEvent.type(screen.getByLabelText(/scheduled at/i), '2099-12-01T10:00')
-    await userEvent.click(screen.getByRole('button', { name: /create change/i }))
+    await userEvent.type(
+      screen.getByLabelText(/component id/i),
+      'payment-service',
+    )
+    await userEvent.type(
+      screen.getByLabelText(/scheduled at/i),
+      '2099-12-01T10:00',
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: /create change/i }),
+    )
 
     await waitFor(() =>
-      expect(screen.getByText(/title is required/i)).toBeInTheDocument()
+      expect(screen.getByText(/title is required/i)).toBeInTheDocument(),
     )
     // Form data preserved
-    expect(screen.getByLabelText(/component id/i)).toHaveValue('payment-service')
+    expect(screen.getByLabelText(/component id/i)).toHaveValue(
+      'payment-service',
+    )
   })
 })

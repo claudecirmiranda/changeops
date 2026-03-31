@@ -8,7 +8,7 @@ interface UsePollingOptions {
 
 export function usePolling(
   callback: () => void | Promise<void>,
-  { interval = 5_000, enabled = true }: UsePollingOptions = {}
+  { interval = 5_000, enabled = true }: UsePollingOptions = {},
 ) {
   const savedCallback = useRef(callback)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)

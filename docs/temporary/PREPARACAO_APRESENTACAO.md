@@ -97,10 +97,10 @@ make publish-deploy-event CHANGE_ID=<changeId>
 
 ### Observabilidade (Grafana: localhost:3001)
 
-- Dashboard "ChangeOps" com 7 painéis
-- Métricas ao vivo: changes criadas, eventos publicados, consumidos, falhas
-- Latência de API (histograma p95)
-- Distribuição de status em pizza
+- Dashboard "ChangeOps" com 14 painéis (3 seções: Changes, Events, Orchestration)
+- Métricas ao vivo: changes criadas/completadas/falhadas/preparadas, eventos publicados/consumidos/falhados/retries/DLT/descartados
+- Latência de API (histograma p95) e latência de orquestração p95
+- Distribuição de status em pizza, taxa de eventos/min
 
 ---
 
@@ -214,7 +214,7 @@ O domínio não conhece Spring, Kafka ou JPA — é Java puro.
 | **PostgreSQL** | 16 | JSONB para payloads de eventos, `ON CONFLICT DO NOTHING` para idempotência atômica, triggers de `updated_at` |
 | **Docker Compose** | v2 | Stack completa com healthchecks em todos os serviços, `depends_on: condition: service_healthy` |
 | **Prometheus** | 2.50 | Scrape de 4 endpoints (change-service, deploy-orchestrator, kafka, self) |
-| **Grafana** | 10.3 | Dashboard pré-provisionado via `provisioning/` — zero configuração manual |
+| **Grafana** | 12.4.1 | Dashboard pré-provisionado via `provisioning/` — zero configuração manual |
 
 ### Testes
 
@@ -585,7 +585,7 @@ Contrato em [`contracts/openapi/change-service.yml`](../contracts/openapi/change
 | `/api/v1/changes/{changeId}` | `GET` | 200/404 | Detalhe da mudança |
 | `/api/v1/changes/{changeId}/events` | `GET` | 200/404 | Timeline de eventos |
 
-Swagger UI disponível em: `http://localhost:8080/swagger-ui.html`
+Swagger UI disponível em: [change-service](http://localhost:8080/swagger-ui.html) (`:8080`) e [deploy-orchestrator](http://localhost:8081/swagger-ui.html) (`:8081`)
 
 ### AsyncAPI 2.6 — Event Contracts
 
@@ -882,6 +882,7 @@ curl http://localhost:8081/actuator/health
 
 # Swagger UI
 open http://localhost:8080/swagger-ui.html
+open http://localhost:8081/swagger-ui.html
 ```
 
 ---

@@ -2,7 +2,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import changeService from './changeService'
 import { http } from '@/shared/lib/http'
-import type { Change, ChangeEvent, CreateChangeResponse, PageResponse } from '../types'
+import type {
+  Change,
+  ChangeEvent,
+  CreateChangeResponse,
+  PageResponse,
+} from '../types'
 
 vi.mock('@/shared/lib/http', () => ({
   http: {
@@ -61,7 +66,9 @@ describe('changeService', () => {
 
       const result = await changeService.list({ page: 0, size: 20 })
 
-      expect(mockGet).toHaveBeenCalledWith('/changes', { params: { page: 0, size: 20 } })
+      expect(mockGet).toHaveBeenCalledWith('/changes', {
+        params: { page: 0, size: 20 },
+      })
       expect(result).toEqual(page)
     })
 

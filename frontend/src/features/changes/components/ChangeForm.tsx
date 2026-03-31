@@ -21,7 +21,8 @@ export function ChangeForm({ onSuccess }: Props) {
   const [form, setForm] = useState<CreateChangePayload>(EMPTY)
   const { create, loading, error } = useCreateChange()
 
-  const set = (field: keyof CreateChangePayload) =>
+  const set =
+    (field: keyof CreateChangePayload) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
@@ -52,7 +53,10 @@ export function ChangeForm({ onSuccess }: Props) {
 
       {/* Title */}
       <div>
-        <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="title"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           Title <span className="text-red-500">*</span>
         </label>
         <input
@@ -70,7 +74,10 @@ export function ChangeForm({ onSuccess }: Props) {
 
       {/* Description */}
       <div>
-        <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="description"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           Description
         </label>
         <textarea
@@ -86,7 +93,10 @@ export function ChangeForm({ onSuccess }: Props) {
 
       {/* Component ID */}
       <div>
-        <label htmlFor="componentId" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="componentId"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           Component ID <span className="text-red-500">*</span>
         </label>
         <input
@@ -99,12 +109,17 @@ export function ChangeForm({ onSuccess }: Props) {
           placeholder="payment-service"
           className={inputClass(!!fieldError('componentId'))}
         />
-        {fieldError('componentId') && <FieldError msg={fieldError('componentId')!} />}
+        {fieldError('componentId') && (
+          <FieldError msg={fieldError('componentId')!} />
+        )}
       </div>
 
       {/* Scheduled At */}
       <div>
-        <label htmlFor="scheduledAt" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="scheduledAt"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           Scheduled At <span className="text-red-500">*</span>
         </label>
         <input
@@ -116,7 +131,9 @@ export function ChangeForm({ onSuccess }: Props) {
           min={new Date().toISOString().slice(0, 16)}
           className={inputClass(!!fieldError('scheduledAt'))}
         />
-        {fieldError('scheduledAt') && <FieldError msg={fieldError('scheduledAt')!} />}
+        {fieldError('scheduledAt') && (
+          <FieldError msg={fieldError('scheduledAt')!} />
+        )}
       </div>
 
       {/* Submit */}
@@ -143,10 +160,24 @@ function FieldError({ msg }: { msg: string }) {
 
 function Spinner() {
   return (
-    <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-      <path className="opacity-75" fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+    <svg
+      className="animate-spin h-4 w-4 text-white"
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+      />
     </svg>
   )
 }

@@ -26,7 +26,7 @@ export const useChangesStore = create<ChangesState>((set) => ({
     set((state) => {
       if (!state.page) return {}
       const content = state.page.content.map((c) =>
-        c.changeId === change.changeId ? change : c
+        c.changeId === change.changeId ? change : c,
       )
       return { page: { ...state.page, content } }
     }),

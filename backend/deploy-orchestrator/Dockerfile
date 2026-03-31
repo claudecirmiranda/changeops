@@ -1,9 +1,15 @@
 FROM maven:3.9.6-eclipse-temurin-17 AS builder
 WORKDIR /build
 COPY pom.xml .
+COPY checkstyle.xml .
 RUN mvn dependency:go-offline -q
 COPY src ./src
-RUN mvn clean package -DskipTests -q
+
+# ── CI gate (same checks as GitHub Actions) ──────
+# Integration tests (*IT, *IntegrationTest) are skipped — they need
+# Testcontainers (Docker-in-Docker) which is unavailable during image build.
+RUN mvn -B verify -Dsurefire.excludes="**/*IT.java,**/*IntegrationTest.java"
+RUN mvn -B checkstyle:check
 
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app

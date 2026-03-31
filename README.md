@@ -82,13 +82,14 @@ Isso sobe toda a stack. Aguarde todos os serviços ficarem `healthy` (`docker co
 |---------|-----|
 | Frontend | http://localhost:3000 |
 | change-service API | http://localhost:8080 |
-| **Swagger UI** | http://localhost:8080/swagger-ui.html |
+| **Swagger UI (change-service)** | http://localhost:8080/swagger-ui.html |
 | deploy-orchestrator | http://localhost:8081 |
+| **Swagger UI (orchestrator)** | http://localhost:8081/swagger-ui.html |
 | Kafka UI | http://localhost:8090 |
 | Prometheus | http://localhost:9090 |
 | **Grafana** | http://localhost:3001 (`admin` / `changeops`) |
 
-> **Swagger UI** — toda a API REST está documentada e executável em `http://localhost:8080/swagger-ui.html`. O contrato completo está em [contracts/openapi/change-service.yml](contracts/openapi/change-service.yml).
+> **Swagger UI** — ambos os serviços expõem sua documentação interativa: [change-service](http://localhost:8080/swagger-ui.html) (`:8080`) e [deploy-orchestrator](http://localhost:8081/swagger-ui.html) (`:8081`). O contrato estático está em [contracts/openapi/change-service.yml](contracts/openapi/change-service.yml).
 
 > **Grafana** — o dashboard **ChangeOps** é carregado automaticamente na inicialização, sem configuração manual. Exibe métricas ao vivo: changes criadas, eventos publicados/consumidos/falhos, latência de API (p95), distribuição de status.
 
@@ -118,7 +119,7 @@ curl -s http://localhost:8080/api/v1/changes | python3 -m json.tool
 5. Executar `make publish-deploy-event CHANGE_ID=<uuid>` para simular o CI/CD
 6. Acompanhar a atualização automática de status e a timeline de eventos
 
-Roteiro detalhado com 14 casos de teste: [docs/ROTEIRO_TESTES_MANUAIS.md](docs/ROTEIRO_TESTES_MANUAIS.md)
+Roteiro detalhado com 15 casos de teste: [docs/test-strategy.md — Seção 7](docs/test-strategy.md#7-roteiro-de-testes-manuais)
 
 ---
 
@@ -184,7 +185,8 @@ Decisões deliberadas com justificativa e caminho de evolução documentados: ba
 
 | Contrato | Arquivo | Acesso live |
 |----------|---------|-------------|
-| REST API (OpenAPI 3.1) | [contracts/openapi/change-service.yml](contracts/openapi/change-service.yml) | http://localhost:8080/swagger-ui.html |
+| REST API — change-service (OpenAPI 3.1) | [contracts/openapi/change-service.yml](contracts/openapi/change-service.yml) | http://localhost:8080/swagger-ui.html |
+| REST API — deploy-orchestrator (OpenAPI 3.1) | gerado em runtime pelo springdoc | http://localhost:8081/swagger-ui.html |
 | Eventos Kafka (AsyncAPI 2.6) | [contracts/asyncapi/events.yml](contracts/asyncapi/events.yml) | — |
 
 ---
@@ -203,6 +205,29 @@ Decisões deliberadas com justificativa e caminho de evolução documentados: ba
 ---
 
 ## Desenvolvimento
+
+### Ambiente de Desenvolvimento
+
+**Extensões recomendadas para VS Code:**
+
+| Extensão | ID | Função |
+|----------|----|--------|
+| ESLint | `dbaeumer.vscode-eslint` | Sublinha erros de lint em tempo real |
+| Prettier | `esbenp.prettier-vscode` | Formata o código ao salvar |
+
+Nenhuma configuração manual é necessária — o projeto já inclui `.prettierrc` (aspas simples, sem ponto e vírgula) e `.eslintrc.cjs`. Com as extensões instaladas, o VS Code aplica as regras automaticamente.
+
+**Quando a validação de lint e formatação é executada:**
+
+| Momento | O que roda | Como |
+|---------|-----------|------|
+| **Ao salvar** (VS Code) | Prettier + ESLint | Automático com as extensões instaladas |
+| **Local — qualidade** | ESLint (frontend) + Checkstyle (backend) | `make lint` |
+| **Local — formatação** | Prettier check | `npx prettier --check "src/**/*.{ts,tsx}"` (dentro de `frontend/`) |
+| **`docker compose build`** | tsc, ESLint, Prettier check, Vitest e Vite build (frontend); `mvn verify` + Checkstyle (backend) | Automático — a imagem **não é construída** se qualquer verificação falhar |
+| **GitHub Actions CI** | Mesmas verificações do build Docker | Automático em every push/PR via `.github/workflows/` |
+
+---
 
 ```bash
 # Ciclo de vida
