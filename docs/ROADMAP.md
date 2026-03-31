@@ -211,4 +211,4 @@ Os itens abaixo representam processos de engenharia reconhecidos como boas prát
 |------|-----------|---------------|
 | **Registro formal de defeitos** (DISC-13) | Rastreabilidade de bugs encontrados durante desenvolvimento; atualmente gerenciado ad-hoc nas issues do repositório | Pós-aprovação |
 | **Quadro Kanban com histórico de tarefas** (DISC-19) | Visibilidade de fluxo de trabalho além do ROADMAP.md; sugerido uso de GitHub Projects | Pós-aprovação |
-| **Vídeo de demonstração** (DISC-20) | Material de apresentação do fluxo completo; roteiro disponível em `docs/ROTEIRO_TESTES_MANUAIS.md` | Apresentação |
+| **Vídeo de demonstração** (DISC-20) | Material de apresentação do fluxo completo; roteiro disponível em `docs/test-strategy.md` (Seção 7) | Apresentação |

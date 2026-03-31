@@ -162,7 +162,7 @@ Separar claramente dois conceitos:
 
 ---
 
-## 4. Descrição do Fluxo de Orquestração
+## 5. Descrição do Fluxo de Orquestração
 
 Se o documento externo descreve o fluxo do deploy-orchestrator, atualizar para incluir:
 
@@ -172,11 +172,11 @@ Se o documento externo descreve o fluxo do deploy-orchestrator, atualizar para i
 
 ---
 
-## 5. Checklist de Revisão
+## 6. Checklist de Revisão
 
 - [ ] Tabela de métricas atualizada com todas as 11 métricas
 - [ ] `events_failed_total` redefinido como "falhas permanentes"
 - [ ] `events_retries_total` adicionado como "tentativas de retry"
 - [ ] `changes_completed_total` e `changes_failed_total` documentados
-- [ ] Contagem de painéis do dashboard atualizada (7 → 15+)
+- [ ] Contagem de painéis do dashboard atualizada (7 → 14)
 - [ ] Descrição dos painéis de Events atualizada com Retries/Failed/DLT/Discarded

@@ -6,19 +6,21 @@ COPY package.json package-lock.json* ./
 RUN npm ci --prefer-offline
 
 COPY . .
+
+# ── CI gate (same checks as GitHub Actions) ──────
+RUN npx tsc --noEmit
+RUN npm run lint
+RUN npx prettier --check "src/**/*.{ts,tsx}"
+RUN npm run test -- --run
 RUN npm run build
 
 # ── Runtime stage ────────────────────────────────
 FROM nginx:1.27-alpine
 WORKDIR /usr/share/nginx/html
 
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-
 COPY --from=builder /app/dist ./
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# nginx master process must run as root to bind port 80;
-# worker processes drop privileges via the 'user' directive in nginx.conf
 EXPOSE 80
 
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
