@@ -7,8 +7,8 @@ interface Props {
   onSuccess?: (changeId: string) => void
 }
 
-// requestedBy is pre-filled from localStorage in local/dev mode.
-// In production this will be populated from the authenticated JWT subject (see ROADMAP.md § 2.2).
+// requestedBy é pré-preenchido do localStorage no modo local/dev.
+// Em produção este campo será populado a partir do subject JWT autenticado (veja ROADMAP.md § 2.2).
 const EMPTY: CreateChangePayload = {
   title: '',
   description: '',
@@ -28,7 +28,7 @@ export function ChangeForm({ onSuccess }: Props) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    // Convert local datetime to ISO-8601 with timezone
+    // Converte datetime local para ISO-8601 com fuso horário
     const payload: CreateChangePayload = {
       ...form,
       scheduledAt: new Date(form.scheduledAt).toISOString(),
@@ -44,14 +44,14 @@ export function ChangeForm({ onSuccess }: Props) {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
-      {/* Global API error (non-field) */}
+      {/* Erro global da API (não vinculado a campo) */}
       {error && !error.fields && (
         <div className="rounded-md bg-red-50 border border-red-300 px-4 py-3 text-sm text-red-700">
           <strong>{error.title}:</strong> {error.detail}
         </div>
       )}
 
-      {/* Title */}
+      {/* Título */}
       <div>
         <label
           htmlFor="title"
@@ -72,7 +72,7 @@ export function ChangeForm({ onSuccess }: Props) {
         {fieldError('title') && <FieldError msg={fieldError('title')!} />}
       </div>
 
-      {/* Description */}
+      {/* Descrição */}
       <div>
         <label
           htmlFor="description"
@@ -91,7 +91,7 @@ export function ChangeForm({ onSuccess }: Props) {
         />
       </div>
 
-      {/* Component ID */}
+      {/* ID do Componente */}
       <div>
         <label
           htmlFor="componentId"
@@ -114,7 +114,7 @@ export function ChangeForm({ onSuccess }: Props) {
         )}
       </div>
 
-      {/* Scheduled At */}
+      {/* Agendamento */}
       <div>
         <label
           htmlFor="scheduledAt"
@@ -136,7 +136,7 @@ export function ChangeForm({ onSuccess }: Props) {
         )}
       </div>
 
-      {/* Submit */}
+      {/* Enviar */}
       <div className="flex justify-end pt-2">
         <button
           type="submit"

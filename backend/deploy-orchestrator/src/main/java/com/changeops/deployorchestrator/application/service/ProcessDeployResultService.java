@@ -80,21 +80,21 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             log.info("DeployFinishedEvent received: deployId={}, changeId={}, result={}",
                     payload.deployId(), payload.changeId(), payload.result());
 
-            // ── Step 1: Atomic idempotency check + mark ──────────────
+            // ── Passo 1: Verificação atômica de idempotência + marcação ──
             if (!idempotencyPort.tryMarkAsProcessed(payload.deployId(), "deploy-orchestrator")) {
                 eventsDiscardedCounter.increment();
                 log.warn("Event already processed, discarding: deployId={}", payload.deployId());
                 return;
             }
 
-            // ── Step 2: Post-deploy checklist ──────────────────────────
+            // ── Passo 2: Checklist pós-deploy ──────────────────────────────────
             PostDeployChecklistService.ChecklistResult checklist =
                     checklistService.execute(
                             payload.changeId(),
                             payload.deployId(),
                             event.isSuccess());
 
-            // ── Step 3: Build result ────────────────────────────────────
+            // ── Passo 3: Construir resultado ──────────────────────────────────
             ChangeResult changeResult = ChangeResult.from(
                     payload.changeId(),
                     payload.deployId(),
@@ -105,7 +105,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                 changeResult.withChecklistFailure(checklist.failureReason());
             }
 
-            // ── Step 4: Update change status + save event ──────────────
+            // ── Passo 4: Atualizar status da change + salvar evento ──
             if (changeResult.isSuccess()) {
                 updateChangeStatusPort.markCompleted(payload.changeId());
                 changesCompletedCounter.increment();
@@ -130,9 +130,9 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                         Instant.now());
             }
 
-            // ── Step 5: Idempotency already marked in Step 1 ─────────
+            // ── Passo 5: Idempotência já marcada no Passo 1 ──────────
 
-            // ── Step 6: Publish result event ───────────────────────────
+            // ── Passo 6: Publicar evento de resultado ─────────────────────────
             changeResult.markFinished();
             publishResultEventPort.publish(changeResult);
 

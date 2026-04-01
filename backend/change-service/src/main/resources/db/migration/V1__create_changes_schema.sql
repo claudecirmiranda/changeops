@@ -1,5 +1,5 @@
 -- V1__create_changes_schema.sql
--- ChangeOps Dashboard - Initial Schema
+-- ChangeOps Dashboard - Schema Inicial
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -26,7 +26,7 @@ CREATE INDEX idx_changes_created_at      ON changes (created_at DESC);
 CREATE INDEX idx_changes_correlation_id  ON changes (correlation_id);
 
 -- ───────────────────────────────────────────────
--- change_events  (timeline store)
+-- change_events  (armazenamento de timeline)
 -- ───────────────────────────────────────────────
 CREATE TABLE change_events (
     event_id      UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -41,7 +41,7 @@ CREATE INDEX idx_change_events_occurred_at  ON change_events (occurred_at DESC);
 CREATE INDEX idx_change_events_type         ON change_events (event_type);
 
 -- ───────────────────────────────────────────────
--- processed_events  (idempotency store)
+-- processed_events  (armazenamento de idempotência)
 -- ───────────────────────────────────────────────
 CREATE TABLE processed_events (
     event_id        UUID          NOT NULL,
@@ -53,7 +53,7 @@ CREATE TABLE processed_events (
 CREATE INDEX idx_processed_events_processed_at ON processed_events (processed_at DESC);
 
 -- ───────────────────────────────────────────────
--- auto-update updated_at trigger
+-- trigger de atualização automática do updated_at
 -- ───────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

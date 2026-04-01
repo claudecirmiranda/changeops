@@ -8,21 +8,21 @@ export const http = axios.create({
   timeout: 10_000,
 })
 
-// SECURITY PLACEHOLDER: localStorage-based auth is intentionally simplified for this POC.
-// In production, replace with httpOnly cookie session managed by the OAuth2 PKCE flow
-// described in ROADMAP.md § 2.2 (Full JWT / OAuth2 Integration).
+// PLACEHOLDER DE SEGURANÇA: auth baseada em localStorage foi intencionalmente simplificada para este POC.
+// Em produção, substituir por sessão com cookie httpOnly gerenciada pelo fluxo OAuth2 PKCE
+// descrito em ROADMAP.md § 2.2 (Full JWT / OAuth2 Integration).
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
-  // X-User-Id is a dev-only fallback resolved by the backend when no JWT is present (local profile).
+  // X-User-Id é um fallback exclusivo para dev, resolvido pelo backend quando nenhum JWT está presente (perfil local).
   const userId = localStorage.getItem('user_id') ?? 'dev-user-001'
   config.headers['X-User-Id'] = userId
   return config
 })
 
-// Normalise errors into ApiError shape
+// Normaliza erros no formato ApiError
 http.interceptors.response.use(
   (res) => res,
   (err: AxiosError) => {

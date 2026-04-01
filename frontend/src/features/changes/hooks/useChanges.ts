@@ -25,7 +25,7 @@ export function useChanges() {
     [setPage],
   )
 
-  // Initial load
+  // Carregamento inicial (com spinner)
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -53,7 +53,7 @@ export function useChanges() {
     [setCurrentPage, setPage],
   )
 
-  // Background poll: passes the current page explicitly to avoid stale closure
+  // Polling em background: passa a página atual explicitamente para evitar closure desatualizado
   usePolling(() => fetch(currentPage), { interval: 5_000, enabled: !!page })
 
   return {

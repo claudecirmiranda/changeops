@@ -49,7 +49,7 @@ export function ChangeList() {
 
   return (
     <div>
-      {/* Poll failure banner */}
+      {/* Banner de falha no polling */}
       {pollError && (
         <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 flex items-center gap-2">
           <svg
@@ -71,7 +71,7 @@ export function ChangeList() {
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Estado vazio */}
       {changes.length === 0 ? (
         <div className="text-center py-20 rounded-xl border border-dashed border-slate-300 bg-white">
           <svg
@@ -187,7 +187,7 @@ export function ChangeList() {
         </div>
       )}
 
-      {/* Pagination */}
+      {/* Paginação */}
       {page && page.totalPages > 1 && (
         <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
           <span className="text-xs">
