@@ -32,9 +32,13 @@ class DeployEventConsumerTest {
 
     @Test
     void shouldIncrementEventsFailedAndDltCounters_whenDltHandlerIsCalled() {
-        ConsumerRecord<String, DeployFinishedEvent> record = buildRecord("changeops.deploy.finished-dlt");
+        ConsumerRecord<String, Object> record = new ConsumerRecord<>(
+                "changeops.deploy.finished-dlt", 0, 0L,
+                UUID.randomUUID().toString(),
+                "{\"eventType\":\"DeployFinishedEvent\"}"  // String — caminho feliz
+        );
 
-        consumer.onDlt(record);
+        consumer.onDlt(record, "changeops.deploy.finished-dlt");
 
         assertThat(registry.counter("events_failed_total", "consumer", "deploy-orchestrator").count())
                 .isEqualTo(1.0);
