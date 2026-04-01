@@ -2,6 +2,7 @@ package com.changeops.deployorchestrator.infrastructure.kafka;
 
 import com.changeops.deployorchestrator.application.port.in.ProcessDeployResultUseCase;
 import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
+import com.changeops.deployorchestrator.domain.exception.InvalidOrchestratorStateException;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -24,97 +25,95 @@ import org.springframework.stereotype.Component;
 @Component
 public class DeployEventConsumer {
 
-        private final ProcessDeployResultUseCase processDeployResultUseCase;
-        private final Counter dltCounter;
-        private final Counter eventsFailedCounter;
-        private final Counter eventsRetriesCounter;
+    private final ProcessDeployResultUseCase processDeployResultUseCase;
+    private final Counter dltCounter;
+    private final Counter eventsFailedCounter;
+    private final Counter eventsRetriesCounter;
 
-        public DeployEventConsumer(
-                ProcessDeployResultUseCase processDeployResultUseCase,
-                MeterRegistry meterRegistry) {
-                this.processDeployResultUseCase = processDeployResultUseCase;
-                this.dltCounter = Counter.builder("events_dlt_total")
-                        .tag("consumer", "deploy-orchestrator")
-                        .description("Total events sent to DLT after max retries")
-                        .register(meterRegistry);
-                this.eventsFailedCounter = Counter.builder("events_failed_total")
-                        .tag("consumer", "deploy-orchestrator")
-                        .description("Total events that permanently failed processing")
-                        .register(meterRegistry);
-                this.eventsRetriesCounter = Counter.builder("events_retries_total")
-                        .tag("consumer", "deploy-orchestrator")
-                        .description("Total retry hops (incremented each time an event is picked up from a retry topic)")
-                        .register(meterRegistry);
+    public DeployEventConsumer(
+            ProcessDeployResultUseCase processDeployResultUseCase,
+            MeterRegistry meterRegistry) {
+        this.processDeployResultUseCase = processDeployResultUseCase;
+        this.dltCounter = Counter.builder("events_dlt_total")
+                .tag("consumer", "deploy-orchestrator")
+                .description("Total events sent to DLT after max retries")
+                .register(meterRegistry);
+        this.eventsFailedCounter = Counter.builder("events_failed_total")
+                .tag("consumer", "deploy-orchestrator")
+                .description("Total events that permanently failed processing")
+                .register(meterRegistry);
+        this.eventsRetriesCounter = Counter.builder("events_retries_total")
+                .tag("consumer", "deploy-orchestrator")
+                .description("Total retry hops (incremented each time an event is picked up from a retry topic)")
+                .register(meterRegistry);
+    }
+
+    @RetryableTopic(
+            attempts = "4",
+            backoff = @Backoff(delay = 500, multiplier = 2.0, maxDelay = 10_000),
+            autoCreateTopics = "true",
+            topicSuffixingStrategy = TopicSuffixingStrategy.SUFFIX_WITH_INDEX_VALUE,
+            dltStrategy = DltStrategy.FAIL_ON_ERROR,
+            dltTopicSuffix = "-dlt",
+            exclude = {InvalidOrchestratorStateException.class}
+    )
+    @KafkaListener(
+            topics = "${changeops.kafka.topics.deploy-finished}",
+            groupId = "${changeops.kafka.consumer.group-id}",
+            containerFactory = "deployEventListenerContainerFactory"
+    )
+    public void onDeployFinished(
+            ConsumerRecord<String, DeployFinishedEvent> record,
+            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
+            @Header(KafkaHeaders.OFFSET) long offset) {
+
+        DeployFinishedEvent event = record.value();
+
+        if (event == null || event.payload() == null) {
+            log.error("Deserialization failed or invalid payload — sending to DLT: topic={}, offset={}, key={}",
+                    topic, offset, record.key());
+            throw new InvalidOrchestratorStateException(
+                    "Deserialization failed or invalid payload. topic=" + topic + ", offset=" + offset);
         }
 
-        @RetryableTopic(
-                attempts = "4",
-                backoff = @Backoff(delay = 500, multiplier = 2.0, maxDelay = 10_000),
-                autoCreateTopics = "true",
-                topicSuffixingStrategy = TopicSuffixingStrategy.SUFFIX_WITH_INDEX_VALUE,
-                dltStrategy = DltStrategy.ALWAYS_RETRY_ON_ERROR,
-                dltTopicSuffix = "-dlt"
-        )
-        @KafkaListener(
-                topics = "${changeops.kafka.topics.deploy-finished}",
-                groupId = "${changeops.kafka.consumer.group-id}",
-                containerFactory = "deployEventListenerContainerFactory"
-        )
-
-        public void onDeployFinished(
-                ConsumerRecord<String, DeployFinishedEvent> record,
-                @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
-                @Header(KafkaHeaders.OFFSET) long offset) {
-
-                DeployFinishedEvent event = record.value();
-
-                // ← Null check ANTES de qualquer acesso ao event
-                if (event == null) {
-                        log.error("Deserialization failed — null payload received: topic={}, offset={}", topic, offset);
-                        // Lança exceção para o @RetryableTopic encaminhar pro DLT após as tentativas
-                        throw new IllegalArgumentException("Null payload — deserialization error");
-                }
-
-                if (topic.contains("-retry-")) {
-                eventsRetriesCounter.increment();
-                }
-
-                MDC.put("correlation_id", event.correlationId() != null
-                        ? event.correlationId().toString() : "unknown");
-                MDC.put("deploy_id", event.payload().deployId().toString());
-
-                try {
-                log.info("Received DeployFinishedEvent: topic={}, offset={}, deployId={}, result={}",
-                        topic, offset, event.payload().deployId(), event.payload().result());
-
-                processDeployResultUseCase.execute(event);
-
-                } catch (Exception e) {
-                log.error("Error processing DeployFinishedEvent — will retry: deployId={}, attempt topic={}",
-                        event.payload().deployId(), topic, e);
-                throw e;
-                } finally {
-                MDC.remove("correlation_id");
-                MDC.remove("deploy_id");
-                }
+        if (topic.contains("-retry-")) {
+            eventsRetriesCounter.increment();
         }
 
-        @DltHandler
-        public void onDlt(
-                ConsumerRecord<String, Object> record,
-                @Header(KafkaHeaders.RECEIVED_TOPIC) String topic) {
+        MDC.put("correlation_id", event.correlationId() != null
+                ? event.correlationId().toString() : "unknown");
+        MDC.put("deploy_id", event.payload().deployId().toString());
+
         try {
-                String payload = record.value() instanceof byte[]
-                        ? new String((byte[]) record.value(), StandardCharsets.UTF_8)
-                        : String.valueOf(record.value());
+            log.info("Received DeployFinishedEvent: topic={}, offset={}, deployId={}, result={}",
+                    topic, offset, event.payload().deployId(), event.payload().result());
 
-                log.error("Event sent to DLT: key={}, topic={}, offset={}, payload={}",
-                        record.key(), topic, record.offset(), payload);
-                dltCounter.increment();
-                eventsFailedCounter.increment();
+            processDeployResultUseCase.execute(event);
+
+        } catch (Exception e) {
+            log.error("Error processing DeployFinishedEvent — will retry: deployId={}, attempt topic={}",
+                    event.payload().deployId(), topic, e);
+            throw e;
         } finally {
-                MDC.clear();
+            MDC.remove("correlation_id");
+            MDC.remove("deploy_id");
         }
-        }
+    }
 
+    @DltHandler
+    public void onDlt(
+            ConsumerRecord<String, Object> record,
+            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic) {
+        try {
+            String payload = record.value() instanceof byte[]
+                    ? new String((byte[]) record.value(), StandardCharsets.UTF_8)
+                    : String.valueOf(record.value());
+            log.error("Event sent to DLT after max retries: key={}, topic={}, offset={}, payload={}",
+                    record.key(), topic, record.offset(), payload);
+            dltCounter.increment();
+            eventsFailedCounter.increment();
+        } finally {
+            MDC.clear();
+        }
+    }
 }

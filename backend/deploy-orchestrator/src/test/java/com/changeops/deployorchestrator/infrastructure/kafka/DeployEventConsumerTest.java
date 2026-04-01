@@ -2,6 +2,7 @@ package com.changeops.deployorchestrator.infrastructure.kafka;
 
 import com.changeops.deployorchestrator.application.port.in.ProcessDeployResultUseCase;
 import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
+import com.changeops.deployorchestrator.domain.exception.InvalidOrchestratorStateException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +15,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ExtendWith(MockitoExtension.class)
 class DeployEventConsumerTest {
@@ -74,6 +76,31 @@ class DeployEventConsumerTest {
 
         assertThat(registry.counter("events_retries_total", "consumer", "deploy-orchestrator").count())
                 .isEqualTo(3.0);
+    }
+
+    @Test
+    void shouldThrowInvalidOrchestratorStateException_whenEventIsNull() {
+        ConsumerRecord<String, DeployFinishedEvent> record = new ConsumerRecord<>(
+                "changeops.deploy.finished", 0, 0L,
+                UUID.randomUUID().toString(), null);
+
+        assertThatThrownBy(() -> consumer.onDeployFinished(record, "changeops.deploy.finished", 0L))
+                .isInstanceOf(InvalidOrchestratorStateException.class)
+                .hasMessageContaining("Deserialization failed or invalid payload");
+    }
+
+    @Test
+    void shouldIncrementDltCounters_whenDltHandlerReceivesNullEvent() {
+        ConsumerRecord<String, Object> record = new ConsumerRecord<>(
+                "changeops.deploy.finished-dlt", 0, 0L,
+                UUID.randomUUID().toString(), null);
+
+        consumer.onDlt(record, "changeops.deploy.finished-dlt");
+
+        assertThat(registry.counter("events_failed_total", "consumer", "deploy-orchestrator").count())
+                .isEqualTo(1.0);
+        assertThat(registry.counter("events_dlt_total", "consumer", "deploy-orchestrator").count())
+                .isEqualTo(1.0);
     }
 
     private ConsumerRecord<String, DeployFinishedEvent> buildRecord(String topic) {

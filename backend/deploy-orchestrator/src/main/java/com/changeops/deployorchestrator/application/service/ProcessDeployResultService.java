@@ -6,6 +6,7 @@ import com.changeops.deployorchestrator.application.port.out.PublishResultEventP
 import com.changeops.deployorchestrator.application.port.out.SaveChangeEventPort;
 import com.changeops.deployorchestrator.application.port.out.UpdateChangeStatusPort;
 import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
+import com.changeops.deployorchestrator.domain.exception.InvalidOrchestratorStateException;
 import com.changeops.deployorchestrator.domain.model.ChangeResult;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -79,6 +80,12 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
         try {
             log.info("DeployFinishedEvent received: deployId={}, changeId={}, result={}",
                     payload.deployId(), payload.changeId(), payload.result());
+
+            // ── Pré-condição: changeId deve existir para evitar rollback de idempotência ──
+            if (!updateChangeStatusPort.existsByChangeId(payload.changeId())) {
+                throw new InvalidOrchestratorStateException(
+                        "changeId not found in database, cannot process event. changeId=" + payload.changeId());
+            }
 
             // ── Passo 1: Verificação atômica de idempotência + marcação ──
             if (!idempotencyPort.tryMarkAsProcessed(payload.deployId(), "deploy-orchestrator")) {

@@ -60,7 +60,6 @@ public class KafkaConfig {
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-
         JsonDeserializer<DeployFinishedEvent> jsonDeserializer =
                 new JsonDeserializer<>(DeployFinishedEvent.class, objectMapper, false);
         jsonDeserializer.addTrustedPackages("com.changeops.*");

@@ -311,6 +311,57 @@ end_test "CT-13"
 
 echo ""
 echo "========================================"
+echo "  CT-13B: Poison pill (UUID malformado no payload)"
+echo "========================================"
+begin_test
+EVENT_POISON='{"eventType":"DeployFinishedEvent","version":"1.0","correlationId":"f10f409d-2eee-4053-82f2-80fac03fd65b","occurredAt":"2026-03-23T11:42:00Z","payload":{"deployId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","changeId":"e69a604a-d54b-4915-9504-c7c28685d52411","result":"SUCCESS","executedAt":"2026-03-23T11:42:00Z"}}'
+echo "$EVENT_POISON" | docker exec -i changeops-kafka kafka-console-producer \
+  --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
+echo "  INFO poison pill publicado (changeId UUID invalido), aguardando 10s..."
+sleep 10
+
+# Verifica que a mensagem chegou no DLT (sem loop infinito)
+dlt_poison=$(docker exec changeops-kafka kafka-console-consumer \
+  --bootstrap-server localhost:9092 --topic changeops.deploy.finished-dlt \
+  --from-beginning --max-messages 20 --timeout-ms 5000 2>/dev/null \
+  | grep "e69a604a-d54b-4915-9504-c7c28685d52411" | wc -l)
+[ "$dlt_poison" -gt 0 ] \
+  && pass_msg "CT-13B" "poison pill roteado para DLT (count=$dlt_poison)" \
+  || fail_msg "CT-13B" "poison pill NAO chegou no DLT"
+
+# Verifica que o consumer ainda processa mensagens normais apos o poison pill
+resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/changes \
+  -H "Content-Type: application/json" -H "X-User-Id: tester-001" \
+  -d '{"title":"Deploy post-poison v1.0","description":"Teste apos poison pill","componentId":"poison-svc","requestedBy":"tester-001","scheduledAt":"2026-09-01T10:00:00Z"}')
+code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
+[ "$code" = "201" ] \
+  && pass_msg "CT-13B" "change criada com sucesso apos poison pill" \
+  || fail_msg "CT-13B" "falha ao criar change apos poison pill (HTTP $code)"
+
+# Verifica metricas no actuator do deploy-orchestrator
+dlt_after=$(curl -s http://localhost:8081/actuator/prometheus \
+  | grep '^events_dlt_total' | grep -v '#' | awk '{print $2}' | head -1)
+dlt_after_int=$(echo "$dlt_after" | grep -o '^[0-9]*' | head -1)
+[ -n "$dlt_after_int" ] && [ "$dlt_after_int" -gt 0 ] \
+  && pass_msg "CT-13B" "events_dlt_total=$dlt_after (incrementado)" \
+  || fail_msg "CT-13B" "events_dlt_total=${dlt_after:-0} (nao incrementado)"
+
+failed_after=$(curl -s http://localhost:8081/actuator/prometheus \
+  | grep '^events_failed_total' | grep -v '#' | awk '{print $2}' | head -1)
+failed_after_int=$(echo "$failed_after" | grep -o '^[0-9]*' | head -1)
+[ -n "$failed_after_int" ] && [ "$failed_after_int" -gt 0 ] \
+  && pass_msg "CT-13B" "events_failed_total=$failed_after (incrementado)" \
+  || fail_msg "CT-13B" "events_failed_total=${failed_after:-0} (nao incrementado)"
+
+# Verifica que NAO ficou em processed_events
+no_processed=$(docker exec changeops-postgres psql -U changeops -d changeops -t \
+  -c "SELECT COUNT(*) FROM processed_events WHERE event_id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'" \
+  2>/dev/null | tr -d ' ')
+check "CT-13B" "0" "$no_processed" "poison pill NAO registrado em processed_events"
+end_test "CT-13B"
+
+echo ""
+echo "========================================"
 echo "  CT-14: Observabilidade (Prometheus)"
 echo "========================================"
 begin_test
