@@ -80,12 +80,12 @@ public class KafkaConfig {
         return factory;
     }
 
-    // ── Default Producer (Primary — used by @RetryableTopic for retry/DLT publishing) ─────────────
+    // ── Producer Padrão (Primary — usado pelo @RetryableTopic para publicar retries/DLT) ──────────
     //
-    // Uses JsonSerializer<Object> so that @RetryableTopic can publish any deserialized domain
-    // object (e.g. DeployFinishedEvent) to DLT topics without a type-mismatch.
-    // For poison pills (null value after ErrorHandlingDeserializer failure), Spring Kafka
-    // preserves the original raw bytes in record headers automatically.
+    // Usa JsonSerializer<Object> para que o @RetryableTopic possa publicar qualquer objeto de domínio
+    // desserializado (ex: DeployFinishedEvent) nos tópicos de DLT sem erro de incompatibilidade de tipo.
+    // No caso de poison pills (valor null após falha no ErrorHandlingDeserializer), o Spring Kafka
+    // preserva os bytes brutos originais automaticamente nos headers do record Kafka.
 
     @Bean
     public ProducerFactory<String, Object> defaultProducerFactory() {

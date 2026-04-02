@@ -108,6 +108,11 @@ public class DeployEventConsumer {
         String payload = record.value() instanceof byte[]
                 ? new String((byte[]) record.value(), StandardCharsets.UTF_8)
                 : String.valueOf(record.value());
+        // Payloads que chegam ao DLT costumam ser malformados ou inesperadamente grandes.
+        // Logar o conteúdo completo poderia saturar os logs estruturados (Grafana/ELK), expor dados sensíveis
+        // ou causar pressão de memória ao serializar uma string muito longa no encoder JSON.
+        // MAX_DLT_PAYLOAD_LOG_LENGTH limita a porção logada a um tamanho seguro e inspecionável;
+        // a mensagem completa permanece disponível no Kafka UI para diagnóstico.
         String safePayload = payload != null && payload.length() > MAX_DLT_PAYLOAD_LOG_LENGTH
                 ? payload.substring(0, MAX_DLT_PAYLOAD_LOG_LENGTH) + "...[truncated]"
                 : payload;
