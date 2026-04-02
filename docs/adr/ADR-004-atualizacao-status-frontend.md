@@ -132,8 +132,8 @@ Permitir `PATCH /changes/{id}/status` criaria dois caminhos para a mesma transi�
 | "Mecanismo de atualização de status para frontend" | ✅ Atendido | Hook genérico `usePolling` com intervalo fixo de 5s e tratamento básico de erro |
 | "Propagação de correlation ID para rastreabilidade" | ✅ Atendido | `correlationId` incluído em headers de resposta e logs estruturados |
 | "Estratégia evolutiva para comunicação em tempo real" | ✅ Atendido | Hook abstrato permite migração para SSE/WebSocket sem refatoração de componentes |
-| "Tratamento de erro e retry no cliente" | ✅ Atendido | Backoff exponencial no polling para erros 5xx; parada para erros 4xx |
-| "Monitoramento de comportamento do frontend" | ✅ Atendido | Métrica `frontend_polling_interval_seconds` enviada via endpoint de telemetria |
+| "Tratamento de erro e retry no cliente" | ⚠️ Parcial | Polling com retry simples em intervalo fixo; backoff exponencial e parada para erros 4xx ainda não implementados |
+| "Monitoramento de comportamento do frontend" | ⚠️ Parcial | Comportamento observável indiretamente via métricas/logs de backend; métrica específica de frontend ainda não implementada |
 | "Ausência de PUT/PATCH para status (justificativa)" | ✅ Atendido | Transição de status é event-driven por design; mutação direta violaria single source of truth — documentado neste ADR |
 
 ## Justificativa

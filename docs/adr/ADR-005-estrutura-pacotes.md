@@ -159,7 +159,7 @@ A solução correta — um `JwtDecoder` mock via `@Profile("local")` que aceita 
 - [ADR-003](./ADR-003-eventos-dominio-vs-integracao.md) — Eventos de domínio em `domain/`, envelope em `infrastructure/kafka/`
 - [ADR-004](./ADR-004-atualizacao-status-frontend.md) — Hook de frontend isolado em `frontend/hooks/`
 - [ADR-006](./ADR-006-checklist-pos-deploy.md) — `PostDeployChecklistService` em `application/service/`
-- [ADR-007](./ADR-007-autenticacao-desenvolvimento.md) — Dívida técnica de autenticação em ambiente de desenvolvimento
+- [ADR-007](./ADR-007-autenticacao-em-ambiente-de-desenvolvimento.md) — Dívida técnica de autenticação em ambiente de desenvolvimento
 
 ## Conformidade com a RFP
 

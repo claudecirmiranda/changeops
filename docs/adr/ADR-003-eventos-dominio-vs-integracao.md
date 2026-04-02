@@ -132,7 +132,7 @@ Change.create(correlationId)
 - [ADR-001](./ADR-001-escolha-message-broker.md) — Kafka transporta envelopes de integração
 - [ADR-002](./ADR-002-estrategia-idempotencia.md) — `deployId` no payload é usado como chave de idempotência
 - [ADR-004](./ADR-004-atualizacao-status-frontend.md) — `correlationId` do envelope é propagado para respostas HTTP
-- [ADR-007](./ADR-007-autenticacao-desenvolvimento.md) — Origem do `correlationId` via `CorrelationIdFilter` documentada
+- [ADR-007](./ADR-007-autenticacao-em-ambiente-de-desenvolvimento.md) — Origem do `correlationId` via `CorrelationIdFilter` documentada
 
 ## Conformidade com a RFP
 

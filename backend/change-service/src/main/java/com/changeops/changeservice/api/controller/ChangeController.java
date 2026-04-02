@@ -74,8 +74,7 @@ public class ChangeController {
 
         String requestedBy = resolveRequestedBy(userId, jwt, request.requestedBy());
 
-        UUID correlationId = UUID.fromString(MDC.get("correlation_id"));  // <- ler do MDC
-
+        UUID correlationId = UUID.fromString(MDC.get("correlation_id"));
 
         CreateChangeUseCase.Result result = createChangeUseCase.execute(
                 new CreateChangeUseCase.Command(

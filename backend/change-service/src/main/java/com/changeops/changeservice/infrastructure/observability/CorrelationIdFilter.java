@@ -30,7 +30,7 @@ public class CorrelationIdFilter implements Filter {
         HttpServletResponse httpResponse = (HttpServletResponse) response;
 
         String correlationId = httpRequest.getHeader(CORRELATION_ID_HEADER);
-        if (correlationId == null || correlationId.isBlank()) {
+        if (correlationId == null || correlationId.isBlank() || !isValidUuid(correlationId)) {
             correlationId = UUID.randomUUID().toString();
         }
 
@@ -42,6 +42,15 @@ public class CorrelationIdFilter implements Filter {
             chain.doFilter(request, response);
         } finally {
             MDC.clear();
+        }
+    }
+
+    private boolean isValidUuid(String value) {
+        try {
+            UUID.fromString(value);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
         }
     }
 }

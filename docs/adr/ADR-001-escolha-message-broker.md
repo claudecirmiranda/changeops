@@ -85,11 +85,13 @@ Adotamos `dltStrategy = DltStrategy.FAIL_ON_ERROR` no `@RetryableTopic`. Isso ga
 
 ### Erros não retentáveis
 
-`DeserializationException` e `InvalidFormatException` são configurados em `exclude` no `@RetryableTopic` — payloads inválidos vão diretamente ao DLT sem consumir tentativas de retry, pois retentativas não resolveriam dados corrompidos na origem.
+### Erros não retentáveis
+
+`InvalidOrchestratorStateException` está configurada em `exclude` no `@RetryableTopic` — erros de regra de negócio/estado inválido não devem consumir tentativas de retry, pois novas tentativas não resolveriam a inconsistência de estado.
 
 ### Producer do DLT
 
-O `DeadLetterPublishingRecoverer` utiliza um `KafkaTemplate<String, byte[]>` dedicado com `ByteArraySerializer`, marcado como `@Primary`. Isso preserva os bytes originais da mensagem no DLT sem re-serialização como Base64 — problema que ocorria quando o recoverer usava o `KafkaTemplate<String, IntegrationEvent>` padrão do contexto.
+O encaminhamento para o DLT segue a configuração padrão do Spring Kafka. Na implementação atual não existe um `KafkaTemplate<String, byte[]>` dedicado nem um `DeadLetterPublishingRecoverer` customizado com `ByteArraySerializer`.
 
 ## Justificativa
 

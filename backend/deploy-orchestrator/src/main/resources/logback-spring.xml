@@ -2,7 +2,7 @@
 <configuration>
   <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-  <springProperty scope="context" name="SERVICE_NAME" source="spring.application.name" defaultValue="change-service"/>
+  <springProperty scope="context" name="SERVICE_NAME" source="spring.application.name" defaultValue="deploy-orchestrator"/>
   <springProperty scope="context" name="SERVICE_ENV"  source="spring.profiles.active"  defaultValue="local"/>
 
   <appender name="JSON_STDOUT" class="ch.qos.logback.core.ConsoleAppender">
@@ -18,7 +18,7 @@
 
   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
-      <pattern>%d{HH:mm:ss.SSS} [%X{correlation_id:-NO_CORR}] [%X{service:-change-service}] %-5level %logger{36} - %msg%n</pattern>
+      <pattern>%d{HH:mm:ss.SSS} [%X{correlation_id:-NO_CORR}] [%X{service:-deploy-orchestrator}] %-5level %logger{36} - %msg%n</pattern>
     </encoder>
   </appender>
 
