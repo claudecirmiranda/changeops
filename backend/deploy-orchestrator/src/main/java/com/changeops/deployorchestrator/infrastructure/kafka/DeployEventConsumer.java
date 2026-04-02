@@ -78,6 +78,15 @@ public class DeployEventConsumer {
                     "Deserialization failed or invalid payload. topic=" + topic + ", offset=" + offset);
         }
 
+        DeployFinishedEvent.Payload payload = event.payload();
+        if (payload.deployId() == null || payload.changeId() == null || payload.result() == null) {
+            log.error("Malformed payload: required fields (deployId, changeId, result) must not be null"
+                    + " — routing directly to DLT: topic={}, offset={}", topic, offset);
+            throw new InvalidOrchestratorStateException(
+                    "Malformed DeployFinishedEvent: required payload fields are null. topic=" + topic
+                    + ", offset=" + offset);
+        }
+
         if (topic.contains("-retry-")) {
             eventsRetriesCounter.increment();
         }

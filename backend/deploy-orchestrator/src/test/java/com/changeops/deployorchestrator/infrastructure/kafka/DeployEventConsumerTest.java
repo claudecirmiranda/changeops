@@ -147,6 +147,88 @@ class DeployEventConsumerTest {
                 .isEqualTo(1.0);
     }
 
+    // ─── Edge-Case: Malformed / missing payload fields ────────────────────────
+
+    @Test
+    void shouldThrowInvalidOrchestratorStateException_whenPayloadDeployIdIsNull() {
+        DeployFinishedEvent eventWithNullDeployId = new DeployFinishedEvent(
+                "DeployFinishedEvent", "1.0", UUID.randomUUID(), Instant.now(),
+                new DeployFinishedEvent.Payload(
+                        null,              // deployId = null
+                        UUID.randomUUID(),
+                        "SUCCESS",
+                        Instant.now()));
+        ConsumerRecord<String, DeployFinishedEvent> record = new ConsumerRecord<>(
+                "changeops.deploy.finished", 0, 0L,
+                UUID.randomUUID().toString(), eventWithNullDeployId);
+
+        // A null deployId would cause a NullPointerException in the service —
+        // the consumer must treat it as a deserialization failure and route to DLT
+        // by throwing InvalidOrchestratorStateException (no-retry annotation).
+        assertThatThrownBy(() -> consumer.onDeployFinished(record, "changeops.deploy.finished", 0L))
+                .isInstanceOf(InvalidOrchestratorStateException.class);
+    }
+
+    @Test
+    void shouldThrowInvalidOrchestratorStateException_whenPayloadChangeIdIsNull() {
+        DeployFinishedEvent eventWithNullChangeId = new DeployFinishedEvent(
+                "DeployFinishedEvent", "1.0", UUID.randomUUID(), Instant.now(),
+                new DeployFinishedEvent.Payload(
+                        UUID.randomUUID(),
+                        null,              // changeId = null
+                        "SUCCESS",
+                        Instant.now()));
+        ConsumerRecord<String, DeployFinishedEvent> record = new ConsumerRecord<>(
+                "changeops.deploy.finished", 0, 0L,
+                UUID.randomUUID().toString(), eventWithNullChangeId);
+
+        assertThatThrownBy(() -> consumer.onDeployFinished(record, "changeops.deploy.finished", 0L))
+                .isInstanceOf(InvalidOrchestratorStateException.class);
+    }
+
+    @Test
+    void shouldThrowInvalidOrchestratorStateException_whenResultFieldIsNull() {
+        DeployFinishedEvent eventWithNullResult = new DeployFinishedEvent(
+                "DeployFinishedEvent", "1.0", UUID.randomUUID(), Instant.now(),
+                new DeployFinishedEvent.Payload(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        null,             // result = null
+                        Instant.now()));
+        ConsumerRecord<String, DeployFinishedEvent> record = new ConsumerRecord<>(
+                "changeops.deploy.finished", 0, 0L,
+                UUID.randomUUID().toString(), eventWithNullResult);
+
+        assertThatThrownBy(() -> consumer.onDeployFinished(record, "changeops.deploy.finished", 0L))
+                .isInstanceOf(InvalidOrchestratorStateException.class);
+    }
+
+    @Test
+    void shouldIncrementDltCounters_whenDltHandlerReceivesEmptyJsonString() {
+        ConsumerRecord<String, Object> record = new ConsumerRecord<>(
+                "changeops.deploy.finished-dlt", 0, 0L,
+                UUID.randomUUID().toString(), "{}");
+
+        consumer.onDlt(record);
+
+        assertThat(registry.counter("events_dlt_total", "consumer", "deploy-orchestrator").count())
+                .isEqualTo(1.0);
+        assertThat(registry.counter("events_failed_total", "consumer", "deploy-orchestrator").count())
+                .isEqualTo(1.0);
+    }
+
+    @Test
+    void shouldIncrementDltCounters_whenDltHandlerReceivesPlainTextPayload() {
+        ConsumerRecord<String, Object> record = new ConsumerRecord<>(
+                "changeops.deploy.finished-dlt", 0, 0L,
+                UUID.randomUUID().toString(), "hello world");
+
+        consumer.onDlt(record);
+
+        assertThat(registry.counter("events_dlt_total", "consumer", "deploy-orchestrator").count())
+                .isEqualTo(1.0);
+    }
+
     private ConsumerRecord<String, DeployFinishedEvent> buildRecord(String topic) {
         return new ConsumerRecord<>(
                 topic, 0, 0L,

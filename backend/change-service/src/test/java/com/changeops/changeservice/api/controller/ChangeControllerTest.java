@@ -261,4 +261,283 @@ class ChangeControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Bad Request"));
     }
+
+    // ─── Edge-Case: Empty / Null / Whitespace inputs ──────────────────────────
+
+    @Test
+    void create_shouldReturn400_whenBodyIsEmptyObject() throws Exception {
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Validation Error"))
+                .andExpect(jsonPath("$.fields.title").exists())
+                .andExpect(jsonPath("$.fields.componentId").exists())
+                .andExpect(jsonPath("$.fields.requestedBy").exists())
+                .andExpect(jsonPath("$.fields.scheduledAt").exists());
+    }
+
+    @Test
+    void create_shouldReturn400_whenAllFieldsAreNull() throws Exception {
+        String body = """
+                {
+                  "title": null,
+                  "description": null,
+                  "componentId": null,
+                  "requestedBy": null,
+                  "scheduledAt": null
+                }""";
+
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Validation Error"))
+                .andExpect(jsonPath("$.fields.title").exists())
+                .andExpect(jsonPath("$.fields.componentId").exists())
+                .andExpect(jsonPath("$.fields.requestedBy").exists())
+                .andExpect(jsonPath("$.fields.scheduledAt").exists());
+    }
+
+    @Test
+    void create_shouldReturn400_whenTitleIsWhitespaceOnly() throws Exception {
+        String body = """
+                {
+                  "title": "   ",
+                  "componentId": "svc-a",
+                  "requestedBy": "user-001",
+                  "scheduledAt": "%s"
+                }""".formatted(Instant.now().plus(1, ChronoUnit.DAYS));
+
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.title").exists());
+    }
+
+    @Test
+    void create_shouldReturn400_whenRequestedByIsWhitespaceOnly() throws Exception {
+        String body = """
+                {
+                  "title": "Deploy v1",
+                  "componentId": "svc-a",
+                  "requestedBy": "   ",
+                  "scheduledAt": "%s"
+                }""".formatted(Instant.now().plus(1, ChronoUnit.DAYS));
+
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.requestedBy").exists());
+    }
+
+    @Test
+    void create_shouldReturn400_whenComponentIdIsWhitespaceOnly() throws Exception {
+        String body = """
+                {
+                  "title": "Deploy v1",
+                  "componentId": "   ",
+                  "requestedBy": "user-001",
+                  "scheduledAt": "%s"
+                }""".formatted(Instant.now().plus(1, ChronoUnit.DAYS));
+
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.componentId").exists());
+    }
+
+    // ─── Edge-Case: Oversized fields ─────────────────────────────────────────
+
+    @Test
+    void create_shouldReturn400_whenTitleExceedsMaxLength() throws Exception {
+        String oversizedTitle = "A".repeat(256);
+        String body = """
+                {
+                  "title": "%s",
+                  "componentId": "svc-a",
+                  "requestedBy": "user-001",
+                  "scheduledAt": "%s"
+                }""".formatted(oversizedTitle, Instant.now().plus(1, ChronoUnit.DAYS));
+
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.title").exists());
+    }
+
+    @Test
+    void create_shouldReturn400_whenDescriptionExceedsMaxLength() throws Exception {
+        String oversizedDesc = "D".repeat(2001);
+        String body = """
+                {
+                  "title": "Deploy v1",
+                  "description": "%s",
+                  "componentId": "svc-a",
+                  "requestedBy": "user-001",
+                  "scheduledAt": "%s"
+                }""".formatted(oversizedDesc, Instant.now().plus(1, ChronoUnit.DAYS));
+
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.description").exists());
+    }
+
+    @Test
+    void create_shouldReturn400_whenComponentIdExceedsMaxLength() throws Exception {
+        String oversizedId = "a" + "b".repeat(100);
+        String body = """
+                {
+                  "title": "Deploy v1",
+                  "componentId": "%s",
+                  "requestedBy": "user-001",
+                  "scheduledAt": "%s"
+                }""".formatted(oversizedId, Instant.now().plus(1, ChronoUnit.DAYS));
+
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.componentId").exists());
+    }
+
+    // ─── Edge-Case: componentId pattern violations ────────────────────────────
+
+    @Test
+    void create_shouldReturn400_whenComponentIdStartsWithDot() throws Exception {
+        String body = """
+                {
+                  "title": "Deploy v1",
+                  "componentId": ".starts-with-dot",
+                  "requestedBy": "user-001",
+                  "scheduledAt": "%s"
+                }""".formatted(Instant.now().plus(1, ChronoUnit.DAYS));
+
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.componentId").exists());
+    }
+
+    @Test
+    void create_shouldReturn400_whenComponentIdContainsPathTraversal() throws Exception {
+        String body = """
+                {
+                  "title": "Deploy v1",
+                  "componentId": "../etc/passwd",
+                  "requestedBy": "user-001",
+                  "scheduledAt": "%s"
+                }""".formatted(Instant.now().plus(1, ChronoUnit.DAYS));
+
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.componentId").exists());
+    }
+
+    @Test
+    void create_shouldReturn400_whenComponentIdContainsXssPayload() throws Exception {
+        String body = """
+                {
+                  "title": "Deploy v1",
+                  "componentId": "<script>alert(1)</script>",
+                  "requestedBy": "user-001",
+                  "scheduledAt": "%s"
+                }""".formatted(Instant.now().plus(1, ChronoUnit.DAYS));
+
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.componentId").exists());
+    }
+
+    // ─── Edge-Case: scheduledAt in the past ──────────────────────────────────
+
+    @Test
+    void create_shouldReturn400_whenScheduledAtIsInThePast() throws Exception {
+        String body = """
+                {
+                  "title": "Deploy v1",
+                  "componentId": "svc-a",
+                  "requestedBy": "user-001",
+                  "scheduledAt": "2020-01-01T00:00:00Z"
+                }""";
+
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.scheduledAt").exists());
+    }
+
+    // ─── Edge-Case: Invalid query params ─────────────────────────────────────
+
+    @Test
+    void list_shouldReturn400_whenStatusFilterIsInvalid() throws Exception {
+        mockMvc.perform(get("/api/v1/changes")
+                        .param("status", "INVALID_STATUS"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid Parameter"));
+    }
+
+    // ─── Edge-Case: XSS payload stored — returned as-is in JSON (safe) ───────
+
+    @Test
+    void create_shouldAcceptXssPayloadInTitleAndDescription_andReturnSafely() throws Exception {
+        UUID changeId = UUID.randomUUID();
+        when(createChangeUseCase.execute(any()))
+                .thenReturn(new CreateChangeUseCase.Result(
+                        changeId, ChangeStatus.PREPARED, UUID.randomUUID(), Instant.now()));
+
+        // XSS payloads in free-text fields (title, description) are stored as-is —
+        // backend is a JSON API; React handles output encoding on the client side.
+        String body = """
+                {
+                  "title": "<script>alert(\\"xss\\")</script>",
+                  "description": "<img src=x onerror=alert(1)>",
+                  "componentId": "svc-a",
+                  "requestedBy": "user-001",
+                  "scheduledAt": "%s"
+                }""".formatted(Instant.now().plus(1, ChronoUnit.DAYS));
+
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.changeId").value(changeId.toString()));
+    }
+
+    // ─── Edge-Case: HTTP methods not allowed ─────────────────────────────────
+
+    @Test
+    void shouldReturn405_whenPutIsUsedOnChangesEndpoint() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .put("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    void shouldReturn405_whenDeleteIsUsedOnChangesEndpoint() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/v1/changes"))
+                .andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    void shouldReturn415_whenContentTypeIsMissing() throws Exception {
+        mockMvc.perform(post("/api/v1/changes")
+                        .content("{\"title\":\"v1\"}"))
+                .andExpect(status().isUnsupportedMediaType());
+    }
 }
