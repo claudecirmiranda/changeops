@@ -71,11 +71,25 @@ Adotamos **Apache Kafka** (Confluent CP 7.6.0) como message broker.
 
 | Requisito | Status | Evidência |
 |-----------|--------|-----------|
-| "Message broker para comunicação assíncrona" | ✅ Atendido | Kafka configurado em `docker-compose.yml` com tópicos `changes.prepared` e `changes.deploy.finished` |
-| "Retry com backoff exponencial" | ✅ Atendido | `@RetryableTopic` com `backoff = @Backoff(delay = 1000, multiplier = 2.0)` em `DeployFinishedConsumer.java` |
-| "Dead Letter Queue para eventos falhos" | ✅ Atendido | Tópico `.dlq` configurado em `KafkaConfig.java` com métrica `events_dlq_size` |
+| "Message broker para comunicação assíncrona" | ✅ Atendido | Kafka configurado em `docker-compose.yml` com tópicos `changeops.changes.prepared` e `changeops.deploy.finished` |
+| "Retry com backoff exponencial" | ✅ Atendido | `@RetryableTopic` com `backoff = @Backoff(delay = 500, multiplier = 2.0, maxDelay = 10_000)` em `DeployEventConsumer.java` |
+| "Dead Letter Queue para eventos falhos" | ✅ Atendido | Tópico `changeops.deploy.finished-dlt` configurado em `KafkaConfig.java` com métrica `events_dlt_total` |
 | "Estratégia de evolução de infraestrutura" | ✅ Atendido | Roadmap para KRaft documentado; compatibilidade com operadores gerenciados (Confluent, MSK) |
 | "Observabilidade do broker" | ✅ Atendido | Métricas Prometheus expostas; dashboard Grafana com painéis de lag e throughput |
+
+## Decisões de Configuração do Consumer
+
+### Estratégia de DLT
+
+Adotamos `dltStrategy = DltStrategy.FAIL_ON_ERROR` no `@RetryableTopic`. Isso garante que, ao falhar no próprio tópico DLT, o processamento para sem loop infinito — comportamento anterior com `ALWAYS_RETRY_ON_ERROR` causava reprocessamento indefinido em caso de falha de desserialização.
+
+### Erros não retentáveis
+
+`DeserializationException` e `InvalidFormatException` são configurados em `exclude` no `@RetryableTopic` — payloads inválidos vão diretamente ao DLT sem consumir tentativas de retry, pois retentativas não resolveriam dados corrompidos na origem.
+
+### Producer do DLT
+
+O `DeadLetterPublishingRecoverer` utiliza um `KafkaTemplate<String, byte[]>` dedicado com `ByteArraySerializer`, marcado como `@Primary`. Isso preserva os bytes originais da mensagem no DLT sem re-serialização como Base64 — problema que ocorria quando o recoverer usava o `KafkaTemplate<String, IntegrationEvent>` padrão do contexto.
 
 ## Justificativa
 
@@ -97,7 +111,7 @@ Essa capacidade fornece maior previsibilidade operacional em comparação com br
 ## Evolução da Infraestrutura
 
 Como parte do roadmap, está prevista a migração do cluster Kafka para o modo **KRaft (Kafka Raft Metadata Mode)**, eliminando a dependência do Zookeeper.
-O KRaft substitui o Zookeeper por um mecanismo interno baseado em consenso (Raft), onde o próprio Kafka gerencia metadados e eleição de líderes, simplificando a arquitetura e reduzindo a complexidade operacional .
+O KRaft substitui o Zookeeper por um mecanismo interno baseado em consenso (Raft), onde o próprio Kafka gerencia metadados e eleição de líderes, simplificando a arquitetura e reduzindo a complexidade operacional.
 
 Principais benefícios esperados:
 
@@ -106,6 +120,6 @@ Principais benefícios esperados:
 *   Melhor escalabilidade para clusters grandes
 *   Recuperação mais rápida em falhas
 
-A partir do Kafka 3.3+, o modo KRaft já é considerado pronto para novos clusters, e versões mais recentes caminham para remoção completa do Zookeeper .
+A partir do Kafka 3.3+, o modo KRaft já é considerado pronto para novos clusters, e versões mais recentes caminham para remoção completa do Zookeeper.
 
 A migração será planejada em fases, garantindo compatibilidade e estabilidade durante a transição do ambiente produtivo.

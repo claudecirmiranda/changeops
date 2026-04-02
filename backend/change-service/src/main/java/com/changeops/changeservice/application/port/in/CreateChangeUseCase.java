@@ -14,7 +14,8 @@ public interface CreateChangeUseCase {
             String description,
             String componentId,
             String requestedBy,
-            Instant scheduledAt
+            Instant scheduledAt,
+            UUID correlationId
     ) {}
 
     record Result(

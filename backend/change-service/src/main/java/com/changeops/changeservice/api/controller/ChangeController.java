@@ -15,6 +15,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+
+import org.slf4j.MDC;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.data.domain.Page;
@@ -72,13 +74,17 @@ public class ChangeController {
 
         String requestedBy = resolveRequestedBy(userId, jwt, request.requestedBy());
 
+        UUID correlationId = UUID.fromString(MDC.get("correlation_id"));  // <- ler do MDC
+
+
         CreateChangeUseCase.Result result = createChangeUseCase.execute(
                 new CreateChangeUseCase.Command(
                         request.title(),
                         request.description(),
                         request.componentId(),
                         requestedBy,
-                        request.scheduledAt()));
+                        request.scheduledAt(),
+                        correlationId));
 
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")

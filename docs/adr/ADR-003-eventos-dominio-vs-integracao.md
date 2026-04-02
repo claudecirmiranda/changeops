@@ -15,34 +15,50 @@ Adotamos **separação explícita em duas camadas**:
 ### Evento de Domínio
 
 Gerado pelo Aggregate Root (`Change`) no momento da transição de estado. Contém apenas dados do domínio, sem metadados de transporte.
-
 ```java
-// domain/event/ChangePreparedEvent.java  
-public record ChangePreparedEvent(  
-    UUID changeId,  
-    String componentId,  
-    String requestedBy,  
-    Instant scheduledAt,  
-    UUID correlationId,  
-    Instant occurredAt  
+// domain/event/ChangePreparedEvent.java
+public record ChangePreparedEvent(
+    UUID changeId,
+    String componentId,
+    String requestedBy,
+    Instant scheduledAt,
+    UUID correlationId,
+    Instant occurredAt
 ) implements DomainEvent {}
-``` 
+```
 
 O evento é adicionado a uma lista interna do aggregate (`domainEvents`) e drenado pelo service após persistência (`pullDomainEvents()`).
 
 ### Evento de Integração (Envelope)
 
 Produzido pelo adapter de infraestrutura (`KafkaEventPublisherAdapter`) ao publicar no broker. Encapsula o evento de domínio com metadados de transporte.
-
-```
-// infrastructure/kafka/IntegrationEvent.java  
-public record IntegrationEvent(  
-    String eventType,        // "ChangePreparedEvent"  
-    String version,          // "1.0"  
-    UUID correlationId,      // rastreabilidade ponta a ponta  
-    Instant occurredAt,  
-    Object payload           // evento de domínio serializado  
+```java
+// infrastructure/kafka/IntegrationEvent.java
+public record IntegrationEvent(
+    String eventType,        // "ChangePreparedEvent"
+    String version,          // "1.0"
+    UUID correlationId,      // rastreabilidade ponta a ponta
+    Instant occurredAt,
+    Object payload           // evento de domínio serializado
 ) {}
+```
+
+## Origem do correlationId
+
+O `correlationId` é gerado pelo `CorrelationIdFilter` na camada de infraestrutura HTTP, a partir do header `X-Correlation-Id` da requisição recebida. Se o header não estiver presente, um UUID é gerado automaticamente pelo filter.
+
+O valor é propagado via MDC (`correlation_id`) e lido pelo controller antes de construir o `Command`, sendo passado explicitamente para `Change.create()` — que não gera mais seu próprio `correlationId`.
+
+Esse fluxo garante rastreabilidade desde o request HTTP até os eventos Kafka e logs do `deploy-orchestrator`:
+```
+X-Correlation-Id header (ou UUID gerado pelo filter)
+  └─ CorrelationIdFilter → MDC.put("correlation_id", ...)
+       └─ ChangeController → UUID.fromString(MDC.get("correlation_id"))
+            └─ CreateChangeUseCase.Command(correlationId)
+                 └─ Change.create(correlationId)
+                      └─ ChangePreparedEvent(correlationId)
+                           └─ IntegrationEvent(correlationId)
+                                └─ Kafka → deploy-orchestrator MDC
 ```
 
 ## Propagação de Contexto
@@ -50,20 +66,18 @@ public record IntegrationEvent(
 O campo **`correlationId`** é propagado do evento de domínio para o `IntegrationEvent` **sem qualquer transformação**.
 Isso garante:
 *   Rastreabilidade ponta a ponta entre serviços
-*   Compatibilidade com logging estruturado (MDC — _Mapped Diagnostic Context_)
+*   Compatibilidade com logging estruturado (MDC)
 *   Integração direta com ferramentas de tracing distribuído (ex: OpenTelemetry)
-Essa abordagem evita acoplamento do domínio com frameworks de observabilidade, mantendo a responsabilidade de instrumentação na camada de infraestrutura.
 
 ### Fluxo
-
-```bash
-Change.create()  
-  └─ domainEvents.add(ChangePreparedEvent)  
-       └─ CreateChangeService.execute()  
-            └─ saved.pullDomainEvents()  
-                 └─ publishEventPort.publish(domainEvent)  
-                      └─ KafkaEventPublisherAdapter  
-                           └─ wrap(domainEvent) → IntegrationEvent  
+```
+Change.create(correlationId)
+  └─ domainEvents.add(ChangePreparedEvent)
+       └─ CreateChangeService.execute()
+            └─ saved.pullDomainEvents()
+                 └─ publishEventPort.publish(domainEvent)
+                      └─ KafkaEventPublisherAdapter
+                           └─ wrap(domainEvent) → IntegrationEvent
                                 └─ kafkaTemplate.send(topic, key, integrationEvent)
 ```
 
@@ -78,15 +92,12 @@ Change.create()
 
 ### 2. Evento único (domínio = integração)
 
-*   Menor complexidade inicial: um único tipo de evento.
-*   Acoplamento entre domínio e infraestrutura (metadados de transporte no aggregate).
+*   Menor complexidade inicial.
+*   Acoplamento entre domínio e infraestrutura.
 *   Versionamento requer alteração no modelo de domínio.
-*   Dificulta migração de broker.
 
 ### 3. Event Bus interno + publicador separado
 
-*   Evento de domínio publicado em um barramento interno (Spring Events).
-*   Listener da infra escuta e produz evento de integração.
 *   Maior separação, mas adiciona complexidade com dois mecanismos de publicação.
 *   Risco de perda se listener falhar (a menos que use Outbox — ver Roadmap Phase 2).
 
@@ -104,76 +115,42 @@ Change.create()
 ## Consequências
 
 ### Positivas
-- Evolução independente: alterações no envelope de integração não impactam lógica de domínio, e vice-versa
+- Evolução independente: alterações no envelope de integração não impactam lógica de domínio
 - Backward compatibility: consumidores usam `@JsonIgnoreProperties(ignoreUnknown = true)` para tolerar campos futuros
-- Rastreabilidade unificada: `correlationId` no envelope permite correlacionar logs, métricas e traces entre serviços
+- Rastreabilidade unificada: `correlationId` propagado desde o request HTTP até logs do consumidor
 
 ### Negativas / Riscos
-- Complexidade adicional: desenvolvedores precisam entender duas camadas de evento (domínio e integração)
-- Overhead de serialização: envelope adiciona ~200 bytes por evento, impactando throughput em volumes muito altos
-- Risco de inconsistência sem Transactional Outbox: evento pode ser publicado sem persistência de estado em caso de falha
+- Complexidade adicional: duas camadas de evento para entender
+- Overhead de serialização: envelope adiciona ~200 bytes por evento
+- Risco de inconsistência sem Transactional Outbox
 
 ### Mitigações
-- Documentação clara com exemplos de `ChangePreparedEvent` (domínio) e `IntegrationEvent` (envelope) no próprio ADR
-- Benchmark de serialização mostra impacto < 0.5ms por evento; aceitável para volumes esperados na Fase 1
-- Débito técnico registrado: implementação de Outbox Pattern planejada para Fase 2; mitigação atual com retry e idempotência
+- Documentação clara com exemplos no próprio ADR
+- Débito técnico registrado: Outbox Pattern planejado para Fase 2
 
 ## Relacionado a
-- [ADR-001](./ADR-001-escolha-message-broker.md) — Kafka transporta envelopes de integração com partition key derivada de `change_id`
-- [ADR-002](./ADR-002-estrategia-idempotencia.md) — `eventId` no envelope é usado como chave de idempotência no consumidor
-- [ADR-004](./ADR-004-atualizacao-status-frontend.md) — `correlationId` do envelope é propagado para respostas HTTP e polling
+- [ADR-001](./ADR-001-escolha-message-broker.md) — Kafka transporta envelopes de integração
+- [ADR-002](./ADR-002-estrategia-idempotencia.md) — `deployId` no payload é usado como chave de idempotência
+- [ADR-004](./ADR-004-atualizacao-status-frontend.md) — `correlationId` do envelope é propagado para respostas HTTP
+- [ADR-007](./ADR-007-autenticacao-desenvolvimento.md) — Origem do `correlationId` via `CorrelationIdFilter` documentada
 
 ## Conformidade com a RFP
 
 | Requisito | Status | Evidência |
 |-----------|--------|-----------|
 | "Separação explícita entre eventos de domínio e integração" | ✅ Atendido | `ChangePreparedEvent.java` (domínio) vs `IntegrationEvent.java` (envelope) em pacotes distintos |
-| "Versionamento de contratos de evento" | ✅ Atendido | Campo `version` no envelope; estratégia `tolerant reader` documentada em consumidores |
-| "Rastreabilidade ponta a ponta via correlation ID" | ✅ Atendido | `correlationId` propagado de frontend → backend → Kafka → consumidor → logs estruturados |
+| "Versionamento de contratos de evento" | ✅ Atendido | Campo `version` no envelope; estratégia `tolerant reader` em consumidores |
+| "Rastreabilidade ponta a ponta via correlation ID" | ✅ Atendido | `correlationId` propagado de header HTTP → MDC → domínio → Kafka → consumidor → logs estruturados |
 | "Evolução sem breaking changes" | ✅ Atendido | `@JsonIgnoreProperties(ignoreUnknown = true)` + versionamento major para mudanças incompatíveis |
 | "Documentação de contratos com AsyncAPI" | ✅ Atendido | `events.yml` em `contracts/asyncapi/` descrevendo envelope, payload e metadados |
 
 ## Consistência Transacional (Outbox)
 
-Atualmente, a publicação do evento ocorre após a persistência da entidade, mas **fora de uma garantia transacional única**, o que pode gerar inconsistência em cenários de falha (ex: commit no banco sem publicação no Kafka, ou vice-versa).
-Esse risco é conhecido e **aceito temporariamente como débito técnico**, sendo mitigado no roadmap:
-
-**Phase 2.1 — Implementação do Outbox Pattern**
-
-O Outbox Pattern garantirá:
-*   Atomicidade entre persistência do estado e registro do evento
-*   Publicação assíncrona confiável (polling ou CDC)
-*   Eliminação do risco de perda de eventos
-
-## Padrões de Design Aplicados
-
-### Adapter Pattern (Hexagonal Architecture)
-
-O `KafkaEventPublisherAdapter` implementa a porta `PublishEventPort` do domínio. O domínio conhece apenas a interface; a tradução para `IntegrationEvent` e a publicação no broker são responsabilidade exclusiva do adapter. Isso isola o domínio de qualquer detalhe de infraestrutura.
-
-### Envelope Pattern
-
-`IntegrationEvent` é um envelope que encapsula o payload do evento de domínio com metadados de transporte (`eventType`, `version`, `correlationId`, `occurredAt`). O campo `version` permite versionamento semântico independente do domínio.
-
-### Dimensionamento de métricas baseado em tags
-
-Métricas do tipo counter seguem o padrão de dimensionamento via `tag`:  
-
-`events_published_total{type="ChangePreparedEvent"}`
-
-Isso permite consultas Prometheus como:  
-
-`sum by (type) (rate(events_published_total[1m]))`
-
-Sem proliferação de nomes de métricas distintos por tipo de evento.
+Atualmente, a publicação do evento ocorre após a persistência da entidade, mas **fora de uma garantia transacional única**. Esse risco é aceito temporariamente como débito técnico, sendo mitigado no roadmap com implementação do Outbox Pattern na Fase 2.
 
 ## Compatibilidade com Versões Anteriores
 
-O campo `version` no envelope `IntegrationEvent` é central para a estratégia de evolução contratual:
-
-*   **Breaking changes** → requerem bump de versão (`"1.0"` → `"2.0"`)
-*   **Non-breaking additions** → podem ser feitas sem mudança de versão
-*   Consumidores adotam **tolerant reader** (`@JsonIgnoreProperties(ignoreUnknown = true`)
+*   **Breaking changes** → bump de versão (`"1.0"` → `"2.0"`)
+*   **Non-breaking additions** → sem mudança de versão
+*   Consumidores adotam **tolerant reader** (`@JsonIgnoreProperties(ignoreUnknown = true)`)
 *   Deploys parciais (rolling updates) são suportados
-
-O `correlationId` preserva rastreabilidade ponta a ponta mesmo após evolução do contrato.

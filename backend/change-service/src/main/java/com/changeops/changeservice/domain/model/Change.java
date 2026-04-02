@@ -39,10 +39,11 @@ public class Change {
             String description,
             String componentId,
             String requestedBy,
-            Instant scheduledAt) {
+            Instant scheduledAt,
+            UUID correlationId) {
 
         UUID changeId = UUID.randomUUID();
-        UUID correlationId = UUID.randomUUID();
+        
         Instant now = Instant.now();
 
         Change change = Change.builder()

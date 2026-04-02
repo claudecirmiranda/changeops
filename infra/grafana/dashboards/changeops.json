@@ -1,7 +1,7 @@
 {
   "id": null,
   "uid": "changeops-main",
-  "version": 8,
+  "version": 9,
   "title": "ChangeOps Dashboard",
   "tags": ["changeops"],
   "timezone": "browser",
@@ -22,64 +22,36 @@
       "title": "Changes - Created (total)",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
-      "fieldConfig": {
-        "defaults": { "decimals": 0 }
-      },
+      "fieldConfig": { "defaults": { "decimals": 0 } },
       "maxDataPoints": 100,
-      "targets": [{
-        "expr": "sum(increase(changes_created_total[$__range]))",
-        "legendFormat": "Created",
-        "instant": true,
-        "interval": "5s"
-      }]
+      "targets": [{ "expr": "sum(increase(changes_created_total[$__range]))", "legendFormat": "Created", "instant": true, "interval": "5s" }]
     },
     {
       "id": 8,
       "title": "Changes - Completed",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
-      "fieldConfig": {
-        "defaults": { "decimals": 0, "color": { "fixedColor": "green", "mode": "fixed" } }
-      },
+      "fieldConfig": { "defaults": { "decimals": 0, "color": { "fixedColor": "green", "mode": "fixed" } } },
       "maxDataPoints": 100,
-      "targets": [{
-        "expr": "sum(increase(changes_completed_total[$__range]))",
-        "legendFormat": "Completed",
-        "instant": true,
-        "interval": "5s"
-      }]
+      "targets": [{ "expr": "sum(increase(changes_completed_total[$__range]))", "legendFormat": "Completed", "instant": true, "interval": "5s" }]
     },
     {
       "id": 9,
       "title": "Changes - Failed",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
-      "fieldConfig": {
-        "defaults": { "decimals": 0, "color": { "fixedColor": "red", "mode": "fixed" } }
-      },
+      "fieldConfig": { "defaults": { "decimals": 0, "color": { "fixedColor": "red", "mode": "fixed" } } },
       "maxDataPoints": 100,
-      "targets": [{
-        "expr": "sum(increase(changes_failed_total[$__range]))",
-        "legendFormat": "Failed",
-        "instant": true,
-        "interval": "5s"
-      }]
+      "targets": [{ "expr": "sum(increase(changes_failed_total[$__range]))", "legendFormat": "Failed", "instant": true, "interval": "5s" }]
     },
     {
       "id": 10,
       "title": "Changes - Prepared",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
-      "fieldConfig": {
-        "defaults": { "decimals": 0, "color": { "fixedColor": "blue", "mode": "fixed" } }
-      },
+      "fieldConfig": { "defaults": { "decimals": 0, "color": { "fixedColor": "blue", "mode": "fixed" } } },
       "maxDataPoints": 100,
-      "targets": [{
-        "expr": "sum(increase(changes_created_total[$__range])) - sum(increase(changes_completed_total[$__range])) - sum(increase(changes_failed_total[$__range]))",
-        "legendFormat": "Prepared",
-        "instant": true,
-        "interval": "5s"
-      }]
+      "targets": [{ "expr": "sum(increase(changes_created_total[$__range])) - sum(increase(changes_completed_total[$__range])) - sum(increase(changes_failed_total[$__range]))", "legendFormat": "Prepared", "instant": true, "interval": "5s" }]
     },
     {
       "id": 6,
@@ -89,82 +61,34 @@
       "fieldConfig": {
         "defaults": { "decimals": 0 },
         "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "COMPLETED" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
-          },
-          {
-            "matcher": { "id": "byName", "options": "FAILED" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
-          },
-          {
-            "matcher": { "id": "byName", "options": "PREPARED" },
-            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }]
-          }
+          { "matcher": { "id": "byName", "options": "COMPLETED" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+          { "matcher": { "id": "byName", "options": "FAILED" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+          { "matcher": { "id": "byName", "options": "PREPARED" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }] }
         ]
       },
       "targets": [
-        {
-          "expr": "sum(increase(changes_completed_total[$__range]))",
-          "legendFormat": "COMPLETED",
-          "instant": true,
-          "interval": "5s"
-        },
-        {
-          "expr": "sum(increase(changes_failed_total[$__range]))",
-          "legendFormat": "FAILED",
-          "instant": true,
-          "interval": "5s"
-        },
-        {
-          "expr": "sum(increase(changes_created_total[$__range])) - sum(increase(changes_completed_total[$__range])) - sum(increase(changes_failed_total[$__range]))",
-          "legendFormat": "PREPARED",
-          "instant": true,
-          "interval": "5s"
-        }
+        { "expr": "sum(increase(changes_completed_total[$__range]))", "legendFormat": "COMPLETED", "instant": true, "interval": "5s" },
+        { "expr": "sum(increase(changes_failed_total[$__range]))", "legendFormat": "FAILED", "instant": true, "interval": "5s" },
+        { "expr": "sum(increase(changes_created_total[$__range])) - sum(increase(changes_completed_total[$__range])) - sum(increase(changes_failed_total[$__range]))", "legendFormat": "PREPARED", "instant": true, "interval": "5s" }
       ]
     },
     {
       "id": 5,
       "title": "API Latency (p95)",
-      "description": "Latência p95 das requisições REST ao longo do tempo.",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
       "fieldConfig": {
         "defaults": {
           "unit": "s",
           "color": { "mode": "palette-classic" },
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "pointSize": 5,
-            "showPoints": "auto"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.1 },
-              { "color": "red", "value": 0.5 }
-            ]
-          }
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "pointSize": 5, "showPoints": "auto" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.1 }, { "color": "red", "value": 0.5 }] }
         }
       },
-      "options": {
-        "tooltip": { "mode": "multi", "sort": "desc" },
-        "legend": { "displayMode": "list", "placement": "bottom" }
-      },
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job='change-service'}[$__rate_interval])))",
-          "legendFormat": "change-service p95",
-          "interval": "30s"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job='deploy-orchestrator'}[$__rate_interval])))",
-          "legendFormat": "deploy-orchestrator p95",
-          "interval": "30s"
-        }
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job='change-service'}[$__rate_interval])))", "legendFormat": "change-service p95", "interval": "30s" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job='deploy-orchestrator'}[$__rate_interval])))", "legendFormat": "deploy-orchestrator p95", "interval": "30s" }
       ]
     },
     {
@@ -180,106 +104,54 @@
       "title": "Events - Published (total)",
       "type": "stat",
       "gridPos": { "h": 4, "w": 4, "x": 0, "y": 14 },
-      "fieldConfig": {
-        "defaults": { "decimals": 0 }
-      },
+      "fieldConfig": { "defaults": { "decimals": 0 } },
       "maxDataPoints": 100,
-      "targets": [{
-        "expr": "sum(increase(events_published_total[$__range]))",
-        "legendFormat": "Published",
-        "instant": true,
-        "interval": "5s"
-      }]
+      "targets": [{ "expr": "sum(increase(events_published_total[$__range]))", "legendFormat": "Published", "instant": true, "interval": "5s" }]
     },
     {
       "id": 3,
       "title": "Events - Consumed (total)",
       "type": "stat",
       "gridPos": { "h": 4, "w": 4, "x": 4, "y": 14 },
-      "fieldConfig": {
-        "defaults": { "decimals": 0 }
-      },
+      "fieldConfig": { "defaults": { "decimals": 0 } },
       "maxDataPoints": 100,
-      "targets": [{
-        "expr": "sum(increase(events_consumed_total[$__range]))",
-        "legendFormat": "Consumed",
-        "instant": true,
-        "interval": "5s"
-      }]
-    },
-    {
-      "id": 4,
-      "title": "Events - Retries (total)",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 14 },
-      "fieldConfig": {
-        "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "decimals": 0 }
-      },
-      "maxDataPoints": 100,
-      "targets": [{
-        "expr": "sum(increase(events_retries_total[$__range]))",
-        "legendFormat": "Retries",
-        "instant": true,
-        "interval": "5s"
-      }]
-    },
-    {
-      "id": 23,
-      "title": "Events - DLT (total)",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 14 },
-      "fieldConfig": {
-        "defaults": { "color": { "fixedColor": "dark-red", "mode": "fixed" }, "decimals": 0 }
-      },
-      "maxDataPoints": 100,
-      "targets": [{
-        "expr": "sum(increase(events_dlt_total[$__range]))",
-        "legendFormat": "DLT",
-        "instant": true,
-        "interval": "5s"
-      }]
-    },
-    {
-      "id": 24,
-      "title": "Events - Discarded (total)",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 14 },
-      "fieldConfig": {
-        "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" }, "decimals": 0 }
-      },
-      "maxDataPoints": 100,
-      "targets": [{
-        "expr": "sum(increase(events_discarded_total[$__range]))",
-        "legendFormat": "Discarded",
-        "instant": true,
-        "interval": "5s"
-      }]
+      "targets": [{ "expr": "sum(increase(events_consumed_total[$__range]))", "legendFormat": "Consumed", "instant": true, "interval": "5s" }]
     },
     {
       "id": 28,
       "title": "Events - Failed (total)",
       "type": "stat",
       "gridPos": { "h": 4, "w": 4, "x": 8, "y": 14 },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "fixedColor": "red", "mode": "fixed" },
-          "decimals": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 1 }
-            ]
-          }
-        }
-      },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } },
       "maxDataPoints": 100,
-      "targets": [{
-        "expr": "sum(increase(events_failed_total{consumer=\"deploy-orchestrator\"}[$__range])) or vector(0)",
-        "legendFormat": "Failed",
-        "instant": true,
-        "interval": "5s"
-      }]
+      "targets": [{ "expr": "sum(increase(events_failed_total{consumer=\"deploy-orchestrator\"}[$__range])) or vector(0)", "legendFormat": "Failed", "instant": true, "interval": "5s" }]
+    },
+    {
+      "id": 4,
+      "title": "Events - Retries (total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 14 },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" }, "decimals": 0 } },
+      "maxDataPoints": 100,
+      "targets": [{ "expr": "sum(increase(events_retries_total[$__range]))", "legendFormat": "Retries", "instant": true, "interval": "5s" }]
+    },
+    {
+      "id": 23,
+      "title": "Events - DLT (total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 14 },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "dark-red", "mode": "fixed" }, "decimals": 0 } },
+      "maxDataPoints": 100,
+      "targets": [{ "expr": "sum(increase(events_dlt_total[$__range]))", "legendFormat": "DLT", "instant": true, "interval": "5s" }]
+    },
+    {
+      "id": 24,
+      "title": "Events - Discarded (total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 14 },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" }, "decimals": 0 } },
+      "maxDataPoints": 100,
+      "targets": [{ "expr": "sum(increase(events_discarded_total[$__range]))", "legendFormat": "Discarded", "instant": true, "interval": "5s" }]
     },
     {
       "id": 7,
@@ -288,36 +160,12 @@
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 18 },
       "maxDataPoints": 100,
       "targets": [
-        {
-          "expr": "sum(rate(events_published_total[$__rate_interval])) * 60",
-          "legendFormat": "Published/min",
-          "interval": "30s"
-        },
-        {
-          "expr": "sum(rate(events_consumed_total[$__rate_interval])) * 60",
-          "legendFormat": "Consumed/min",
-          "interval": "30s"
-        },
-        {
-          "expr": "sum(rate(events_retries_total[$__rate_interval])) * 60",
-          "legendFormat": "Retries/min",
-          "interval": "30s"
-        },
-        {
-          "expr": "sum(rate(events_failed_total[$__rate_interval])) * 60",
-          "legendFormat": "Failed/min",
-          "interval": "30s"
-        },
-        {
-          "expr": "sum(rate(events_dlt_total[$__rate_interval])) * 60",
-          "legendFormat": "DLT/min",
-          "interval": "30s"
-        },
-        {
-          "expr": "sum(rate(events_discarded_total[$__rate_interval])) * 60",
-          "legendFormat": "Discarded/min",
-          "interval": "30s"
-        }
+        { "expr": "sum(rate(events_published_total[$__rate_interval])) * 60", "legendFormat": "Published/min", "interval": "30s" },
+        { "expr": "sum(rate(events_consumed_total[$__rate_interval])) * 60", "legendFormat": "Consumed/min", "interval": "30s" },
+        { "expr": "sum(rate(events_retries_total[$__rate_interval])) * 60", "legendFormat": "Retries/min", "interval": "30s" },
+        { "expr": "sum(rate(events_failed_total[$__rate_interval])) * 60", "legendFormat": "Failed/min", "interval": "30s" },
+        { "expr": "sum(rate(events_dlt_total[$__rate_interval])) * 60", "legendFormat": "DLT/min", "interval": "30s" },
+        { "expr": "sum(rate(events_discarded_total[$__rate_interval])) * 60", "legendFormat": "Discarded/min", "interval": "30s" }
       ]
     },
     {
@@ -331,36 +179,66 @@
     {
       "id": 26,
       "title": "Orchestration Latency (p95)",
-      "description": "Latência p95 do processamento de DeployFinishedEvent no orquestrador.",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 27 },
       "fieldConfig": {
         "defaults": {
           "unit": "s",
           "color": { "mode": "palette-classic" },
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "pointSize": 5,
-            "showPoints": "auto"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.5 },
-              { "color": "red", "value": 2.0 }
-            ]
-          }
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "pointSize": 5, "showPoints": "auto" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 2.0 }] }
         }
       },
-      "options": {
-        "tooltip": { "mode": "multi", "sort": "desc" },
-        "legend": { "displayMode": "list", "placement": "bottom" }
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (le) (rate(orchestration_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "p95", "interval": "30s" }]
+    },
+    {
+      "id": 30,
+      "title": "Kafka",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 35 },
+      "panels": []
+    },
+    {
+      "id": 31,
+      "title": "Kafka Listener Latency (p95)",
+      "description": "Latência p95 do listener Kafka no deploy-orchestrator — tempo entre recebimento e fim do processamento.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "pointSize": 5, "showPoints": "auto" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 2.0 }] }
+        }
       },
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [{
-        "expr": "histogram_quantile(0.95, sum by (le) (rate(orchestration_duration_seconds_bucket[$__rate_interval])))",
-        "legendFormat": "p95",
+        "expr": "histogram_quantile(0.95, sum by (le) (rate(spring_kafka_listener_seconds_bucket[$__rate_interval])))",
+        "legendFormat": "listener p95",
+        "interval": "30s"
+      }]
+    },
+    {
+      "id": 32,
+      "title": "Kafka Producer Latency (p95)",
+      "description": "Latência p95 do KafkaTemplate — tempo de publicação de eventos no broker.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "pointSize": 5, "showPoints": "auto" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.1 }, { "color": "red", "value": 0.5 }] }
+        }
+      },
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum by (le) (rate(spring_kafka_template_seconds_bucket[$__rate_interval])))",
+        "legendFormat": "producer p95",
         "interval": "30s"
       }]
     }
