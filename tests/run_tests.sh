@@ -315,16 +315,27 @@ echo "  CT-13B: Poison pill (UUID malformado no payload)"
 echo "========================================"
 begin_test
 POISON_DEPLOY_ID=$(newuuid)
+
+# Captura valores ANTES de publicar o poison pill para validar o delta
+dlt_before=$(curl -s http://localhost:8081/actuator/prometheus \
+  | grep '^events_dlt_total' | grep -v '#' | awk '{print $2}' | head -1)
+dlt_before_int=${dlt_before:-0}
+failed_before=$(curl -s http://localhost:8081/actuator/prometheus \
+  | grep '^events_failed_total' | grep -v '#' | awk '{print $2}' | head -1)
+failed_before_int=${failed_before:-0}
+
 EVENT_POISON="{\"eventType\":\"DeployFinishedEvent\",\"version\":\"1.0\",\"correlationId\":\"f10f409d-2eee-4053-82f2-80fac03fd65b\",\"occurredAt\":\"2026-03-23T11:42:00Z\",\"payload\":{\"deployId\":\"${POISON_DEPLOY_ID}\",\"changeId\":\"e69a604a-d54b-4915-9504-c7c28685d52411\",\"result\":\"SUCCESS\",\"executedAt\":\"2026-03-23T11:42:00Z\"}}"
 echo "$EVENT_POISON" | docker exec -i changeops-kafka kafka-console-producer \
   --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
 echo "  INFO poison pill publicado (changeId UUID invalido), aguardando 10s..."
 sleep 10
 
-# Verifica que a mensagem chegou no DLT (sem loop infinito)
+# Verifica que a mensagem chegou no DLT (sem loop infinito).
+# Usa --max-messages 200 para evitar falso negativo quando o topico ja tem muitas mensagens de reruns.
+# Filtra pelo POISON_DEPLOY_ID unico gerado neste run para garantir que é esta mensagem.
 dlt_poison=$(docker exec changeops-kafka kafka-console-consumer \
   --bootstrap-server localhost:9092 --topic changeops.deploy.finished-dlt \
-  --from-beginning --max-messages 20 --timeout-ms 5000 2>/dev/null \
+  --from-beginning --max-messages 200 --timeout-ms 5000 2>/dev/null \
   | grep "$POISON_DEPLOY_ID" | wc -l)
 [ "$dlt_poison" -gt 0 ] \
   && pass_msg "CT-13B" "poison pill roteado para DLT (count=$dlt_poison)" \
@@ -339,20 +350,21 @@ code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
   && pass_msg "CT-13B" "change criada com sucesso apos poison pill" \
   || fail_msg "CT-13B" "falha ao criar change apos poison pill (HTTP $code)"
 
-# Verifica metricas no actuator do deploy-orchestrator
+# Valida delta das metricas (after > before) para evitar falso positivo
+# caso CT-13 ja tenha incrementado os contadores antes deste teste.
 dlt_after=$(curl -s http://localhost:8081/actuator/prometheus \
   | grep '^events_dlt_total' | grep -v '#' | awk '{print $2}' | head -1)
-dlt_after_int=$(echo "$dlt_after" | grep -o '^[0-9]*' | head -1)
-[ -n "$dlt_after_int" ] && [ "$dlt_after_int" -gt 0 ] \
-  && pass_msg "CT-13B" "events_dlt_total=$dlt_after (incrementado)" \
-  || fail_msg "CT-13B" "events_dlt_total=${dlt_after:-0} (nao incrementado)"
+dlt_after_int=${dlt_after:-0}
+[ "$dlt_after_int" -gt "$dlt_before_int" ] \
+  && pass_msg "CT-13B" "events_dlt_total=$dlt_after (incrementado em relacao a $dlt_before_int)" \
+  || fail_msg "CT-13B" "events_dlt_total=${dlt_after:-0} (nao incrementado em relacao a $dlt_before_int)"
 
 failed_after=$(curl -s http://localhost:8081/actuator/prometheus \
   | grep '^events_failed_total' | grep -v '#' | awk '{print $2}' | head -1)
-failed_after_int=$(echo "$failed_after" | grep -o '^[0-9]*' | head -1)
-[ -n "$failed_after_int" ] && [ "$failed_after_int" -gt 0 ] \
-  && pass_msg "CT-13B" "events_failed_total=$failed_after (incrementado)" \
-  || fail_msg "CT-13B" "events_failed_total=${failed_after:-0} (nao incrementado)"
+failed_after_int=${failed_after:-0}
+[ "$failed_after_int" -gt "$failed_before_int" ] \
+  && pass_msg "CT-13B" "events_failed_total=$failed_after (incrementado em relacao a $failed_before_int)" \
+  || fail_msg "CT-13B" "events_failed_total=${failed_after:-0} (nao incrementado em relacao a $failed_before_int)"
 
 # Verifica que NAO ficou em processed_events
 no_processed=$(docker exec changeops-postgres psql -U changeops -d changeops -t \

@@ -139,7 +139,7 @@ Eventos de domínio (`ChangePreparedEvent`) são separados explicitamente de eve
 
 ### Resiliência
 
-Idempotência atômica via `INSERT INTO processed_events ON CONFLICT DO NOTHING` — sem race conditions ao escalar o consumer horizontalmente. Retry com backoff exponencial (500ms → 1s → 2s → 4s, 4 tentativas). Dead Letter Queue automática para mensagens não processáveis. Fallback DLQ para falhas de publicação.
+Idempotência atômica via `INSERT INTO processed_events ON CONFLICT DO NOTHING` — sem race conditions ao escalar o consumer horizontalmente. Pré-condição `existsByChangeId` garante que eventos referenciando mudanças inexistentes sejam descartados diretamente ao DLT (sem queimar a chave de idempotência). Proteção contra poison pill via `ErrorHandlingDeserializer`: falhas de desserialização (ex: UUID malformado) entregam `null` ao listener, que lança `InvalidOrchestratorStateException` — exceção não-retryable — roteando a mensagem ao DLT com 0 retries. Retry com backoff exponencial (500ms → 1s → 2s → 4s, 4 tentativas) para falhas de processamento. Dead Letter Topic automático (`changeops.deploy.finished-dlt`) para mensagens não processáveis. Fallback DLQ para falhas de publicação.
 
 → [ADR-002 — Estratégia de Idempotência](docs/adr/ADR-002-estrategia-idempotencia.md)
 
