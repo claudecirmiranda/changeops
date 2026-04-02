@@ -70,12 +70,12 @@ String payload = record.value() instanceof byte[]
 |------|-------------|
 | `KafkaConfig.java` | `ErrorHandlingDeserializer` wrapping `JsonDeserializer`; replaced `@Primary KafkaTemplate<String, byte[]>` (ByteArraySerializer) with `@Primary KafkaTemplate<String, Object>` (JsonSerializer) for correct `@RetryableTopic` DLT publishing; explicit DLT topic beans |
 | `DeployEventConsumer.java` | Null check → `InvalidOrchestratorStateException`; `dltStrategy = FAIL_ON_ERROR`; `@DltHandler` signature → `ConsumerRecord<String, Object>` + `byte[]`→`String`; removed `@Header` from `onDlt()` (uses `record.topic()`); payload truncated to 500 chars; removed `MDC.clear()` |
-| `ProcessDeployResultService.java` | `existsByChangeId` pre-check; `orchestrationTimer` Timer metric (adopted from remote); added `MDC.remove("correlation_id")` in finally block |
+| `ProcessDeployResultService.java` | `existsByChangeId` pre-check throws `ChangeNotFoundException` (retryable); `orchestrationTimer` Timer metric (adopted from remote); added `MDC.remove("correlation_id")` in finally block |
 | `UpdateChangeStatusPort.java` | New method `existsByChangeId(UUID)` |
 | `UpdateChangeStatusAdapter.java` | Implementation delegating to repository |
 | `ChangeStatusJpaRepository.java` | Spring Data derived query `existsByChangeId(UUID)` |
 | `DeployEventConsumerTest.java` | DLT handler test updated for new `ConsumerRecord<String, Object>` signature; removed topic parameter from `onDlt()` calls |
-| `ProcessDeployResultServiceTest.java` | Moved `existsByChangeId` stubbing to `@BeforeEach setUp()` (DRY) |
+| `ProcessDeployResultServiceTest.java` | Moved `existsByChangeId` stubbing to `@BeforeEach setUp()` (DRY); renamed test to `shouldThrowRetryableException_whenChangeIdNotFound`; asserts `ChangeNotFoundException` |
 | `DeployEventConsumerIT.java` | DLT record assertion filtered by key/payload to avoid false positives |
 | `tests/run_tests.sh` | CT-13B scenario: poison pill → verify DLT, no loop, consumer stays healthy; dynamic UUID per execution |
 | `docker-compose.yml` | Memory limits added to all containers |
@@ -130,7 +130,7 @@ Additional fixes applied during PR #15 review:
 | 1 | DLT payload logging could expose sensitive data/PII | Truncated payload to max 500 chars before logging | `DeployEventConsumer.java` |
 | 2 | `MDC.clear()` in DLT handler removes all MDC keys including framework tracing context | Removed `MDC.clear()` entirely — handler doesn't call `MDC.put()` | `DeployEventConsumer.java` |
 | 3 | `correlation_id` leaks in MDC on early failure paths in `execute()` | Added `MDC.remove("correlation_id")` in the `finally` block alongside `deploy_id` and `change_id` | `ProcessDeployResultService.java` |
-| 4 | `existsByChangeId` stubbing repeated in ~8 tests | Moved default stub to `@BeforeEach setUp()`; override only in `shouldThrowNonRetryableException_whenChangeIdNotFound` | `ProcessDeployResultServiceTest.java` |
+| 4 | `existsByChangeId` stubbing repeated in ~8 tests | Moved default stub to `@BeforeEach setUp()`; override only in `shouldThrowRetryableException_whenChangeIdNotFound` | `ProcessDeployResultServiceTest.java` |
 | 5 | IT DLT assertion `!isEmpty()` could match stale records | Filtered `dltRecords` by key=`test-key` or payload containing `INVALID-NOT-A-UUID` | `DeployEventConsumerIT.java` |
 | 6 | CT-13B uses hardcoded UUID → false positive on reruns | Generates unique `deployId` via `newuuid()` per execution | `tests/run_tests.sh` |
 

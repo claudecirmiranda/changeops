@@ -17,7 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.changeops.deployorchestrator.domain.exception.InvalidOrchestratorStateException;
+import com.changeops.deployorchestrator.domain.exception.ChangeNotFoundException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -155,12 +155,12 @@ class ProcessDeployResultServiceTest {
     }
 
     @Test
-    void shouldThrowNonRetryableException_whenChangeIdNotFound() {
+    void shouldThrowRetryableException_whenChangeIdNotFound() {
         DeployFinishedEvent event = buildEvent("SUCCESS");
         when(updateChangeStatusPort.existsByChangeId(event.payload().changeId())).thenReturn(false);
 
         assertThatThrownBy(() -> service.execute(event))
-                .isInstanceOf(InvalidOrchestratorStateException.class)
+                .isInstanceOf(ChangeNotFoundException.class)
                 .hasMessageContaining(event.payload().changeId().toString());
 
         verifyNoInteractions(idempotencyPort);

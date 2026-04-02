@@ -15,4 +15,4 @@
 | Latência HTTP (p95) | N/A | `http_server_requests_seconds_bucket` | N/A | `http_server_requests_seconds_bucket{job="change-service\|deploy-orchestrator"}` | [Link] |
 | Latência de orquestração (p95) | N/A | deploy-orchestrator | N/A | `orchestration_duration_seconds_bucket` | [Link] |
 | Poison pill handling (resiliência) | N/A | `KafkaConfig.java` (`ErrorHandlingDeserializer`), `DeployEventConsumer.java` (null check → DLT) | `DeployEventConsumerIT.shouldSendToDlt_whenMessageHasMalformedPayload`, CT-13B | `events_dlt_total`, `events_failed_total` | [Link] |
-| Pre-condition guard (`existsByChangeId`) | ADR-002 | `ProcessDeployResultService.java`, `UpdateChangeStatusPort.java` | `ProcessDeployResultServiceTest.shouldThrowNonRetryableException_whenChangeIdNotFound` | N/A | [Link] |
+| Pre-condition guard (`existsByChangeId`) | ADR-002 | `ProcessDeployResultService.java`, `UpdateChangeStatusPort.java` | `ProcessDeployResultServiceTest.shouldThrowRetryableException_whenChangeIdNotFound` | N/A | [Link] |
