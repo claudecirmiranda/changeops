@@ -27,13 +27,13 @@ help: ## Show this help
 up: ## Start the full local stack (infra + services)
 	docker compose up -d --build
 	@echo ""
-	@echo "$(BOLD)Stack is up:$(RESET)"
-	@echo "  change-service     → http://localhost:8080"
-	@echo "  deploy-orchestrator → http://localhost:8081"
-	@echo "  Swagger UI          → http://localhost:8080/swagger-ui.html"
-	@echo "  Kafka UI            → http://localhost:8090"
-	@echo "  Prometheus          → http://localhost:9090"
-	@echo "  Grafana             → http://localhost:3001  (admin/changeops)"
+	@printf "$(BOLD)Stack is up:$(RESET)\n"
+	@echo "  change-service      -> http://localhost:8080"
+	@echo "  deploy-orchestrator -> http://localhost:8081"
+	@echo "  Swagger UI          -> http://localhost:8080/swagger-ui.html"
+	@echo "  Kafka UI            -> http://localhost:8090"
+	@echo "  Prometheus          -> http://localhost:9090"
+	@echo "  Grafana             -> http://localhost:3001  (admin/changeops)"
 	@echo ""
 
 down: ## Stop and remove all containers (preserves data volumes)
@@ -63,11 +63,11 @@ build: build-backend build-frontend ## Build all
 build-backend: ## Build both backend services (skip tests)
 	cd backend/change-service    && mvn clean package -DskipTests -q
 	cd backend/deploy-orchestrator && mvn clean package -DskipTests -q
-	@echo "$(CYAN)Backend build complete$(RESET)"
+	@printf "$(CYAN)Backend build complete$(RESET)\n"
 
 build-frontend: ## Build frontend for production
 	cd frontend && npm ci && npm run build
-	@echo "$(CYAN)Frontend build complete$(RESET)"
+	@printf "$(CYAN)Frontend build complete$(RESET)\n"
 
 # ── Test ──────────────────────────────────────────────────────────────────────
 test: test-backend test-frontend ## Run all tests

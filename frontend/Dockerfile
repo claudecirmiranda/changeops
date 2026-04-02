@@ -11,7 +11,7 @@ COPY . .
 RUN npx tsc --noEmit
 RUN npm run lint
 RUN npx prettier --check "src/**/*.{ts,tsx}"
-RUN npm run test -- --run
+RUN npm run test -- --run --reporter=verbose
 RUN npm run build
 
 # ── Runtime stage ────────────────────────────────
