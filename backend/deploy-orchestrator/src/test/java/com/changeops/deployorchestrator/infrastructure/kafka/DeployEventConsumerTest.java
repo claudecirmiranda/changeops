@@ -133,7 +133,7 @@ class DeployEventConsumerTest {
     }
 
     @Test
-    void shouldTruncatePayload_whenDltPayloadExceedsMaxLength() {
+    void shouldIncrementCounters_whenDltPayloadExceedsMaxLength() {
         String longPayload = "x".repeat(DeployEventConsumer.MAX_DLT_PAYLOAD_LOG_LENGTH + 100);
         ConsumerRecord<String, Object> record = new ConsumerRecord<>(
                 "changeops.deploy.finished-dlt", 0, 0L,

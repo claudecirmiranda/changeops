@@ -105,20 +105,38 @@ public class DeployEventConsumer {
     @DltHandler
     public void onDlt(ConsumerRecord<String, Object> record) {
         String topic = record.topic();
-        String payload = record.value() instanceof byte[]
-                ? new String((byte[]) record.value(), StandardCharsets.UTF_8)
-                : String.valueOf(record.value());
-        // Payloads que chegam ao DLT costumam ser malformados ou inesperadamente grandes.
-        // Logar o conteúdo completo poderia saturar os logs estruturados (Grafana/ELK), expor dados sensíveis
-        // ou causar pressão de memória ao serializar uma string muito longa no encoder JSON.
-        // MAX_DLT_PAYLOAD_LOG_LENGTH limita a porção logada a um tamanho seguro e inspecionável;
-        // a mensagem completa permanece disponível no Kafka UI para diagnóstico.
-        String safePayload = payload != null && payload.length() > MAX_DLT_PAYLOAD_LOG_LENGTH
-                ? payload.substring(0, MAX_DLT_PAYLOAD_LOG_LENGTH) + "...[truncated]"
-                : payload;
-        log.error("Event sent to DLT after max retries: key={}, topic={}, offset={}, payload={}",
+        String safePayload = toSafePayload(record.value());
+        log.error("Event routed to DLT: key={}, topic={}, offset={}, payload={}",
                 record.key(), topic, record.offset(), safePayload);
         dltCounter.increment();
         eventsFailedCounter.increment();
+    }
+
+    /**
+     * Converts a DLT record value to a safe, log-friendly string.
+     *
+     * Payloads that reach the DLT are often malformed or unexpectedly large.
+     * Logging the full content could saturate structured logs (Grafana/ELK), expose
+     * sensitive data, or cause memory pressure when the JSON encoder serializes a very
+     * long string. MAX_DLT_PAYLOAD_LOG_LENGTH limits the logged portion to a safe and
+     * inspectable size; the full message remains available in Kafka UI for diagnostics.
+     *
+     * When the value is a byte array, the truncation is applied before creating the
+     * String to avoid allocating the entire byte array in memory.
+     */
+    private String toSafePayload(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof byte[]) {
+            byte[] bytes = (byte[]) value;
+            int length = Math.min(bytes.length, MAX_DLT_PAYLOAD_LOG_LENGTH);
+            String base = new String(bytes, 0, length, StandardCharsets.UTF_8);
+            return bytes.length > length ? base + "...[truncated]" : base;
+        }
+        String payload = String.valueOf(value);
+        return payload.length() > MAX_DLT_PAYLOAD_LOG_LENGTH
+                ? payload.substring(0, MAX_DLT_PAYLOAD_LOG_LENGTH) + "...[truncated]"
+                : payload;
     }
 }
