@@ -193,6 +193,54 @@ class DeployEventConsumerIT {
         assertThat(changeCount).isZero();
     }
 
+    @Test
+    void shouldSendToDlt_whenMessageHasMalformedPayload() {
+        Map<String, Object> rawProducerProps = Map.of(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers(),
+                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
+                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class
+        );
+        KafkaTemplate<String, String> rawTemplate = new KafkaTemplate<>(
+                new DefaultKafkaProducerFactory<>(rawProducerProps));
+
+        String malformedJson = "{\"eventType\":\"DeployFinishedEvent\",\"version\":\"1.0\","
+                + "\"correlationId\":\"f10f409d-2eee-4053-82f2-80fac03fd65b\","
+                + "\"occurredAt\":\"2026-03-23T11:42:00Z\","
+                + "\"payload\":{\"deployId\":\"a1b2c3d4-e5f6-7890-abcd-ef1234567890\","
+                + "\"changeId\":\"INVALID-NOT-A-UUID\","
+                + "\"result\":\"SUCCESS\",\"executedAt\":\"2026-03-23T11:42:00Z\"}}";
+
+        rawTemplate.send(new ProducerRecord<>("changeops.deploy.finished", "test-key", malformedJson));
+        rawTemplate.flush();
+
+        Map<String, Object> consumerProps = new HashMap<>();
+        consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
+        consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "test-deser-dlt-" + UUID.randomUUID());
+        consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+
+        List<ConsumerRecord<String, String>> dltRecords = new ArrayList<>();
+        try (Consumer<String, String> dltConsumer =
+                     new DefaultKafkaConsumerFactory<String, String>(consumerProps).createConsumer()) {
+            dltConsumer.subscribe(Collections.singletonList("changeops.deploy.finished-dlt"));
+
+            await().atMost(30, TimeUnit.SECONDS).pollInterval(2, TimeUnit.SECONDS).untilAsserted(() -> {
+                dltConsumer.poll(Duration.ofMillis(500)).forEach(dltRecords::add);
+                assertThat(dltRecords.stream()
+                        .filter(r -> "test-key".equals(r.key())
+                                || (r.value() != null && r.value().contains("INVALID-NOT-A-UUID")))
+                        .toList()).isNotEmpty();
+            });
+        }
+
+        Integer processedCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM processed_events"
+                        + " WHERE event_id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'",
+                Integer.class);
+        assertThat(processedCount).isZero();
+    }
+
     private UUID insertPreparedChange() {
         UUID changeId = UUID.randomUUID();
         UUID correlationId = UUID.randomUUID();

@@ -18,6 +18,14 @@ sequenceDiagram
 
     DO->>DO: events_consumed_total.increment()
 
+    DO->>DB: SELECT existsByChangeId(changeId)
+    Note over DO,DB: Pre-condition: changeId must exist
+
+    alt changeId not found (ChangeNotFoundException — retryable)
+        DO->>DO: throw ChangeNotFoundException
+        Note over DO: Not in @RetryableTopic exclude → retries with backoff<br/>DLT only after retry exhaustion (4 attempts)
+    end
+
     DO->>DB: INSERT INTO processed_events (ON CONFLICT DO NOTHING)
     Note over DO,DB: IdempotencyPort.tryMarkAsProcessed()
 
@@ -69,6 +77,21 @@ sequenceDiagram
         Note over K: changeops.events.dlq
         DO->>DO: log.error("Sending to DLQ")
     end
+
+    rect rgb(69, 39, 26)
+        Note over ES,DO: Cenário de Falha — Poison Pill (desserialização)
+
+        ES->>K: Publica payload malformado (ex: UUID inválido)
+        K->>DO: ErrorHandlingDeserializer captura falha
+        Note over DO: JsonDeserializer falha → entrega null ao listener
+        DO->>DO: Null check → throw InvalidOrchestratorStateException
+        Note over DO: Exceção está em @RetryableTopic exclude → DLT direto (0 retries)
+        DO->>K: Mensagem enviada para DLT
+        Note over K: changeops.deploy.finished-dlt
+        K->>DO: @DltHandler consome de DLT
+        DO->>DO: log.error + events_dlt_total.increment() + events_failed_total.increment()
+        Note over DO: Payload truncado em 500 chars no log (segurança)
+    end
 ```
 
 ## Detalhes do Fluxo
@@ -80,3 +103,5 @@ sequenceDiagram
    - **Consumo:** `@RetryableTopic` com DLT suffix — tópico `changeops.deploy.finished-dlt`.
    - **Publicação:** Fallback no adapter — tópico `changeops.events.dlq`.
 5. **Observabilidade:** MDC com `correlation_id`, `change_id`, `deploy_id` em todos os logs do fluxo. Métricas: `events_consumed_total`, `events_published_total`, `events_retries_total` (tentativas de retry), `events_failed_total` (falhas permanentes), `events_dlt_total`.
+6. **Pre-condition `existsByChangeId`:** Before the idempotency gate, the service validates that `changeId` exists in the database. If not found, it throws `ChangeNotFoundException` — a **retryable** exception that is NOT in the `@RetryableTopic` exclude list. The consumer retries with exponential backoff (4 attempts), giving the change record time to appear due to eventual consistency or transient DB unavailability. Only after all retries are exhausted does the event go to the DLT. The check runs before idempotency marking to avoid burning the idempotency key on a transient failure — if the changeId appears between retries, the event succeeds on the next attempt.
+7. **Proteção contra Poison Pill:** `ErrorHandlingDeserializer` envolve o `JsonDeserializer`. Falhas de desserialização (ex: UUID malformado) são capturadas e entregam `null` ao listener. O null check no listener lança `InvalidOrchestratorStateException` (em `exclude` do `@RetryableTopic`), roteando a mensagem diretamente ao DLT sem retries. O `@DltHandler` usa `record.topic()` (sem `@Header`) para compatibilidade com payloads brutos, e trunca o payload a 500 caracteres no log por segurança.

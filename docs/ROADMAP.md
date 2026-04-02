@@ -203,6 +203,30 @@ CREATE TABLE audit_log (
 
 ---
 
+## Security Gaps Identified by QA (April 2026)
+
+The following gaps were identified during a structured QA+penetration testing pass (CT-SEC-01 to CT-SEC-10). Bugs already fixed inline are marked ✅. Open items are tagged with the target phase.
+
+### Fixed Bugs
+
+| # | Finding | Fix Applied |
+|---|---------|------------|
+| **BUG-01** | `GlobalExceptionHandler` returned HTTP 500 instead of 405 for unsupported HTTP methods (`PUT`, `DELETE`, `PATCH` on `/api/v1/changes`) | Added `@ExceptionHandler(HttpRequestMethodNotSupportedException.class)` → returns 405 |
+| **BUG-02** | `GlobalExceptionHandler` returned HTTP 500 instead of 415 when `Content-Type` header was missing | Added `@ExceptionHandler(HttpMediaTypeNotSupportedException.class)` → returns 415 |
+| **BUG-03** | `DeployEventConsumer` only validated `event.payload() == null` but NOT null sub-fields (`deployId`, `changeId`, `result`). A malformed event burned 4 retry attempts before reaching DLT | Added explicit null check for all three required sub-fields; throws `InvalidOrchestratorStateException` (non-retryable) → immediate DLT routing |
+
+### Open Items (Phase 2+)
+
+| # | Finding | Severity | Phase | Action |
+|---|---------|----------|-------|--------|
+| **SEC-01** | `X-Forwarded-For` header is trusted without validating against a known proxy allowlist. A client can spoof any IP to bypass the rate limiter (100 req/min per IP). | Medium | 2.x | Add `RateLimitFilter` trusted-proxy validation; only honour `X-Forwarded-For` from known reverse proxy IPs (typically nginx/load-balancer CIDR) |
+| **SEC-02** | HTTP security response headers absent from API responses: `Strict-Transport-Security`, `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`. These belong in the nginx/CDN layer, not Spring Boot. | Medium | 2.x | Add security headers to `nginx.conf` (frontend reverse proxy). For the API, add `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY` via Spring Security `headers()` DSL |
+| **SEC-03** | No explicit `server.tomcat.max-http-form-content-size` or Spring `spring.servlet.multipart.max-request-size` configured for JSON request bodies. Large payloads (>2MB) may cause OOM or slow processing. | Low | 2.x | Add `server.tomcat.max-http-form-content-size=1MB` to `application.yml`; return 413 for oversized bodies |
+| **SEC-04** | `X-Correlation-Id` header value is inserted into MDC without sanitisation. A crafted value (newlines, control chars) could cause log injection in plaintext log formats. Current risk is LOW because `logstash-logback-encoder` JSON-encodes all MDC fields automatically. | Low | 2.x | Add UUID-pattern validation in `CorrelationIdFilter`; reject non-UUID values and generate a fresh UUID instead |
+| **SEC-05** | Frontend `localStorage` token is a placeholder (see Known Debt #4). `localStorage` is accessible to any JavaScript running on the page (XSS vector). | Low | 2.2 | Replace with `httpOnly` cookie storage once real OIDC/Keycloak integration is implemented in Phase 2.2 |
+
+---
+
 ## Itens de Processo Pendentes
 
 Os itens abaixo representam processos de engenharia reconhecidos como boas práticas mas descartados do escopo do POC por decisão de foco:

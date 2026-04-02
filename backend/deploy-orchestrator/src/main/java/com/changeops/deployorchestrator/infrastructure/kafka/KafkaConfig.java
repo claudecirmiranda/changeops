@@ -10,6 +10,7 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.ConsumerFactory;
@@ -18,12 +19,12 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.listener.ContainerProperties;
+import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 @Configuration
 public class KafkaConfig {
@@ -58,10 +59,14 @@ public class KafkaConfig {
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        JsonDeserializer<DeployFinishedEvent> valueDeserializer =
+        JsonDeserializer<DeployFinishedEvent> jsonDeserializer =
                 new JsonDeserializer<>(DeployFinishedEvent.class, objectMapper, false);
-        valueDeserializer.addTrustedPackages("com.changeops.*");
-        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), valueDeserializer);
+        jsonDeserializer.addTrustedPackages("com.changeops.*");
+
+        ErrorHandlingDeserializer<DeployFinishedEvent> errorHandlingDeserializer =
+                new ErrorHandlingDeserializer<>(jsonDeserializer);
+
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), errorHandlingDeserializer);
     }
 
     @Bean
@@ -69,13 +74,37 @@ public class KafkaConfig {
     deployEventListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, DeployFinishedEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(Objects.requireNonNull(deployEventConsumerFactory()));
+        factory.setConsumerFactory(deployEventConsumerFactory());
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
         factory.setConcurrency(3);
         return factory;
     }
 
-    // ── Producer ──────────────────────────────────────────────────────────────
+    // ── Producer Padrão (Primary — usado pelo @RetryableTopic para publicar retries/DLT) ──────────
+    //
+    // Usa JsonSerializer<Object> para que o @RetryableTopic possa publicar qualquer objeto de domínio
+    // desserializado (ex: DeployFinishedEvent) nos tópicos de DLT sem erro de incompatibilidade de tipo.
+    // No caso de poison pills (valor null após falha no ErrorHandlingDeserializer), o Spring Kafka
+    // preserva os bytes brutos originais automaticamente nos headers do record Kafka.
+
+    @Bean
+    public ProducerFactory<String, Object> defaultProducerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.ACKS_CONFIG, "all");
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        JsonSerializer<Object> valueSerializer = new JsonSerializer<>(objectMapper);
+        valueSerializer.setAddTypeInfo(false);
+        return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), valueSerializer);
+    }
+
+    @Primary
+    @Bean
+    public KafkaTemplate<String, Object> defaultKafkaTemplate() {
+        return new KafkaTemplate<>(defaultProducerFactory());
+    }
+
+    // ── Result Producer ───────────────────────────────────────────────────────
 
     @Bean
     public ProducerFactory<String, IntegrationEvent> resultProducerFactory() {
@@ -91,23 +120,41 @@ public class KafkaConfig {
 
     @Bean
     public KafkaTemplate<String, IntegrationEvent> resultKafkaTemplate() {
-        return new KafkaTemplate<>(Objects.requireNonNull(resultProducerFactory()));
+        return new KafkaTemplate<>(resultProducerFactory());
     }
 
     // ── Topics ────────────────────────────────────────────────────────────────
 
     @Bean
     public NewTopic deployFinishedTopic() {
-        return TopicBuilder.name(Objects.requireNonNull(deployFinishedTopic)).partitions(3).replicas(replicationFactor).build();
+        return TopicBuilder.name(deployFinishedTopic)
+                .partitions(3)
+                .replicas(replicationFactor)
+                .build();
+    }
+
+    @Bean
+    public NewTopic deployFinishedDltTopic() {
+        return TopicBuilder.name(deployFinishedTopic + "-dlt")
+                .partitions(1)
+                .replicas(replicationFactor)
+                .build();
     }
 
     @Bean
     public NewTopic changeResultTopic() {
-        return TopicBuilder.name(Objects.requireNonNull(changeResultTopic)).partitions(3).replicas(replicationFactor).build();
+        return TopicBuilder.name(changeResultTopic)
+                .partitions(3)
+                .replicas(replicationFactor)
+                .build();
     }
 
     @Bean
     public NewTopic changeResultDltTopic() {
-        return TopicBuilder.name(Objects.requireNonNull(changeResultTopic) + "-dlt").partitions(1).replicas(replicationFactor).build();
+        return TopicBuilder.name(changeResultTopic + "-dlt")
+                .partitions(1)
+                .replicas(replicationFactor)
+                .build();
     }
 }
+

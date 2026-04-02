@@ -6,6 +6,7 @@ import com.changeops.deployorchestrator.application.port.out.PublishResultEventP
 import com.changeops.deployorchestrator.application.port.out.SaveChangeEventPort;
 import com.changeops.deployorchestrator.application.port.out.UpdateChangeStatusPort;
 import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
+import com.changeops.deployorchestrator.domain.exception.ChangeNotFoundException;
 import com.changeops.deployorchestrator.domain.model.ChangeResult;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -80,6 +81,14 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             log.info("DeployFinishedEvent received: deployId={}, changeId={}, result={}",
                     payload.deployId(), payload.changeId(), payload.result());
 
+            // ── Pre-condition: changeId must exist to avoid burning the idempotency key ──
+            // ChangeNotFoundException is retryable — the record may not yet be visible
+            // due to eventual consistency or transient DB unavailability.
+            if (!updateChangeStatusPort.existsByChangeId(payload.changeId())) {
+                throw new ChangeNotFoundException(
+                        "changeId not found in database, will retry. changeId=" + payload.changeId());
+            }
+
             // ── Passo 1: Verificação atômica de idempotência + marcação ──
             if (!idempotencyPort.tryMarkAsProcessed(payload.deployId(), "deploy-orchestrator")) {
                 eventsDiscardedCounter.increment();
@@ -144,6 +153,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             throw e;
         } finally {
             timerSample.stop(orchestrationTimer);
+            MDC.remove("correlation_id");
             MDC.remove("deploy_id");
             MDC.remove("change_id");
         }

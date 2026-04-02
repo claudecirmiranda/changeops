@@ -65,6 +65,7 @@ A estratégia de testes do ChangeOps prioriza **confiança nos fluxos críticos*
 | Classe de Teste | O que cobre |
 |----------------|-------------|
 | `ProcessDeployResultServiceTest` | Orquestração completa: idempotência, checklist, atualização de status, publicação de evento, descarte de duplicatas |
+| `DeployEventConsumerTest` | Null event handling (→ DLT), null payload handling (event não-nulo com payload nulo → DLT), DLT handler counters (String + null + byte[] + payload truncado >500 chars), retry counter por tópico, proteção contra poison pill |
 | `KafkaResultPublisherAdapterTest` | Publicação com sucesso incrementa counter; falha de publicação aciona fallback para DLQ |
 
 ### 3.3 Testes de Integração — Backend
@@ -74,7 +75,7 @@ A estratégia de testes do ChangeOps prioriza **confiança nos fluxos críticos*
 | Classe de Teste | O que cobre |
 |----------------|-------------|
 | `CreateChangeIT` | `POST /changes` → persistência → evento no Kafka; validação 400; listagem paginada |
-| `DeployEventConsumerIT` | Consumo de `DeployFinishedEvent` → status COMPLETED/FAILED; idempotência (duplicata sem efeito); persistência de evento na timeline |
+| `DeployEventConsumerIT` | Consumo de `DeployFinishedEvent` → status COMPLETED/FAILED; idempotência (duplicata sem efeito); persistência de evento na timeline; poison pill (UUID malformado → DLT sem loop infinito); `changeId` inexistente → DLT após retries esgotados |
 
 **Infra:** PostgreSQL 16-alpine + Confluent Kafka 7.6.0 via `@Container` + `@DynamicPropertySource`.
 
@@ -142,6 +143,8 @@ cd frontend && npm test
 | Deploy com falha → FAILED + ChangeFailedEvent | `DeployEventConsumerIT.shouldMarkFailed` | ✅ |
 | Mesmo evento 2x → estado inalterado | `DeployEventConsumerIT.shouldBeIdempotent` | ✅ |
 | Falha na publicação → retry → DLQ | `ProcessDeployResultServiceTest` + IT | ✅ |
+| Poison pill (falha de desserialização) → DLT sem loop infinito | `DeployEventConsumerIT.shouldSendToDlt_whenMessageHasMalformedPayload` | ✅ |
+| changeId inexistente → DLT (0 retries) | `ProcessDeployResultServiceTest.shouldThrowNonRetryableException_whenChangeIdNotFound` | ✅ |
 
 ---
 
@@ -540,6 +543,57 @@ Anotar o `changeId` retornado.
 1. Screenshot do tópico `changeops.deploy.finished-dlt` com a mensagem
 2. Screenshot dos tópicos de retry mostrando mensagens processadas
 
+### CT-13B — Poison Pill (UUID malformado no payload)
+
+> Verifica que um payload com UUID inválido (poison pill) é roteado ao DLT sem causar loop infinito, e que o consumer continua funcional após o incidente.
+
+**Passo 1 — Publicar poison pill no Kafka UI:**
+- Acessar http://localhost:8090
+- Navegar para tópico `changeops.deploy.finished` → "Produce Message"
+- **Value:**
+
+```json
+{
+  "eventType": "DeployFinishedEvent",
+  "version": "1.0",
+  "correlationId": "f10f409d-2eee-4053-82f2-80fac03fd65b",
+  "occurredAt": "2026-03-23T11:42:00Z",
+  "payload": {
+    "deployId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "changeId": "e69a604a-d54b-4915-9504-c7c28685d52411",
+    "result": "SUCCESS",
+    "executedAt": "2026-03-23T11:42:00Z"
+  }
+}
+```
+
+> Nota: `changeId` tem 37 caracteres (UUID inválido) — causa falha no `JsonDeserializer`.
+
+**Passo 2 — Aguardar ~10 segundos.**
+
+**Passo 3 — Verificar DLT:**
+- Kafka UI → tópico `changeops.deploy.finished-dlt` → deve conter a mensagem (sem loop infinito no consumer principal)
+
+**Passo 4 — Verificar que o consumer continua funcional:**
+- Criar uma nova mudança via `POST /api/v1/changes` → esperado: `201 Created`
+- Publicar um `DeployFinishedEvent` SUCCESS válido para o novo `changeId` → esperado: status `COMPLETED`
+
+**Passo 5 — Verificar métricas:**
+- `GET http://localhost:8081/actuator/prometheus`
+- `events_dlt_total` > 0
+- `events_failed_total` > 0
+- `events_retries_total` = 0 (exceção em `exclude` do `@RetryableTopic`, sem retries)
+
+**Passo 6 — Verificar que o poison pill NÃO foi registrado em `processed_events`:**
+- `make db-shell` → `SELECT COUNT(*) FROM processed_events WHERE event_id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';`
+- Esperado: `0`
+
+**Evidenciar:**
+1. Screenshot da mensagem no tópico DLT
+2. Screenshot do consumer funcional após o poison pill (nova mudança criada com sucesso)
+3. Screenshot das métricas no actuator
+4. Screenshot do `processed_events` sem registro do poison pill
+
 ### CT-14 — Observabilidade (Grafana + Prometheus)
 
 > Executar após os testes anteriores para ter dados suficientes nos painéis.
@@ -615,5 +669,84 @@ Anotar o `changeId` retornado.
 | CT-11 | Deploy FAILURE | Status `FAILED` + `ChangeFailedEvent` na timeline |
 | CT-12 | Idempotência | Status inalterado + sem duplicação na timeline |
 | CT-13 | DLT após retries | Mensagem no tópico `changeops.deploy.finished-dlt` |
+| CT-13B | Poison pill (UUID malformado) | Mensagem no DLT sem loop infinito, consumer funcional, métricas incrementadas, sem registro em `processed_events` |
 | CT-14 | Observabilidade | Dashboard Grafana completo + query Prometheus |
 | CT-15 | Frontend | Formulário, lista, polling automático, timeline |
+| CT-16 | Empty JSON body | Response 400 com `fields` map listando todos os campos obrigatórios |
+| CT-17 | All fields null | Response 400 com `fields` map listando os campos nulos |
+| CT-18 | Whitespace-only strings | Response 400 — `@NotBlank` rejeita strings compostas só de espaços |
+| CT-19 | Campos acima do limite | Response 400 nos três campos: title >255, description >2000, componentId >100 |
+| CT-20 | Pattern violations em componentId | Response 400 para: `.dot-start`, `../path/traversal`, `<script>xss`, `" space"` |
+| CT-21 | scheduledAt inválido ou no passado | Response 400: string non-date e datas anteriores ao momento atual |
+| CT-22 | JSON malformado | Response 400 por `HttpMessageNotReadableException` |
+| CT-23 | Content-Type ausente | Response 415 Unsupported Media Type |
+| CT-24 | UUID inválido no path | Response 400 nos endpoints GET /changes/{id} e GET /changes/{id}/events |
+| CT-25 | Pagination inválida | Não retorna 500 para `page=-1` ou `page=abc` |
+| CT-26 | Status enum inválido | Response 400 para `status=INVALID_STATUS` |
+| CT-27 | Métodos HTTP não permitidos | Response 405 para PUT, DELETE e PATCH em /api/v1/changes |
+| CT-28 | XSS em campos livres | Response 201 — payload armazenado como texto sem execução; React sanitiza na renderização |
+| CT-29 | Kafka: empty payload object | Evento com `payload: {}` roteado para DLT após null-check no consumer |
+| CT-30 | Kafka: result enum inválido | Evento com `result: "INVALID"` não quebra o consumer; verificar DLT manualmente |
+| CT-31 | Kafka: `{}` direto no tópico | JSON vazio publicado direto no tópico é roteado ao DLT |
+| CT-32 | Kafka: plain text no tópico | Texto não-JSON publicado direto no tópico é roteado ao DLT; health check pós-evento OK |
+| CT-SEC-01 | Rate limiting (101a req) | Response 429 + header `Retry-After` |
+| CT-SEC-02 | X-Forwarded-For spoofing | Request com IP divergente recebe bucket independente — limitação POC documentada |
+| CT-SEC-03 | Actuator sensitive endpoints | `/actuator/env`, `beans`, `heapdump` retornam 404/401/403; `health` e `info` retornam 200 |
+| CT-SEC-04 | Path traversal na URL | Spring normaliza/bloqueia `../../actuator/env` sem vazar dados |
+| CT-SEC-05 | SQL injection em query params | `';DROP TABLE changes;--` não causa 500 nem destrói dados |
+| CT-SEC-06 | XSS em X-Correlation-Id | Script in header não é executado; logstash-encoder escapa os valores no JSON |
+| CT-SEC-07 | Large body DoS | Body de ~1 MB retorna 400 (validação de tamanho) ou 413 |
+| CT-SEC-08 | HTTP TRACE method | Response 405 (desabilitado pelo Spring Boot) |
+| CT-SEC-09 | CORS — origem não autorizada | `evil.com` não recebe `Access-Control-Allow-Origin` |
+| CT-SEC-10 | Security headers HTTP | Documenta ausência de HSTS, CSP, X-Content-Type-Options etc. (a adicionar no nginx Phase 2) |
+
+---
+
+## 8. Cobertura de Testes Automatizados — Adições da Rodada QA
+
+### 8.1 change-service — Novos Testes (ChangeControllerTest + RateLimitFilterIntegrationTest)
+
+| Teste | Tipo | Cenário |
+|-------|------|---------|
+| `create_shouldReturn400_whenBodyIsEmptyObject` | Unit (MockMvc) | CT-16 |
+| `create_shouldReturn400_whenAllFieldsAreNull` | Unit (MockMvc) | CT-17 |
+| `create_shouldReturn400_whenTitleIsWhitespaceOnly` | Unit (MockMvc) | CT-18 |
+| `create_shouldReturn400_whenRequestedByIsWhitespaceOnly` | Unit (MockMvc) | CT-18 |
+| `create_shouldReturn400_whenComponentIdIsWhitespaceOnly` | Unit (MockMvc) | CT-18 |
+| `create_shouldReturn400_whenTitleExceedsMaxLength` | Unit (MockMvc) | CT-19 |
+| `create_shouldReturn400_whenDescriptionExceedsMaxLength` | Unit (MockMvc) | CT-19 |
+| `create_shouldReturn400_whenComponentIdExceedsMaxLength` | Unit (MockMvc) | CT-19 |
+| `create_shouldReturn400_whenComponentIdStartsWithDot` | Unit (MockMvc) | CT-20 |
+| `create_shouldReturn400_whenComponentIdContainsPathTraversal` | Unit (MockMvc) | CT-20 |
+| `create_shouldReturn400_whenComponentIdContainsXssPayload` | Unit (MockMvc) | CT-20 |
+| `create_shouldReturn400_whenScheduledAtIsInThePast` | Unit (MockMvc) | CT-21 |
+| `list_shouldReturn400_whenStatusFilterIsInvalid` | Unit (MockMvc) | CT-26 |
+| `create_shouldAcceptXssPayloadInTitleAndDescription_andReturnSafely` | Unit (MockMvc) | CT-28 |
+| `shouldReturn405_whenPutIsUsedOnChangesEndpoint` | Unit (MockMvc) | CT-27 |
+| `shouldReturn405_whenDeleteIsUsedOnChangesEndpoint` | Unit (MockMvc) | CT-27 |
+| `shouldReturn415_whenContentTypeIsMissing` | Unit (MockMvc) | CT-23 |
+| `shouldAllow_exactly100Requests_beforeEnforcingLimit` | Integration | CT-SEC-01 |
+| `shouldBlock_101stRequest_fromSameIp` | Integration | CT-SEC-01 |
+| `shouldNotShareBucket_acrossDifferentIPs` | Integration | CT-SEC-02 |
+| `shouldUseXForwardedFor_forBucketKey_whenHeaderPresent` | Integration | CT-SEC-02 |
+| `shouldIncludeRetryAfterHeader_whenRateLimited` | Integration | CT-SEC-01 |
+| `shouldNeverRateLimit_getRequests` | Integration | CT-SEC-01 |
+| `shouldNeverRateLimit_actuatorEndpoints` | Integration | CT-SEC-03 |
+| `shouldAllowSpoofedIp_toBypassRateLimit_knownPocLimitation` | Integration | CT-SEC-02 |
+
+**Bug corrigido:** `GlobalExceptionHandler` retornava HTTP 500 para `HttpRequestMethodNotSupportedException` e `HttpMediaTypeNotSupportedException`. Handlers específicos adicionados → 405 e 415 corretos.
+
+### 8.2 deploy-orchestrator — Novos Testes (DeployEventConsumerTest + ProcessDeployResultServiceTest)
+
+| Teste | Tipo | Cenário |
+|-------|------|---------|
+| `shouldThrowInvalidOrchestratorStateException_whenPayloadDeployIdIsNull` | Unit | CT-29 |
+| `shouldThrowInvalidOrchestratorStateException_whenPayloadChangeIdIsNull` | Unit | CT-29 |
+| `shouldThrowInvalidOrchestratorStateException_whenResultFieldIsNull` | Unit | CT-29 |
+| `shouldIncrementDltCounters_whenDltHandlerReceivesEmptyJsonString` | Unit | CT-31 |
+| `shouldIncrementDltCounters_whenDltHandlerReceivesPlainTextPayload` | Unit | CT-32 |
+| `shouldNotRethrow_whenPublishResultEventThrows` | Unit | CT-30 |
+| `shouldIncrementEventsConsumedCounter_forEveryNonDuplicateEvent` | Unit | CT-12 |
+| `shouldNotIncrementEventsConsumedCounter_whenEventIsDuplicate` | Unit | CT-12 |
+
+**Bug corrigido:** `DeployEventConsumer` não validava campos internos do payload (`deployId`, `changeId`, `result`). Eventos com sub-campos nulos queimavam 4 tentativas de retry antes de ir para o DLT. Validação explícita adicionada → roteamento direto para DLT via `InvalidOrchestratorStateException`.

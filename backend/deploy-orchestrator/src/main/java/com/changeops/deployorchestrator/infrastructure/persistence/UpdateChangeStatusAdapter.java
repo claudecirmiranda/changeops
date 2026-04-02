@@ -32,4 +32,9 @@ public class UpdateChangeStatusAdapter implements UpdateChangeStatusPort {
                 "Cannot mark FAILED: change not found or already in a terminal state. changeId=" + changeId);
         }
     }
+
+    @Override
+    public boolean existsByChangeId(UUID changeId) {
+        return repository.existsByChangeId(changeId);
+    }
 }

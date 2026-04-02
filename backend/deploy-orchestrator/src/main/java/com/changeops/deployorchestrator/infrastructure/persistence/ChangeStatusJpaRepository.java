@@ -16,4 +16,6 @@ public interface ChangeStatusJpaRepository extends JpaRepository<ChangeStatusEnt
     @Modifying
     @Query("UPDATE ChangeStatusEntity c SET c.status = 'FAILED', c.updatedAt = CURRENT_TIMESTAMP WHERE c.changeId = :changeId")
     int markFailed(@Param("changeId") UUID changeId);
+
+    boolean existsByChangeId(UUID changeId);
 }

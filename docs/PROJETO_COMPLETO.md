@@ -968,13 +968,23 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
     @Transactional
     public void execute(DeployFinishedEvent event) {
         var payload = event.payload();
-        MDC.put("correlation_id", event.correlationId().toString());
+        MDC.put("correlation_id", event.correlationId() != null
+                ? event.correlationId().toString() : "unknown");
         MDC.put("change_id",  payload.changeId().toString());
         MDC.put("deploy_id",  payload.deployId().toString());
 
+        Timer.Sample timerSample = Timer.start();
         try {
-            // 1. Verificação de idempotência
-            if (idempotencyPort.isAlreadyProcessed(payload.deployId())) {
+            // 0. Pré-condição: changeId deve existir antes de queimar a chave de idempotência
+            //    ChangeNotFoundException é retryable — o record pode não estar visível ainda
+            if (!updateChangeStatusPort.existsByChangeId(payload.changeId())) {
+                throw new ChangeNotFoundException(
+                    "changeId not found in database, will retry. changeId=" + payload.changeId());
+            }
+
+            // 1. Verificação atômica de idempotência + marcação (INSERT … ON CONFLICT DO NOTHING)
+            if (!idempotencyPort.tryMarkAsProcessed(payload.deployId(), "deploy-orchestrator")) {
+                eventsDiscardedCounter.increment();
                 log.warn("Event already processed, discarding: deployId={}", payload.deployId());
                 return;
             }
@@ -987,19 +997,19 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             ChangeResult result = ChangeResult.from(payload.changeId(), payload.deployId(),
                 event.correlationId(), event.isSuccess() && checklist.allPassed());
 
-            // 4. Atualizar status da change
+            // 4. Atualizar status da change + salvar evento na timeline
             if (result.isSuccess()) updateChangeStatusPort.markCompleted(payload.changeId());
             else                    updateChangeStatusPort.markFailed(payload.changeId());
 
-            // 5. Marcar evento como processado (store de idempotência)
-            idempotencyPort.markAsProcessed(payload.deployId(), "deploy-orchestrator");
-
-            // 6. Publicar evento de resultado
+            // 5. Publicar evento de resultado
             result.markFinished();
             publishResultEventPort.publish(result);
 
         } finally {
-            MDC.remove("deploy_id"); MDC.remove("change_id");
+            timerSample.stop(orchestrationTimer);
+            MDC.remove("correlation_id");
+            MDC.remove("deploy_id");
+            MDC.remove("change_id");
         }
     }
 }
@@ -1013,45 +1023,59 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
 @Component
 public class DeployEventConsumer {
 
+    static final int MAX_DLT_PAYLOAD_LOG_LENGTH = 500;
+
     @RetryableTopic(
         attempts = "4",
         backoff = @Backoff(delay = 500, multiplier = 2.0, maxDelay = 10_000),
         autoCreateTopics = "true",
+        topicSuffixingStrategy = TopicSuffixingStrategy.SUFFIX_WITH_INDEX_VALUE,
         dltStrategy = DltStrategy.FAIL_ON_ERROR,
-        dltTopicSuffix = "-dlt"
+        dltTopicSuffix = "-dlt",
+        exclude = {InvalidOrchestratorStateException.class}  // DLT direto, 0 retries
     )
     @KafkaListener(
         topics = "${changeops.kafka.topics.deploy-finished}",
         groupId = "${changeops.kafka.consumer.group-id}",
         containerFactory = "deployEventListenerContainerFactory"
     )
-    public void onDeployFinished(ConsumerRecord<String, DeployFinishedEvent> record, ...) {
-        processDeployResultUseCase.execute(record.value());
+    public void onDeployFinished(
+            ConsumerRecord<String, DeployFinishedEvent> record,
+            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
+            @Header(KafkaHeaders.OFFSET) long offset) {
+
+        DeployFinishedEvent event = record.value();
+
+        // Null-check: ErrorHandlingDeserializer entrega null quando a desserialização falha
+        // (ex: UUID malformado — poison pill). InvalidOrchestratorStateException está em
+        // exclude do @RetryableTopic → mensagem é roteada direto ao DLT (0 retries).
+        if (event == null || event.payload() == null) {
+            log.error("Deserialization failed or invalid payload — sending to DLT: topic={}, offset={}, key={}",
+                    topic, offset, record.key());
+            throw new InvalidOrchestratorStateException(
+                    "Deserialization failed or invalid payload. topic=" + topic + ", offset=" + offset);
+        }
+
+        if (topic.contains("-retry-")) {
+            eventsRetriesCounter.increment();
+        }
+
+        processDeployResultUseCase.execute(event);
     }
 
-    @KafkaListener(topics = "${changeops.kafka.topics.deploy-finished}-dlt", ...)
-    public void onDlt(ConsumerRecord<String, DeployFinishedEvent> record) {
-        DeployFinishedEvent event = record.value();
-        try {
-            if (event != null && event.payload() != null) {
-                MDC.put("correlation_id", event.correlationId() != null
-                        ? event.correlationId().toString() : "unknown");
-                MDC.put("change_id", event.payload().changeId() != null
-                        ? event.payload().changeId().toString() : "unknown");
-                MDC.put("deploy_id", event.payload().deployId() != null
-                        ? event.payload().deployId().toString() : "unknown");
-                log.error("Event sent to DLQ after max retries: key={}, deployId={}, changeId={}, result={}",
-                        record.key(), event.payload().deployId(),
-                        event.payload().changeId(), event.payload().result());
-            } else {
-                log.error("Event sent to DLQ after max retries: key={}, payload=null", record.key());
-            }
-            consumeErrorCounter.increment();
-        } finally {
-            MDC.remove("correlation_id");
-            MDC.remove("change_id");
-            MDC.remove("deploy_id");
-        }
+    @DltHandler
+    public void onDlt(ConsumerRecord<String, Object> record) {
+        String topic = record.topic();
+        String payload = record.value() instanceof byte[]
+                ? new String((byte[]) record.value(), StandardCharsets.UTF_8)
+                : String.valueOf(record.value());
+        String safePayload = payload != null && payload.length() > MAX_DLT_PAYLOAD_LOG_LENGTH
+                ? payload.substring(0, MAX_DLT_PAYLOAD_LOG_LENGTH) + "...[truncated]"
+                : payload;
+        log.error("Event routed to DLT: key={}, topic={}, offset={}, payload={}",
+                record.key(), topic, record.offset(), safePayload);
+        dltCounter.increment();
+        eventsFailedCounter.increment();
     }
 }
 ```
@@ -1119,10 +1143,14 @@ public class KafkaConfig {
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        JsonDeserializer<DeployFinishedEvent> valueDeserializer =
+        JsonDeserializer<DeployFinishedEvent> jsonDeserializer =
                 new JsonDeserializer<>(DeployFinishedEvent.class, objectMapper, false);
-        valueDeserializer.addTrustedPackages("com.changeops.*");
-        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), valueDeserializer);
+        jsonDeserializer.addTrustedPackages("com.changeops.*");
+        // ErrorHandlingDeserializer captura falhas de desserialização (ex: UUID malformado)
+        // e entrega null ao listener em vez de travar o poll() do consumer.
+        ErrorHandlingDeserializer<DeployFinishedEvent> errorHandlingDeserializer =
+                new ErrorHandlingDeserializer<>(jsonDeserializer);
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), errorHandlingDeserializer);
     }
 
     @Bean
@@ -1136,7 +1164,25 @@ public class KafkaConfig {
         return factory;
     }
 
-    // ── Producer ──────────────────────────────────────────────────────────────
+    // ── Producer Padrão (@Primary — usado pelo @RetryableTopic para retry/DLT) ──────────────
+    // JsonSerializer<Object> permite serializar qualquer POJO (incluindo DeployFinishedEvent)
+    // sem erro de tipo. Para poison pills, o Spring Kafka preserva os bytes brutos
+    // nos headers do record automaticamente via ErrorHandlingDeserializer.
+
+    @Primary
+    @Bean
+    public KafkaTemplate<String, Object> defaultKafkaTemplate() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.ACKS_CONFIG, "all");
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        JsonSerializer<Object> valueSerializer = new JsonSerializer<>(objectMapper);
+        valueSerializer.setAddTypeInfo(false);
+        return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(
+                props, new StringSerializer(), valueSerializer));
+    }
+
+    // ── Result Producer ───────────────────────────────────────────────────────
 
     @Bean
     public ProducerFactory<String, IntegrationEvent> resultProducerFactory() {
@@ -1159,6 +1205,9 @@ public class KafkaConfig {
 
     @Bean public NewTopic deployFinishedTopic() {
         return TopicBuilder.name(deployFinishedTopic).partitions(3).replicas(replicationFactor).build();
+    }
+    @Bean public NewTopic deployFinishedDltTopic() {
+        return TopicBuilder.name(deployFinishedTopic + "-dlt").partitions(1).replicas(replicationFactor).build();
     }
     @Bean public NewTopic changeResultTopic() {
         return TopicBuilder.name(changeResultTopic).partitions(3).replicas(replicationFactor).build();
@@ -1227,6 +1276,18 @@ class ProcessDeployResultServiceTest {
     @Test void shouldMarkFailed_andPublishEvent_whenDeployFails() { ... }
     @Test void shouldDiscardEvent_whenDeployIdAlreadyProcessed() { ... }
     @Test void shouldNotMarkCompleted_whenSameEventDeliveredTwice() { ... }
+    @Test void shouldThrowNonRetryableException_whenChangeIdNotFound() { ... }
+}
+
+// DeployEventConsumerTest.java — unitário (sem Spring context)
+class DeployEventConsumerTest {
+    @Test void shouldThrowInvalidOrchestratorStateException_whenEventIsNull() { ... }
+    @Test void shouldThrowInvalidOrchestratorStateException_whenEventPayloadIsNull() { ... }
+    @Test void shouldIncrementEventsFailedAndDltCounters_whenDltHandlerIsCalled() { ... }
+    @Test void shouldIncrementDltCounters_whenDltHandlerReceivesNullEvent() { ... }
+    @Test void shouldHandleByteArrayPayload_inDltHandler() { ... }
+    @Test void shouldTruncatePayload_whenDltPayloadExceedsMaxLength() { ... }
+    @Test void shouldIncrementRetriesForEachRetryTopic() { ... }
 }
 
 // DeployEventConsumerIT.java — Testcontainers (Kafka 7.6.0 + PostgreSQL 16)
@@ -1236,6 +1297,8 @@ class DeployEventConsumerIT {
     @Test void fullFlow_success(); // Kafka → DB COMPLETED + change.result publicado
     @Test void fullFlow_failure(); // Kafka → DB FAILED
     @Test void idempotency_sameEventTwice_stateUnchanged();
+    @Test void shouldSendToDlt_whenProcessingFailsAfterRetries();
+    @Test void shouldSendToDlt_whenMessageHasMalformedPayload(); // poison pill → DLT sem loop
 }
 
 // IdempotencyIntegrationTest.java — Testcontainers (PostgreSQL 16)
@@ -1274,6 +1337,7 @@ class ProcessDeployResultServiceTest {
     @Test void shouldMarkFailed_andPublishEvent_whenDeployFails() { ... }
     @Test void shouldDiscardEvent_whenDeployIdAlreadyProcessed() { ... }
     @Test void shouldNotMarkCompleted_whenSameEventDeliveredTwice() { ... }
+    @Test void shouldThrowNonRetryableException_whenChangeIdNotFound() { ... }
 }
 ```
 
@@ -1298,6 +1362,14 @@ sequenceDiagram
     Note over DO: MDC.put(correlation_id, change_id, deploy_id)
 
     DO->>DO: events_consumed_total.increment()
+
+    DO->>DB: SELECT existsByChangeId(changeId)
+    Note over DO,DB: Pré-condição: changeId deve existir
+
+    alt changeId não encontrado
+        DO->>DO: throw ChangeNotFoundException (retryable)
+        Note over DO: Passa por retries normais do @RetryableTopic
+    end
 
     DO->>DB: INSERT INTO processed_events (ON CONFLICT DO NOTHING)
     Note over DO,DB: IdempotencyPort.tryMarkAsProcessed()
@@ -1326,9 +1398,9 @@ sequenceDiagram
     Note over DO: MDC.clear()
 
     rect rgb(69, 26, 26)
-        Note over K,DO: Cenário de Falha — Retry + DLQ
+        Note over K,DO: Cenário de Falha — Retry + DLT
 
-        K->>DO: Consumo falha (exceção)
+        K->>DO: Consumo falha (exceção retryable)
         DO->>DO: Retry 1 (500ms)
         DO->>DO: Retry 2 (1s)
         DO->>DO: Retry 3 (2s)
@@ -1336,8 +1408,8 @@ sequenceDiagram
         DO->>K: Envia para DLT
         Note over K: changeops.deploy.finished-dlt
 
-        K->>DO: @KafkaListener(dlt) consome de DLT
-        DO->>DO: log.error + events_failed_total.increment()
+        K->>DO: @DltHandler consome de DLT
+        DO->>DO: log.error + dltCounter.increment() + eventsFailedCounter.increment()
     end
 
     rect rgb(69, 26, 26)
@@ -1347,6 +1419,21 @@ sequenceDiagram
         DO->>K: Fallback: envia para DLQ
         Note over K: changeops.events.dlq
         DO->>DO: log.error("Sending to DLQ")
+    end
+
+    rect rgb(69, 39, 26)
+        Note over ES,DO: Cenário de Falha — Poison Pill (desserialização)
+
+        ES->>K: Publica payload malformado (ex: UUID inválido)
+        K->>DO: ErrorHandlingDeserializer captura falha de desserialização
+        Note over DO: JsonDeserializer falha → entrega null ao listener
+        DO->>DO: Null check → throw InvalidOrchestratorStateException
+        Note over DO: Exceção em @RetryableTopic exclude → DLT direto (0 retries)
+        DO->>K: Mensagem enviada para DLT
+        Note over K: changeops.deploy.finished-dlt
+        K->>DO: @DltHandler consome de DLT
+        DO->>DO: log.error + dltCounter.increment() + eventsFailedCounter.increment()
+        Note over DO: Payload truncado em 500 chars no log (segurança)
     end
 ```
 
