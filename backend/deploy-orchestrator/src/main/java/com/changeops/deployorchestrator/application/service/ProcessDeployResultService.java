@@ -151,6 +151,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             throw e;
         } finally {
             timerSample.stop(orchestrationTimer);
+            MDC.remove("correlation_id");
             MDC.remove("deploy_id");
             MDC.remove("change_id");
         }

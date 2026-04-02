@@ -52,12 +52,12 @@ class ProcessDeployResultServiceTest {
                 publishResultEventPort,
                 saveChangeEventPort,          // ← adicionar
                 meterRegistry);
+        when(updateChangeStatusPort.existsByChangeId(any())).thenReturn(true);
     }
 
     @Test
     void shouldMarkCompleted_andPublishEvent_whenDeploySucceeds() {
         DeployFinishedEvent event = buildEvent("SUCCESS");
-        when(updateChangeStatusPort.existsByChangeId(event.payload().changeId())).thenReturn(true);
         when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString())).thenReturn(true);
 
         service.execute(event);
@@ -69,7 +69,6 @@ class ProcessDeployResultServiceTest {
     @Test
     void shouldMarkFailed_andPublishEvent_whenDeployFails() {
         DeployFinishedEvent event = buildEvent("FAILURE");
-        when(updateChangeStatusPort.existsByChangeId(event.payload().changeId())).thenReturn(true);
         when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString())).thenReturn(true);
 
         service.execute(event);
@@ -83,7 +82,6 @@ class ProcessDeployResultServiceTest {
         // Verifies that failureReason is populated even when ChangeResult is already FAILURE
         // (regression guard for withChecklistFailure removing the SUCCESS guard)
         DeployFinishedEvent event = buildEvent("FAILURE");
-        when(updateChangeStatusPort.existsByChangeId(event.payload().changeId())).thenReturn(true);
         when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString())).thenReturn(true);
 
         service.execute(event);
@@ -95,7 +93,6 @@ class ProcessDeployResultServiceTest {
     @Test
     void shouldDiscardEvent_whenDeployIdAlreadyProcessed() {
         DeployFinishedEvent event = buildEvent("SUCCESS");
-        when(updateChangeStatusPort.existsByChangeId(event.payload().changeId())).thenReturn(true);
         when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString())).thenReturn(false);
 
         service.execute(event);
@@ -108,7 +105,6 @@ class ProcessDeployResultServiceTest {
     @Test
     void shouldNotMarkCompleted_whenSameEventDeliveredTwice() {
         DeployFinishedEvent event = buildEvent("SUCCESS");
-        when(updateChangeStatusPort.existsByChangeId(event.payload().changeId())).thenReturn(true);
 
         // First delivery — not yet processed
         when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString()))
@@ -125,7 +121,6 @@ class ProcessDeployResultServiceTest {
     @Test
     void shouldSaveChangeEvent_whenDeploySucceeds() {
         DeployFinishedEvent event = buildEvent("SUCCESS");
-        when(updateChangeStatusPort.existsByChangeId(event.payload().changeId())).thenReturn(true);
         when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString())).thenReturn(true);
 
         service.execute(event);
@@ -140,7 +135,6 @@ class ProcessDeployResultServiceTest {
     @Test
     void shouldIncrementChangesCompletedCounter_whenDeploySucceeds() {
         DeployFinishedEvent event = buildEvent("SUCCESS");
-        when(updateChangeStatusPort.existsByChangeId(event.payload().changeId())).thenReturn(true);
         when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString())).thenReturn(true);
 
         service.execute(event);
@@ -152,7 +146,6 @@ class ProcessDeployResultServiceTest {
     @Test
     void shouldIncrementChangesFailedCounter_whenDeployFails() {
         DeployFinishedEvent event = buildEvent("FAILURE");
-        when(updateChangeStatusPort.existsByChangeId(event.payload().changeId())).thenReturn(true);
         when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString())).thenReturn(true);
 
         service.execute(event);

@@ -227,7 +227,10 @@ class DeployEventConsumerIT {
 
             await().atMost(30, TimeUnit.SECONDS).pollInterval(2, TimeUnit.SECONDS).untilAsserted(() -> {
                 dltConsumer.poll(Duration.ofMillis(500)).forEach(dltRecords::add);
-                assertThat(dltRecords).isNotEmpty();
+                assertThat(dltRecords.stream()
+                        .filter(r -> "test-key".equals(r.key())
+                                || (r.value() != null && r.value().contains("INVALID-NOT-A-UUID")))
+                        .toList()).isNotEmpty();
             });
         }
 

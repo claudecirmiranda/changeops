@@ -314,7 +314,8 @@ echo "========================================"
 echo "  CT-13B: Poison pill (UUID malformado no payload)"
 echo "========================================"
 begin_test
-EVENT_POISON='{"eventType":"DeployFinishedEvent","version":"1.0","correlationId":"f10f409d-2eee-4053-82f2-80fac03fd65b","occurredAt":"2026-03-23T11:42:00Z","payload":{"deployId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","changeId":"e69a604a-d54b-4915-9504-c7c28685d52411","result":"SUCCESS","executedAt":"2026-03-23T11:42:00Z"}}'
+POISON_DEPLOY_ID=$(newuuid)
+EVENT_POISON="{\"eventType\":\"DeployFinishedEvent\",\"version\":\"1.0\",\"correlationId\":\"f10f409d-2eee-4053-82f2-80fac03fd65b\",\"occurredAt\":\"2026-03-23T11:42:00Z\",\"payload\":{\"deployId\":\"${POISON_DEPLOY_ID}\",\"changeId\":\"e69a604a-d54b-4915-9504-c7c28685d52411\",\"result\":\"SUCCESS\",\"executedAt\":\"2026-03-23T11:42:00Z\"}}"
 echo "$EVENT_POISON" | docker exec -i changeops-kafka kafka-console-producer \
   --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
 echo "  INFO poison pill publicado (changeId UUID invalido), aguardando 10s..."
@@ -324,7 +325,7 @@ sleep 10
 dlt_poison=$(docker exec changeops-kafka kafka-console-consumer \
   --bootstrap-server localhost:9092 --topic changeops.deploy.finished-dlt \
   --from-beginning --max-messages 20 --timeout-ms 5000 2>/dev/null \
-  | grep "e69a604a-d54b-4915-9504-c7c28685d52411" | wc -l)
+  | grep "$POISON_DEPLOY_ID" | wc -l)
 [ "$dlt_poison" -gt 0 ] \
   && pass_msg "CT-13B" "poison pill roteado para DLT (count=$dlt_poison)" \
   || fail_msg "CT-13B" "poison pill NAO chegou no DLT"
@@ -355,7 +356,7 @@ failed_after_int=$(echo "$failed_after" | grep -o '^[0-9]*' | head -1)
 
 # Verifica que NAO ficou em processed_events
 no_processed=$(docker exec changeops-postgres psql -U changeops -d changeops -t \
-  -c "SELECT COUNT(*) FROM processed_events WHERE event_id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'" \
+  -c "SELECT COUNT(*) FROM processed_events WHERE event_id = '${POISON_DEPLOY_ID}'" \
   2>/dev/null | tr -d ' ')
 check "CT-13B" "0" "$no_processed" "poison pill NAO registrado em processed_events"
 end_test "CT-13B"

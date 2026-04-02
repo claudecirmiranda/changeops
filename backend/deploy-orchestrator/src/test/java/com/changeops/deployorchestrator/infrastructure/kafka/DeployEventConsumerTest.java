@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -40,7 +41,7 @@ class DeployEventConsumerTest {
                 "{\"eventType\":\"DeployFinishedEvent\"}"  // String — caminho feliz
         );
 
-        consumer.onDlt(record, "changeops.deploy.finished-dlt");
+        consumer.onDlt(record);
 
         assertThat(registry.counter("events_failed_total", "consumer", "deploy-orchestrator").count())
                 .isEqualTo(1.0);
@@ -95,11 +96,54 @@ class DeployEventConsumerTest {
                 "changeops.deploy.finished-dlt", 0, 0L,
                 UUID.randomUUID().toString(), null);
 
-        consumer.onDlt(record, "changeops.deploy.finished-dlt");
+        consumer.onDlt(record);
 
         assertThat(registry.counter("events_failed_total", "consumer", "deploy-orchestrator").count())
                 .isEqualTo(1.0);
         assertThat(registry.counter("events_dlt_total", "consumer", "deploy-orchestrator").count())
+                .isEqualTo(1.0);
+    }
+
+    @Test
+    void shouldThrowInvalidOrchestratorStateException_whenEventPayloadIsNull() {
+        DeployFinishedEvent eventWithNullPayload = new DeployFinishedEvent(
+                "DeployFinishedEvent", "1.0", UUID.randomUUID(), Instant.now(), null);
+        ConsumerRecord<String, DeployFinishedEvent> record = new ConsumerRecord<>(
+                "changeops.deploy.finished", 0, 0L,
+                UUID.randomUUID().toString(), eventWithNullPayload);
+
+        assertThatThrownBy(() -> consumer.onDeployFinished(record, "changeops.deploy.finished", 0L))
+                .isInstanceOf(InvalidOrchestratorStateException.class)
+                .hasMessageContaining("Deserialization failed or invalid payload");
+    }
+
+    @Test
+    void shouldHandleByteArrayPayload_inDltHandler() {
+        byte[] rawPayload = "{\"eventType\":\"DeployFinishedEvent\"}".getBytes(StandardCharsets.UTF_8);
+        ConsumerRecord<String, Object> record = new ConsumerRecord<>(
+                "changeops.deploy.finished-dlt", 0, 0L,
+                UUID.randomUUID().toString(), rawPayload);
+
+        consumer.onDlt(record);
+
+        assertThat(registry.counter("events_dlt_total", "consumer", "deploy-orchestrator").count())
+                .isEqualTo(1.0);
+        assertThat(registry.counter("events_failed_total", "consumer", "deploy-orchestrator").count())
+                .isEqualTo(1.0);
+    }
+
+    @Test
+    void shouldTruncatePayload_whenDltPayloadExceedsMaxLength() {
+        String longPayload = "x".repeat(DeployEventConsumer.MAX_DLT_PAYLOAD_LOG_LENGTH + 100);
+        ConsumerRecord<String, Object> record = new ConsumerRecord<>(
+                "changeops.deploy.finished-dlt", 0, 0L,
+                UUID.randomUUID().toString(), longPayload);
+
+        consumer.onDlt(record);
+
+        assertThat(registry.counter("events_dlt_total", "consumer", "deploy-orchestrator").count())
+                .isEqualTo(1.0);
+        assertThat(registry.counter("events_failed_total", "consumer", "deploy-orchestrator").count())
                 .isEqualTo(1.0);
     }
 

@@ -52,6 +52,14 @@ channels:
       message:
         $ref: '#/components/messages/ChangeFailedEvent'
 
+  changeops.deploy.finished-dlt:
+    description: Dead-letter topic for DeployFinishedEvent messages that failed deserialization (poison pill) or exhausted all retry attempts.
+    subscribe:
+      operationId: onDeployFinishedDlt
+      summary: Messages routed here after deserialization failure (poison pill) or max retry exhaustion. Payload may be raw bytes that do not conform to the DeployFinishedEvent schema.
+      message:
+        description: Raw bytes of the original message (may not conform to DeployFinishedEvent schema).
+
 components:
 
   messages:

@@ -65,6 +65,7 @@ A estratégia de testes do ChangeOps prioriza **confiança nos fluxos críticos*
 | Classe de Teste | O que cobre |
 |----------------|-------------|
 | `ProcessDeployResultServiceTest` | Orquestração completa: idempotência, checklist, atualização de status, publicação de evento, descarte de duplicatas |
+| `DeployEventConsumerTest` | Null event handling (→ DLT), null payload handling (event não-nulo com payload nulo → DLT), DLT handler counters (String + null + byte[] + payload truncado >500 chars), retry counter por tópico, proteção contra poison pill |
 | `KafkaResultPublisherAdapterTest` | Publicação com sucesso incrementa counter; falha de publicação aciona fallback para DLQ |
 
 ### 3.3 Testes de Integração — Backend
@@ -74,7 +75,7 @@ A estratégia de testes do ChangeOps prioriza **confiança nos fluxos críticos*
 | Classe de Teste | O que cobre |
 |----------------|-------------|
 | `CreateChangeIT` | `POST /changes` → persistência → evento no Kafka; validação 400; listagem paginada |
-| `DeployEventConsumerIT` | Consumo de `DeployFinishedEvent` → status COMPLETED/FAILED; idempotência (duplicata sem efeito); persistência de evento na timeline |
+| `DeployEventConsumerIT` | Consumo de `DeployFinishedEvent` → status COMPLETED/FAILED; idempotência (duplicata sem efeito); persistência de evento na timeline; poison pill (UUID malformado → DLT sem loop infinito); `changeId` inexistente → DLT após retries esgotados |
 
 **Infra:** PostgreSQL 16-alpine + Confluent Kafka 7.6.0 via `@Container` + `@DynamicPropertySource`.
 
@@ -142,6 +143,8 @@ cd frontend && npm test
 | Deploy com falha → FAILED + ChangeFailedEvent | `DeployEventConsumerIT.shouldMarkFailed` | ✅ |
 | Mesmo evento 2x → estado inalterado | `DeployEventConsumerIT.shouldBeIdempotent` | ✅ |
 | Falha na publicação → retry → DLQ | `ProcessDeployResultServiceTest` + IT | ✅ |
+| Poison pill (falha de desserialização) → DLT sem loop infinito | `DeployEventConsumerIT.shouldSendToDlt_whenMessageHasMalformedPayload` | ✅ |
+| changeId inexistente → DLT (0 retries) | `ProcessDeployResultServiceTest.shouldThrowNonRetryableException_whenChangeIdNotFound` | ✅ |
 
 ---
 
@@ -540,6 +543,57 @@ Anotar o `changeId` retornado.
 1. Screenshot do tópico `changeops.deploy.finished-dlt` com a mensagem
 2. Screenshot dos tópicos de retry mostrando mensagens processadas
 
+### CT-13B — Poison Pill (UUID malformado no payload)
+
+> Verifica que um payload com UUID inválido (poison pill) é roteado ao DLT sem causar loop infinito, e que o consumer continua funcional após o incidente.
+
+**Passo 1 — Publicar poison pill no Kafka UI:**
+- Acessar http://localhost:8090
+- Navegar para tópico `changeops.deploy.finished` → "Produce Message"
+- **Value:**
+
+```json
+{
+  "eventType": "DeployFinishedEvent",
+  "version": "1.0",
+  "correlationId": "f10f409d-2eee-4053-82f2-80fac03fd65b",
+  "occurredAt": "2026-03-23T11:42:00Z",
+  "payload": {
+    "deployId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "changeId": "e69a604a-d54b-4915-9504-c7c28685d52411",
+    "result": "SUCCESS",
+    "executedAt": "2026-03-23T11:42:00Z"
+  }
+}
+```
+
+> Nota: `changeId` tem 37 caracteres (UUID inválido) — causa falha no `JsonDeserializer`.
+
+**Passo 2 — Aguardar ~10 segundos.**
+
+**Passo 3 — Verificar DLT:**
+- Kafka UI → tópico `changeops.deploy.finished-dlt` → deve conter a mensagem (sem loop infinito no consumer principal)
+
+**Passo 4 — Verificar que o consumer continua funcional:**
+- Criar uma nova mudança via `POST /api/v1/changes` → esperado: `201 Created`
+- Publicar um `DeployFinishedEvent` SUCCESS válido para o novo `changeId` → esperado: status `COMPLETED`
+
+**Passo 5 — Verificar métricas:**
+- `GET http://localhost:8081/actuator/prometheus`
+- `events_dlt_total` > 0
+- `events_failed_total` > 0
+- `events_retries_total` = 0 (exceção em `exclude` do `@RetryableTopic`, sem retries)
+
+**Passo 6 — Verificar que o poison pill NÃO foi registrado em `processed_events`:**
+- `make db-shell` → `SELECT COUNT(*) FROM processed_events WHERE event_id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';`
+- Esperado: `0`
+
+**Evidenciar:**
+1. Screenshot da mensagem no tópico DLT
+2. Screenshot do consumer funcional após o poison pill (nova mudança criada com sucesso)
+3. Screenshot das métricas no actuator
+4. Screenshot do `processed_events` sem registro do poison pill
+
 ### CT-14 — Observabilidade (Grafana + Prometheus)
 
 > Executar após os testes anteriores para ter dados suficientes nos painéis.
@@ -615,5 +669,6 @@ Anotar o `changeId` retornado.
 | CT-11 | Deploy FAILURE | Status `FAILED` + `ChangeFailedEvent` na timeline |
 | CT-12 | Idempotência | Status inalterado + sem duplicação na timeline |
 | CT-13 | DLT após retries | Mensagem no tópico `changeops.deploy.finished-dlt` |
+| CT-13B | Poison pill (UUID malformado) | Mensagem no DLT sem loop infinito, consumer funcional, métricas incrementadas, sem registro em `processed_events` |
 | CT-14 | Observabilidade | Dashboard Grafana completo + query Prometheus |
 | CT-15 | Frontend | Formulário, lista, polling automático, timeline |

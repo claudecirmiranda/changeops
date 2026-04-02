@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -81,26 +80,28 @@ public class KafkaConfig {
         return factory;
     }
 
-    // ── DLT Producer (Primary) ────────────────────────────────────────────────
+    // ── Default Producer (Primary — used by @RetryableTopic for retry/DLT publishing) ─────────────
     //
-    // Marcado como @Primary para que o @RetryableTopic use este template
-    // ao publicar no DLT — ByteArraySerializer preserva os bytes brutos
-    // da mensagem original sem re-serializar como Base64.
+    // Uses JsonSerializer<Object> so that @RetryableTopic can publish any deserialized domain
+    // object (e.g. DeployFinishedEvent) to DLT topics without a type-mismatch.
+    // For poison pills (null value after ErrorHandlingDeserializer failure), Spring Kafka
+    // preserves the original raw bytes in record headers automatically.
 
     @Bean
-    public ProducerFactory<String, byte[]> dltProducerFactory() {
+    public ProducerFactory<String, Object> defaultProducerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ProducerConfig.ACKS_CONFIG, "all");
         props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
-        return new DefaultKafkaProducerFactory<>(
-                props, new StringSerializer(), new ByteArraySerializer());
+        JsonSerializer<Object> valueSerializer = new JsonSerializer<>(objectMapper);
+        valueSerializer.setAddTypeInfo(false);
+        return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), valueSerializer);
     }
 
     @Primary
     @Bean
-    public KafkaTemplate<String, byte[]> dltKafkaTemplate() {
-        return new KafkaTemplate<>(dltProducerFactory());
+    public KafkaTemplate<String, Object> defaultKafkaTemplate() {
+        return new KafkaTemplate<>(defaultProducerFactory());
     }
 
     // ── Result Producer ───────────────────────────────────────────────────────

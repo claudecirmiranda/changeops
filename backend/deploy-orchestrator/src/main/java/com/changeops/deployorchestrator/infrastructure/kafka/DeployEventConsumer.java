@@ -25,6 +25,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class DeployEventConsumer {
 
+    static final int MAX_DLT_PAYLOAD_LOG_LENGTH = 500;
+
     private final ProcessDeployResultUseCase processDeployResultUseCase;
     private final Counter dltCounter;
     private final Counter eventsFailedCounter;
@@ -101,19 +103,17 @@ public class DeployEventConsumer {
     }
 
     @DltHandler
-    public void onDlt(
-            ConsumerRecord<String, Object> record,
-            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic) {
-        try {
-            String payload = record.value() instanceof byte[]
-                    ? new String((byte[]) record.value(), StandardCharsets.UTF_8)
-                    : String.valueOf(record.value());
-            log.error("Event sent to DLT after max retries: key={}, topic={}, offset={}, payload={}",
-                    record.key(), topic, record.offset(), payload);
-            dltCounter.increment();
-            eventsFailedCounter.increment();
-        } finally {
-            MDC.clear();
-        }
+    public void onDlt(ConsumerRecord<String, Object> record) {
+        String topic = record.topic();
+        String payload = record.value() instanceof byte[]
+                ? new String((byte[]) record.value(), StandardCharsets.UTF_8)
+                : String.valueOf(record.value());
+        String safePayload = payload != null && payload.length() > MAX_DLT_PAYLOAD_LOG_LENGTH
+                ? payload.substring(0, MAX_DLT_PAYLOAD_LOG_LENGTH) + "...[truncated]"
+                : payload;
+        log.error("Event sent to DLT after max retries: key={}, topic={}, offset={}, payload={}",
+                record.key(), topic, record.offset(), safePayload);
+        dltCounter.increment();
+        eventsFailedCounter.increment();
     }
 }
