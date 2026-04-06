@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -108,12 +109,15 @@ class ChangeTest {
                 .hasMessageContaining("COMPLETED");
     }
 
+    private static final UUID TEST_CORRELATION_ID = UUID.randomUUID();
+
     private Change createValidChange() {
         return Change.create(
                 "Deploy payment-service",
                 "Version upgrade",
                 "payment-service",
                 "user-001",
-                Instant.now().plus(2, ChronoUnit.DAYS));
+                Instant.now().plus(2, ChronoUnit.DAYS),
+                TEST_CORRELATION_ID);
     }
 }

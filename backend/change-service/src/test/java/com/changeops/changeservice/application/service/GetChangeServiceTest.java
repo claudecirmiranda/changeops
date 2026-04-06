@@ -29,6 +29,8 @@ class GetChangeServiceTest {
 
     GetChangeService service;
 
+    private static final UUID TEST_CORRELATION_ID = UUID.randomUUID();
+
     @BeforeEach
     void setUp() {
         service = new GetChangeService(loadChangesPort);
@@ -41,7 +43,8 @@ class GetChangeServiceTest {
                 "Version upgrade",
                 "payment-service",
                 "user-001",
-                Instant.now().plus(2, ChronoUnit.DAYS));
+                Instant.now().plus(2, ChronoUnit.DAYS),
+                TEST_CORRELATION_ID);
         change.pullDomainEvents();
 
         when(loadChangesPort.findById(change.getChangeId()))

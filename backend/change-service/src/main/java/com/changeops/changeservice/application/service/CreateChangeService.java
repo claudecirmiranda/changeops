@@ -55,7 +55,8 @@ public class CreateChangeService implements CreateChangeUseCase {
                 command.description(),
                 command.componentId(),
                 command.requestedBy(),
-                command.scheduledAt());
+                command.scheduledAt(),
+                command.correlationId());
 
         List<DomainEvent> events = change.pullDomainEvents();
 

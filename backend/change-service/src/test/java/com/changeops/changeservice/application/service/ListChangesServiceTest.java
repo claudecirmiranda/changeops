@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -34,6 +35,8 @@ class ListChangesServiceTest {
 
     ListChangesService service;
 
+    private static final UUID TEST_CORRELATION_ID = UUID.randomUUID();
+    
     @BeforeEach
     void setUp() {
         service = new ListChangesService(loadChangesPort);
@@ -42,7 +45,7 @@ class ListChangesServiceTest {
     @Test
     void shouldDelegateToPort_andMapResults() {
         Change change = Change.create("Deploy v1", "desc", "svc-a", "user-1",
-                Instant.now().plus(1, ChronoUnit.DAYS));
+                Instant.now().plus(1, ChronoUnit.DAYS),TEST_CORRELATION_ID);
         change.pullDomainEvents();
         Pageable pageable = PageRequest.of(0, 10);
         when(loadChangesPort.findAll(null, null, pageable))

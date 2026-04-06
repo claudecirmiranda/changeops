@@ -97,7 +97,30 @@ Esse padrão melhora a estabilidade do sistema sob carga e evita efeitos de _thu
 - Hook genérico `usePolling` permite ajuste centralizado de intervalo; backoff exponencial e parada por status HTTP planejados para Fase 2
 - Edge cases de UX (`visibilitychange`, `beforeunload`) a tratar na evolução do hook
 
-## Relacionado a
+## Ausência de Endpoint PUT/PATCH para Mutação Direta de Status
+
+A API expõe `POST /api/v1/changes` (criação) e `GET /api/v1/changes` (leitura), mas **não expõe `PUT` ou `PATCH` para alteração direta de status**. Essa é uma **decisão arquitetural intencional**, não uma lacuna.
+
+### Rationale
+
+No modelo event-driven adotado, o status de uma mudança é uma **consequência de eventos**, não um campo editável diretamente:
+
+```
+Status PREPARED  → definido por Change.create() no momento da criação
+Status COMPLETED → consequência de DeployFinishedEvent com sucesso
+Status FAILED    → consequência de DeployFinishedEvent com falha
+Status CANCELLED → único caso com comando direto (roadmap)
+```
+
+Permitir `PATCH /changes/{id}/status` criaria dois caminhos para a mesma transição de estado — o evento Kafka e o comando HTTP direto — gerando inconsistência entre o estado do banco e o event log. Isso violaria o princípio de **single source of truth** para transições de estado.
+
+### O que existe em vez disso
+
+- Transições de estado via eventos: `DeployFinishedEvent → COMPLETED/FAILED`
+- Timeline completo de eventos via `GET /api/v1/changes/{id}/events` — auditoria sem mutação direta
+- **Roadmap (Phase 2):** `POST /api/v1/changes/{id}/cancel` — único comando direto planejado, pois cancelamento é uma intenção do operador, não uma consequência de evento externo
+
+### Relacionado a
 - [ADR-003](./ADR-003-eventos-dominio-vs-integracao.md) — `correlationId` do envelope é incluído em respostas HTTP para polling
 - [ADR-005](./ADR-005-estrutura-pacotes.md) — Hook `usePolling` vive em `frontend/src/shared/hooks/`, isolado de lógica de domínio
 - [ADR-001](./ADR-001-escolha-message-broker.md) — Eventos assíncronos no Kafka justificam necessidade de polling no frontend
@@ -108,9 +131,10 @@ Esse padrão melhora a estabilidade do sistema sob carga e evita efeitos de _thu
 |-----------|--------|-----------|
 | "Mecanismo de atualização de status para frontend" | ✅ Atendido | Hook genérico `usePolling` com intervalo fixo de 5s e tratamento básico de erro |
 | "Propagação de correlation ID para rastreabilidade" | ✅ Atendido | `correlationId` incluído em headers de resposta e logs estruturados |
-| "Estratégia evolutiva para comunicação em tempo real" | ✅ Atendido | Hook genérico de polling permite futura migração para SSE/WebSocket sem refatoração de componentes |
+| "Estratégia evolutiva para comunicação em tempo real" | ✅ Atendido | Hook abstrato permite migração para SSE/WebSocket sem refatoração de componentes |
 | "Tratamento de erro e retry no cliente" | ⚠️ Parcial | Polling com retry simples em intervalo fixo; backoff exponencial e parada para erros 4xx ainda não implementados |
 | "Monitoramento de comportamento do frontend" | ⚠️ Parcial | Comportamento observável indiretamente via métricas/logs de backend; métrica específica de frontend ainda não implementada |
+| "Ausência de PUT/PATCH para status (justificativa)" | ✅ Atendido | Transição de status é event-driven por design; mutação direta violaria single source of truth — documentado neste ADR |
 
 ## Justificativa
 

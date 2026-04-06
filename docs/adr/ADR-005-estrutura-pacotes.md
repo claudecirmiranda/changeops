@@ -14,33 +14,31 @@ Além disso, o domínio define o status `DRAFT` como parte do ciclo de vida da m
 Adotamos **Arquitetura Hexagonal (Ports & Adapters)** com pacotes organizados por camada dentro de cada bounded context.
 
 ## Estrutura de Pacotes
-
 ```
-com.changeops.changeservice/  
-├── api/                          # Adaptadores de entrada (driving)  
-│   ├── controller/               # REST controllers  
-│   └── dto/                      # Request/Response DTOs  
-├── application/                  # Lógica de aplicação  
-│   ├── port/  
-│   │   ├── in/                   # Use cases (driving ports)  
-│   │   └── out/                  # Driven ports (interfaces)  
-│   └── service/                  # Implementação dos use cases  
-├── domain/                       # Núcleo de domínio (zero dependências externas)  
-│   ├── model/                    # Aggregates, entidades  
-│   ├── event/                    # Eventos de domínio  
-│   ├── exception/                # Exceções de domínio  
-│   └── valueobject/              # Value objects (ChangeStatus)  
-└── infrastructure/               # Adaptadores de saída (driven)  
-    ├── config/                   # Configurações Spring/Kafka  
-    ├── kafka/                    # Publisher adapter + IntegrationEvent  
-    ├── observability/            # Filtros MDC, métricas  
-    ├── persistence/              # JPA entities, repositories, adapters  
-    ├── ratelimit/                # Rate limiting  
+com.changeops.changeservice/
+├── api/                          # Adaptadores de entrada (driving)
+│   ├── controller/               # REST controllers
+│   └── dto/                      # Request/Response DTOs
+├── application/                  # Lógica de aplicação
+│   ├── port/
+│   │   ├── in/                   # Use cases (driving ports)
+│   │   └── out/                  # Driven ports (interfaces)
+│   └── service/                  # Implementação dos use cases
+├── domain/                       # Núcleo de domínio (zero dependências externas)
+│   ├── model/                    # Aggregates, entidades
+│   ├── event/                    # Eventos de domínio
+│   ├── exception/                # Exceções de domínio
+│   └── valueobject/              # Value objects (ChangeStatus)
+└── infrastructure/               # Adaptadores de saída (driven)
+    ├── config/                   # Configurações Spring/Kafka
+    ├── kafka/                    # Publisher adapter + IntegrationEvent
+    ├── observability/            # Filtros MDC, métricas
+    ├── persistence/              # JPA entities, repositories, adapters
+    ├── ratelimit/                # Rate limiting
     └── security/                 # OAuth2, CORS
 ```
 
 ## Regra de Dependência
-
 ```mermaid
 graph LR
 
@@ -69,66 +67,17 @@ INFRA -- implements --> PORTOUT
 
 ## Independência de Serviços
 
-Essa estrutura reforça a independência entre serviços como `change-service` e `deploy-orchestrator`.
-
-Cada serviço:
-*   Possui seu próprio domínio isolado
-*   Define seus próprios ports e adapters
-*   Evolui de forma independente (deploy, versionamento, mudanças internas)
-A comunicação entre serviços ocorre exclusivamente via eventos (Kafka), conforme definido nas ADRs anteriores, evitando acoplamento direto entre códigos.
-
-Isso permite:
-*   Deploys independentes
-*   Evolução assíncrona dos bounded contexts
-*   Redução de impacto em mudanças internas
+Cada serviço possui seu próprio domínio isolado, define seus próprios ports e adapters, e evolui de forma independente. A comunicação entre serviços ocorre exclusivamente via eventos (Kafka), evitando acoplamento direto entre códigos.
 
 ## Status DRAFT e status inicial da mudança
 
 O enum `ChangeStatus` inclui o valor `DRAFT`, porém a factory `Change.create()` define o status inicial diretamente como `PREPARED`. Essa é uma **decisão deliberada de escopo**:
-*   No fluxo atual da POC, **não existe transição observável `DRAFT → PREPARED`**. A change é criada e imediatamente persistida em `PREPARED` — nenhum registro com status `DRAFT` será encontrado no banco de dados.
-*   A notação `DRAFT → PREPARED` presente em documentações de fluxo descreve uma **intenção futura**, não um estado transitório real na implementação atual.
+
+*   No fluxo atual da POC, **não existe transição observável `DRAFT → PREPARED`**.
 *   O valor `DRAFT` é mantido no enum exclusivamente para **compatibilidade forward**.
+
 **Status inicial efetivo:** `PREPARED`  
 **Roadmap:** A transição real `DRAFT → PREPARED` será introduzida junto ao fluxo de aprovação.
-
-## Exemplo de Testabilidade
-
-A arquitetura permite testar a lógica de aplicação de forma isolada, mockando apenas os ports de saída.
-
-```Java
-@ExtendWith(MockitoExtension.class)  
-class CreateChangeServiceTest {  
-  
-    @Mock  
-    private ChangeRepositoryPort repository;  
-  
-    @Mock  
-    private PublishEventPort eventPublisher;  
-  
-    @InjectMocks  
-    private CreateChangeService service;  
-  
-    @Test  
-    void shouldCreateChangeAndPublishEvent() {  
-        // given  
-        var command = new CreateChangeCommand("component-1", "user-1");  
-  
-        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));  
-  
-        // when  
-        service.execute(command);  
-  
-        // then  
-        verify(repository).save(any());  
-        verify(eventPublisher).publish(any());  
-    }  
-}
-```
-
-Esse teste demonstra:
-*   Isolamento completo da lógica de aplicação
-*   Ausência de dependência de infraestrutura (JPA, Kafka, etc.)
-*   Execução rápida e determinística
 
 ## Alternativas Consideradas
 
@@ -136,40 +85,16 @@ Esse teste demonstra:
 
 *   Inversão de dependências clara: domínio no centro, sem acoplamento a frameworks.
 *   Testabilidade máxima: serviços testados com mocks dos ports de saída.
-*   Substituição de adapters sem impacto no domínio (ex: trocar Kafka por RabbitMQ).
-*   Trade-off: mais interfaces e classes que uma abordagem layered simples.
-
-```Java
-// HexagonalArchitectureTest.java
-@Test
-void domainShouldNotDependOnInfrastructure() {
-    // Given: classes do domínio
-    Set<Class<?>> domainClasses = getClassesInPackage("com.changeops.changeservice.domain");
-    
-    // When: verificar imports
-    List<String> infraImports = domainClasses.stream()
-        .flatMap(c -> Arrays.stream(c.getImports()))
-        .filter(i -> i.startsWith("com.changeops.changeservice.infrastructure"))
-        .toList();
-    
-    // Then: nenhum import de infraestrutura
-    assertThat(infraImports).isEmpty();
-}
-```
+*   Substituição de adapters sem impacto no domínio.
 
 ### 2. Camadas tradicionais (Controller → Service → Repository)
 
-*   Simples e familiar para a maioria dos desenvolvedores.
-*   Services tendem a acumular lógica (god classes).
-*   Repository acoplado ao framework (JPA direto no service).
-*   Menor testabilidade.
+*   Simples e familiar, porém services tendem a acumular lógica.
+*   Repository acoplado ao framework.
 
 ### 3. Organização por feature/domínio (vertical slicing)
 
-*   Cada feature em um pacote independente.
-*   Boa para sistemas muito grandes.
 *   Over-engineering para a POC.
-*   Dificulta leitura da arquitetura em camadas.
 
 ## Trade-offs
 
@@ -179,30 +104,62 @@ void domainShouldNotDependOnInfrastructure() {
 | Testabilidade | ✅ Mock de ports | ⚠ Mock de repos JPA | ✅ Boa |
 | Complexidade | ⚠ Mais interfaces | ✅ Mínima | ⚠ Alta |
 | Substituição de infra | ✅ Via adapter | ❌ Requer refactor | ⚠ Parcial |
-| Curva de aprendizado | ⚠ Requer entendimento de ports | ✅ Intuitiva | ⚠ Conceitual |
 | Escalabilidade de código | ✅ Boa separação | ⚠ God services | ✅ Boa |
 
 ## Consequências
 
 ### Positivas
-- Isolamento de domínio: regras de negócio são testáveis sem dependências de infraestrutura, facilitando TDD e evolução
-- Substituibilidade de adapters: trocar Kafka por SQS, ou PostgreSQL por outro banco, requer apenas nova implementação de porta
-- Onboarding acelerado: estrutura padronizada permite que novos desenvolvedores localizem código por convenção, não por exploração
+- Isolamento de domínio: regras de negócio testáveis sem dependências de infraestrutura
+- Substituibilidade de adapters sem impacto no domínio
+- Onboarding acelerado por estrutura padronizada
 
 ### Negativas / Riscos
-- Verbosidade inicial: criação de múltiplos arquivos (model, port, adapter) para features simples pode parecer overhead
-- Curva de aprendizado: desenvolvedores não familiarizados com Hexagonal podem cometer erros de acoplamento entre camadas
-- Risco de "anemia de domínio": separação excessiva pode levar a modelos sem comportamento, apenas dados
+- Verbosidade inicial com múltiplos arquivos por feature
+- Curva de aprendizado para desenvolvedores não familiarizados com Hexagonal
+- Risco de anemia de domínio
 
 ### Mitigações
-- Exemplo de feature completa (`CreateChange`) documentado no próprio ADR como referência para novas implementações
-- Teste de arquitetura `HexagonalArchitectureTest` verifica que domínio não importa infraestrutura, executado em cada build
-- Guidelines de modelagem rica em `docs/architecture/` (diagramas C4 e de sequência) com exemplos de estrutura por camada
+- Exemplo de feature completa (`CreateChange`) documentado como referência
+- Teste de arquitetura `HexagonalArchitectureTest` executado em cada build
+- Guidelines de modelagem em `docs/architecture/`
+
+## Perfis de Segurança: Local vs. Produção
+
+A `SecurityConfig` possui duas configurações ativadas por Spring Profile:
+
+### Perfil `local` / `test`
+```java
+@Profile({"local", "test"})
+// Todos os requests permitidos sem autenticação
+// CORS ainda configurado; rate limiting ativo
+```
+
+**Motivação:** Eliminar a necessidade de um Identity Provider no ambiente de demonstração, tornando o `make up` autossuficiente.
+
+**O que permanece ativo mesmo no perfil local:**
+- `CorrelationIdFilter` — rastreabilidade preservada
+- `RateLimitFilter` — proteção contra flood nos endpoints POST
+- CORS configurado
+
+### Perfil `prod` / `staging`
+```java
+@Profile("!local & !test")
+// OAuth2 Resource Server com JWT
+// CustomJwtAuthenticationConverter → roles OPERATOR, ADMIN
+```
+
+### Dívida Técnica: Mock JWT para ambiente de desenvolvimento
+
+A solução atual utiliza o header `X-User-Id` combinado com o perfil `local` para simular identidade do usuário sem Keycloak. Essa abordagem introduz lógica condicional baseada em perfil no controller (`resolveRequestedBy`), o que não deveria existir em código de produção.
+
+A solução correta — um `JwtDecoder` mock via `@Profile("local")` que aceita tokens sem validação de assinatura — está registrada como dívida técnica na **ADR-007** e será implementada antes do go-live.
 
 ## Relacionado a
-- [ADR-002](./ADR-002-estrategia-idempotencia.md) — `IdempotencyAdapter` implementa porta de persistência em `infrastructure/persistence`
-- [ADR-003](./ADR-003-eventos-dominio-vs-integracao.md) — Eventos de domínio em `domain/model`, envelope em `infrastructure/event`
-- [ADR-004](./ADR-004-atualizacao-status-frontend.md) — Hook de frontend isolado em `frontend/hooks/`, sem dependência de backend
+- [ADR-002](./ADR-002-estrategia-idempotencia.md) — `IdempotencyAdapter` em `infrastructure/persistence`
+- [ADR-003](./ADR-003-eventos-dominio-vs-integracao.md) — Eventos de domínio em `domain/`, envelope em `infrastructure/kafka/`
+- [ADR-004](./ADR-004-atualizacao-status-frontend.md) — Hook de frontend isolado em `frontend/hooks/`
+- [ADR-006](./ADR-006-checklist-pos-deploy.md) — `PostDeployChecklistService` em `application/service/`
+- [ADR-007](./ADR-007-autenticacao-em-ambiente-de-desenvolvimento.md) — Dívida técnica de autenticação em ambiente de desenvolvimento
 
 ## Conformidade com a RFP
 
@@ -210,10 +167,11 @@ void domainShouldNotDependOnInfrastructure() {
 |-----------|--------|-----------|
 | "Organização por domínio com isolamento de infraestrutura" | ✅ Atendido | Pacotes `domain/`, `application/`, `infrastructure/` com dependências unidirecionais |
 | "Testabilidade de regras de negócio sem infraestrutura" | ✅ Atendido | Testes unitários em `domain/` sem mocks de banco ou Kafka |
-| "Substituibilidade de adapters para evolução técnica" | ✅ Atendido | Porta `EventPublisher` com implementações `KafkaEventPublisher` e `InMemoryEventPublisher` para testes |
-| "Documentação de convenções para novos desenvolvedores" | ✅ Atendido | Exemplo de feature completa no ADR + diagramas de arquitetura em `docs/architecture/` |
-| "Validação automática de arquitetura" | ✅ Atendido | `HexagonalArchitectureTest.java` executado em pipeline CI para prevenir acoplamento indevido |
+| "Substituibilidade de adapters para evolução técnica" | ✅ Atendido | Porta `PublishEventPort` com implementações `KafkaEventPublisherAdapter` e `InMemoryEventPublisher` para testes |
+| "Documentação de convenções para novos desenvolvedores" | ✅ Atendido | Exemplo de feature completa no ADR + diagramas em `docs/architecture/` |
+| "Validação automática de arquitetura" | ✅ Atendido | `HexagonalArchitectureTest.java` executado em pipeline CI |
+| "Autenticação presente ou justificadamente desabilitada" | ✅ Atendido | OAuth2 JWT implementado em `SecurityConfig` (perfil `prod`); desabilitado em `local`/`test` por decisão documentada |
 
 ## Justificativa
 
-A Hexagonal Architecture oferece o melhor equilíbrio entre testabilidade, desacoplamento e manutenibilidade para serviços de domínio focado. O custo adicional de interfaces (ports) é compensado pela qualidade dos testes e pela capacidade de evoluir infraestrutura sem impactar o núcleo de negócio.
+A Hexagonal Architecture oferece o melhor equilíbrio entre testabilidade, desacoplamento e manutenibilidade. O custo adicional de interfaces é compensado pela qualidade dos testes e pela capacidade de evoluir infraestrutura sem impactar o núcleo de negócio.

@@ -52,6 +52,7 @@ management:
     distribution:
       percentiles-histogram:
         spring.kafka.listener: true
+        spring.kafka.template: true
     export:
       prometheus:
         enabled: true
