@@ -16,6 +16,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -74,7 +75,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ProblemDetail handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
-        String paramName = ex.getName();
+        String paramName = Objects.requireNonNullElse(ex.getName(), "unknown");
         Class<?> requiredType = ex.getRequiredType();
         String typeName = requiredType != null ? requiredType.getSimpleName() : "expected type";
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(
@@ -87,8 +88,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ProblemDetail handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        String detail = ex.getMessage();
+        if (detail == null) {
+            detail = "HTTP method not supported";
+        }
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(
-                HttpStatus.METHOD_NOT_ALLOWED, ex.getMessage());
+                HttpStatus.METHOD_NOT_ALLOWED, detail);
         pd.setTitle("Method Not Allowed");
         pd.setProperty("timestamp", Instant.now());
         return pd;
@@ -96,8 +101,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ProblemDetail handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
+        String detail = ex.getMessage();
+        if (detail == null) {
+            detail = "Unsupported media type";
+        }
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(
-                HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex.getMessage());
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE, detail);
         pd.setTitle("Unsupported Media Type");
         pd.setProperty("timestamp", Instant.now());
         return pd;

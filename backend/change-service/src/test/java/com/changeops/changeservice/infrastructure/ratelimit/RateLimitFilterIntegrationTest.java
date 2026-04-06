@@ -20,6 +20,7 @@ import static org.mockito.Mockito.*;
  * Integration-level tests for RateLimitFilter focusing on boundary conditions,
  * per-IP bucket isolation, and response header correctness.
  */
+@SuppressWarnings("null")
 class RateLimitFilterIntegrationTest {
 
     private RateLimitFilter filter;
@@ -145,7 +146,6 @@ class RateLimitFilterIntegrationTest {
 
     @Test
     void shouldNeverRateLimit_getRequests() throws Exception {
-        String ip = "198.51.100.1";
         // Simulate a GET request well beyond the POST limit
         for (int i = 0; i < 200; i++) {
             HttpServletRequest req = mock(HttpServletRequest.class);
@@ -162,7 +162,6 @@ class RateLimitFilterIntegrationTest {
 
     @Test
     void shouldNeverRateLimit_actuatorEndpoints() throws Exception {
-        String ip = "198.51.100.2";
         for (int i = 0; i < 200; i++) {
             HttpServletRequest req = mock(HttpServletRequest.class);
             when(req.getMethod()).thenReturn("GET");
