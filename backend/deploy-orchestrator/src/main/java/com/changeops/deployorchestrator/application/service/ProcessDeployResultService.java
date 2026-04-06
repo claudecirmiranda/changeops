@@ -101,14 +101,14 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                     checklistService.execute(
                             payload.changeId(),
                             payload.deployId(),
-                            event.isSuccess());
+                            event.succeeded());
 
             // ── Passo 3: Construir resultado ──────────────────────────────────
             ChangeResult changeResult = ChangeResult.from(
                     payload.changeId(),
                     payload.deployId(),
                     event.correlationId(),
-                    event.isSuccess() && checklist.allPassed());
+                    event.succeeded() && checklist.allPassed());
 
             if (!checklist.allPassed() && checklist.failureReason() != null) {
                 changeResult.withChecklistFailure(checklist.failureReason());

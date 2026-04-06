@@ -1,6 +1,5 @@
 package com.changeops.deployorchestrator.infrastructure.kafka;
 
-import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -19,8 +18,6 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.listener.ContainerProperties;
-import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
 import java.util.HashMap;
@@ -52,28 +49,31 @@ public class KafkaConfig {
     }
 
     // ── Consumer ──────────────────────────────────────────────────────────────
+    //
+    // Uses StringDeserializer so that deserialization NEVER fails — even for
+    // poison pills (malformed JSON, invalid UUIDs, plain text).  The listener
+    // parses the String → DeployFinishedEvent manually via ObjectMapper;
+    // parse failures throw InvalidOrchestratorStateException which is in the
+    // @RetryableTopic exclude list and routes straight to DLT.
+    //
+    // This also fixes the DLT consumer: because retries/DLT records are
+    // re-published as Strings (via StringSerializer in the default producer),
+    // the DLT consumer can always deserialize them and invoke the @DltHandler.
 
     @Bean
-    public ConsumerFactory<String, DeployFinishedEvent> deployEventConsumerFactory() {
+    public ConsumerFactory<String, String> deployEventConsumerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        JsonDeserializer<DeployFinishedEvent> jsonDeserializer =
-                new JsonDeserializer<>(DeployFinishedEvent.class, objectMapper, false);
-        jsonDeserializer.addTrustedPackages("com.changeops.*");
-
-        ErrorHandlingDeserializer<DeployFinishedEvent> errorHandlingDeserializer =
-                new ErrorHandlingDeserializer<>(jsonDeserializer);
-
-        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), errorHandlingDeserializer);
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), new StringDeserializer());
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, DeployFinishedEvent>
+    public ConcurrentKafkaListenerContainerFactory<String, String>
     deployEventListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, DeployFinishedEvent> factory =
+        ConcurrentKafkaListenerContainerFactory<String, String> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(deployEventConsumerFactory());
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
@@ -83,25 +83,23 @@ public class KafkaConfig {
 
     // ── Producer Padrão (Primary — usado pelo @RetryableTopic para publicar retries/DLT) ──────────
     //
-    // Usa JsonSerializer<Object> para que o @RetryableTopic possa publicar qualquer objeto de domínio
-    // desserializado (ex: DeployFinishedEvent) nos tópicos de DLT sem erro de incompatibilidade de tipo.
-    // No caso de poison pills (valor null após falha no ErrorHandlingDeserializer), o Spring Kafka
-    // preserva os bytes brutos originais automaticamente nos headers do record Kafka.
+    // Uses StringSerializer so that retry/DLT records (which are Strings from
+    // StringDeserializer) pass through without re-encoding.  This avoids the
+    // base64-double-encoding problem that occurred when JsonSerializer<Object>
+    // serialized raw byte[] values from DeadLetterPublishingRecoverer.
 
     @Bean
-    public ProducerFactory<String, Object> defaultProducerFactory() {
+    public ProducerFactory<String, String> defaultProducerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ProducerConfig.ACKS_CONFIG, "all");
         props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
-        JsonSerializer<Object> valueSerializer = new JsonSerializer<>(objectMapper);
-        valueSerializer.setAddTypeInfo(false);
-        return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), valueSerializer);
+        return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), new StringSerializer());
     }
 
     @Primary
     @Bean
-    public KafkaTemplate<String, Object> defaultKafkaTemplate() {
+    public KafkaTemplate<String, String> defaultKafkaTemplate() {
         return new KafkaTemplate<>(defaultProducerFactory());
     }
 

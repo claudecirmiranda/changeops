@@ -17,7 +17,7 @@ public record DeployFinishedEvent(
             Instant executedAt
     ) {}
 
-    public boolean isSuccess() {
+    public boolean succeeded() {
         return "SUCCESS".equalsIgnoreCase(payload().result());
     }
 }

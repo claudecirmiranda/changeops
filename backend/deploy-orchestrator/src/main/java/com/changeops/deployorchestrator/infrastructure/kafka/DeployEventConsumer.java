@@ -3,6 +3,7 @@ package com.changeops.deployorchestrator.infrastructure.kafka;
 import com.changeops.deployorchestrator.application.port.in.ProcessDeployResultUseCase;
 import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
 import com.changeops.deployorchestrator.domain.exception.InvalidOrchestratorStateException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -28,14 +29,17 @@ public class DeployEventConsumer {
     static final int MAX_DLT_PAYLOAD_LOG_LENGTH = 500;
 
     private final ProcessDeployResultUseCase processDeployResultUseCase;
+    private final ObjectMapper objectMapper;
     private final Counter dltCounter;
     private final Counter eventsFailedCounter;
     private final Counter eventsRetriesCounter;
 
     public DeployEventConsumer(
             ProcessDeployResultUseCase processDeployResultUseCase,
+            ObjectMapper objectMapper,
             MeterRegistry meterRegistry) {
         this.processDeployResultUseCase = processDeployResultUseCase;
+        this.objectMapper = objectMapper;
         this.dltCounter = Counter.builder("events_dlt_total")
                 .tag("consumer", "deploy-orchestrator")
                 .description("Total events sent to DLT after max retries")
@@ -65,14 +69,31 @@ public class DeployEventConsumer {
             containerFactory = "deployEventListenerContainerFactory"
     )
     public void onDeployFinished(
-            ConsumerRecord<String, DeployFinishedEvent> record,
+            ConsumerRecord<String, String> record,
             @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
             @Header(KafkaHeaders.OFFSET) long offset) {
 
-        DeployFinishedEvent event = record.value();
+        String rawValue = record.value();
 
-        if (event == null || event.payload() == null) {
-            log.error("Deserialization failed or invalid payload — sending to DLT: topic={}, offset={}, key={}",
+        if (rawValue == null || rawValue.isBlank()) {
+            log.error("Null or empty payload — sending to DLT: topic={}, offset={}, key={}",
+                    topic, offset, record.key());
+            throw new InvalidOrchestratorStateException(
+                    "Null or empty payload. topic=" + topic + ", offset=" + offset);
+        }
+
+        DeployFinishedEvent event;
+        try {
+            event = objectMapper.readValue(rawValue, DeployFinishedEvent.class);
+        } catch (Exception e) {
+            log.error("Failed to parse DeployFinishedEvent — routing to DLT: topic={}, offset={}",
+                    topic, offset, e);
+            throw new InvalidOrchestratorStateException(
+                    "Failed to parse DeployFinishedEvent. topic=" + topic + ", offset=" + offset);
+        }
+
+        if (event.payload() == null) {
+            log.error("Invalid payload — sending to DLT: topic={}, offset={}, key={}",
                     topic, offset, record.key());
             throw new InvalidOrchestratorStateException(
                     "Deserialization failed or invalid payload. topic=" + topic + ", offset=" + offset);
@@ -112,7 +133,7 @@ public class DeployEventConsumer {
     }
 
     @DltHandler
-    public void onDlt(ConsumerRecord<String, Object> record) {
+    public void onDlt(ConsumerRecord<String, String> record) {
         String topic = record.topic();
         String safePayload = toSafePayload(record.value());
         log.error("Event routed to DLT: key={}, topic={}, offset={}, payload={}",

@@ -65,8 +65,11 @@ A estratégia de testes do ChangeOps prioriza **confiança nos fluxos críticos*
 | Classe de Teste | O que cobre |
 |----------------|-------------|
 | `ProcessDeployResultServiceTest` | Orquestração completa: idempotência, checklist, atualização de status, publicação de evento, descarte de duplicatas |
-| `DeployEventConsumerTest` | Null event handling (→ DLT), null payload handling (event não-nulo com payload nulo → DLT), DLT handler counters (String + null + byte[] + payload truncado >500 chars), retry counter por tópico, proteção contra poison pill |
+| `DeployEventConsumerTest` | Null/empty/blank payload handling (→ DLT), JSON parse failure (malformed UUID, plain text → DLT), null payload fields (deployId, changeId, result → DLT), DLT handler counters (String + null + payload truncado >500 chars), retry counter por tópico |
 | `KafkaResultPublisherAdapterTest` | Publicação com sucesso incrementa counter; falha de publicação aciona fallback para DLQ |
+| `PostDeployChecklistServiceTest` | Checklist pós-deploy: cenários all-pass (deploy bem-sucedido) e com falhas (deploy falhou, mensagens individuais) |
+| `ChangeResultTest` | Construção do value object `ChangeResult` (sucesso/falha), transição via `withChecklistFailure`, marcação de `finishedAt` |
+| `HexagonalArchitectureTest` | ArchUnit: domínio isolado de Spring/JPA/Kafka, aplicação sem dependência de infraestrutura |
 
 ### 3.3 Testes de Integração — Backend
 
@@ -76,6 +79,7 @@ A estratégia de testes do ChangeOps prioriza **confiança nos fluxos críticos*
 |----------------|-------------|
 | `CreateChangeIT` | `POST /changes` → persistência → evento no Kafka; validação 400; listagem paginada |
 | `DeployEventConsumerIT` | Consumo de `DeployFinishedEvent` → status COMPLETED/FAILED; idempotência (duplicata sem efeito); persistência de evento na timeline; poison pill (UUID malformado → DLT sem loop infinito); `changeId` inexistente → DLT após retries esgotados |
+| `IdempotencyIntegrationTest` | Idempotência nível 2 (PostgreSQL): inserção única, rejeição de duplicatas, eventos distintos aceitos, independência entre consumers |
 
 **Infra:** PostgreSQL 16-alpine + Confluent Kafka 7.6.0 via `@Container` + `@DynamicPropertySource`.
 
@@ -750,8 +754,29 @@ Anotar o `changeId` retornado.
 | `shouldThrowInvalidOrchestratorStateException_whenResultFieldIsNull` | Unit | CT-29 |
 | `shouldIncrementDltCounters_whenDltHandlerReceivesEmptyJsonString` | Unit | CT-31 |
 | `shouldIncrementDltCounters_whenDltHandlerReceivesPlainTextPayload` | Unit | CT-32 |
+| `shouldThrowInvalidOrchestratorStateException_whenJsonContainsInvalidUUID` | Unit | CT-13B |
+| `shouldThrowInvalidOrchestratorStateException_whenValueIsPlainText` | Unit | CT-32 |
+| `shouldThrowInvalidOrchestratorStateException_whenValueIsBlank` | Unit | CT-29 |
 | `shouldNotRethrow_whenPublishResultEventThrows` | Unit | CT-30 |
 | `shouldIncrementEventsConsumedCounter_forEveryNonDuplicateEvent` | Unit | CT-12 |
 | `shouldNotIncrementEventsConsumedCounter_whenEventIsDuplicate` | Unit | CT-12 |
 
 **Bug corrigido:** `DeployEventConsumer` não validava campos internos do payload (`deployId`, `changeId`, `result`). Eventos com sub-campos nulos queimavam 4 tentativas de retry antes de ir para o DLT. Validação explícita adicionada → roteamento direto para DLT via `InvalidOrchestratorStateException`.
+
+### 8.3 deploy-orchestrator — Migração StringDeserializer (Sessão 2)
+
+**Migração `ErrorHandlingDeserializer` → `StringDeserializer`:**
+O `ErrorHandlingDeserializer<JsonDeserializer>` criava um problema em cadeia: quando o `@RetryableTopic` reutilizava o mesmo consumer factory para o tópico DLT, o `JsonDeserializer` interno falhava novamente no payload malformado, causando NPE na serialização do `@DltHandler`. A solução definitiva substituiu toda a camada de deserialização:
+
+- **`KafkaConfig.java`**: `ErrorHandlingDeserializer<JsonDeserializer>` → `StringDeserializer`; `@Primary KafkaTemplate<String, Object>` (JsonSerializer) → `KafkaTemplate<String, String>` (StringSerializer)
+- **`DeployEventConsumer.java`**: `ConsumerRecord<String, DeployFinishedEvent>` → `ConsumerRecord<String, String>`; parse manual via `ObjectMapper.readValue()`; falhas de parse → `InvalidOrchestratorStateException` → DLT (0 retries)
+- **`DeployEventConsumerTest.java`**: Todos os 17 testes reescritos para `ConsumerRecord<String, String>`; 3 novos testes adicionados (UUID inválido, plain text, blank)
+
+**Fix `GlobalExceptionHandler` (change-service):**
+O endpoint `/actuator/health` retornava HTTP 500 porque `NoResourceFoundException` (Spring 6.2+) não tinha handler específico. Adicionado handler → 404 com `ProblemDetail`.
+
+**Hardening de Actuator (ambos serviços):**
+`management.endpoints.enabled-by-default: false` adicionado em ambos `application.yml`. Apenas endpoints explicitamente habilitados (health, prometheus) ficam acessíveis.
+
+**Rename `isSuccess()` → `succeeded()`:**
+`DeployFinishedEvent.isSuccess()` seguia convenção JavaBean → Jackson serializava como campo `"success"` → NPE durante serialização DLT. Renomeado para `succeeded()` para quebrar a convenção e manter o campo como `"succeeded"`.
