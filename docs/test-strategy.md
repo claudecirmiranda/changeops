@@ -99,6 +99,7 @@ A estratégia de testes do ChangeOps prioriza **confiança nos fluxos críticos*
 | `ChangeForm.test.tsx` | Renderização de campos, submissão válida com callback, exibição de erros de campo sem limpar formulário |
 | `ChangeList.test.tsx` | Renderização da tabela, estado vazio, seleção de row para timeline, paginação |
 | `ChangeTimeline.test.tsx` | Renderização de eventos com cores por tipo, estado vazio, loading |
+| `ChangesPage.test.tsx` | Cards de estatísticas: total usa `totalElements`, Prepared/Completed/Failed usam `statusSummary` (totais globais, não da página atual); fallback para 0 quando `statusSummary` ausente (backward-compatibility) |
 | `changeService.test.ts` | Chamadas HTTP: create, list, getEvents — mock de axios |
 
 ---

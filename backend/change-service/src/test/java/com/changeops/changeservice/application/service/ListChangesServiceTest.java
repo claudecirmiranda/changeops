@@ -16,8 +16,11 @@ import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -50,12 +53,13 @@ class ListChangesServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         when(loadChangesPort.findAll(null, null, pageable))
                 .thenReturn(new PageImpl<>(List.of(change)));
+        when(loadChangesPort.countGroupedByStatus()).thenReturn(buildEmptySummary());
 
-        Page<ListChangesUseCase.Result> results =
+        ListChangesUseCase.PageResult pageResult =
                 service.execute(new ListChangesUseCase.Query(null, null), pageable);
 
-        assertThat(results.getContent()).hasSize(1);
-        ListChangesUseCase.Result r = results.getContent().get(0);
+        assertThat(pageResult.page().getContent()).hasSize(1);
+        ListChangesUseCase.Result r = pageResult.page().getContent().get(0);
         assertThat(r.changeId()).isEqualTo(change.getChangeId());
         assertThat(r.title()).isEqualTo("Deploy v1");
         assertThat(r.status()).isEqualTo(ChangeStatus.PREPARED);
@@ -67,12 +71,13 @@ class ListChangesServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         when(loadChangesPort.findAll(any(), any(), eq(pageable)))
                 .thenReturn(new PageImpl<>(Collections.emptyList()));
+        when(loadChangesPort.countGroupedByStatus()).thenReturn(buildEmptySummary());
 
-        Page<ListChangesUseCase.Result> results =
+        ListChangesUseCase.PageResult pageResult =
                 service.execute(new ListChangesUseCase.Query(null, null), pageable);
 
-        assertThat(results.getContent()).isEmpty();
-        assertThat(results.getTotalElements()).isZero();
+        assertThat(pageResult.page().getContent()).isEmpty();
+        assertThat(pageResult.page().getTotalElements()).isZero();
     }
 
     @Test
@@ -80,9 +85,33 @@ class ListChangesServiceTest {
         Pageable pageable = PageRequest.of(0, 5);
         when(loadChangesPort.findAll(eq(ChangeStatus.PREPARED), eq("payment-service"), eq(pageable)))
                 .thenReturn(new PageImpl<>(Collections.emptyList()));
+        when(loadChangesPort.countGroupedByStatus()).thenReturn(buildEmptySummary());
 
         service.execute(new ListChangesUseCase.Query(ChangeStatus.PREPARED, "payment-service"), pageable);
 
         verify(loadChangesPort).findAll(ChangeStatus.PREPARED, "payment-service", pageable);
+    }
+
+    @Test
+    void shouldReturnStatusSummary_fromPort() {
+        Pageable pageable = PageRequest.of(0, 10);
+        when(loadChangesPort.findAll(null, null, pageable))
+                .thenReturn(new PageImpl<>(Collections.emptyList()));
+        Map<ChangeStatus, Long> expectedSummary = buildEmptySummary();
+        expectedSummary.put(ChangeStatus.PREPARED, 5L);
+        expectedSummary.put(ChangeStatus.COMPLETED, 3L);
+        when(loadChangesPort.countGroupedByStatus()).thenReturn(expectedSummary);
+
+        ListChangesUseCase.PageResult pageResult =
+                service.execute(new ListChangesUseCase.Query(null, null), pageable);
+
+        assertThat(pageResult.statusSummary()).containsEntry(ChangeStatus.PREPARED, 5L);
+        assertThat(pageResult.statusSummary()).containsEntry(ChangeStatus.COMPLETED, 3L);
+    }
+
+    private Map<ChangeStatus, Long> buildEmptySummary() {
+        Map<ChangeStatus, Long> summary = new EnumMap<>(ChangeStatus.class);
+        Arrays.stream(ChangeStatus.values()).forEach(s -> summary.put(s, 0L));
+        return summary;
     }
 }

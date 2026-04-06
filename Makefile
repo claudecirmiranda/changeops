@@ -27,7 +27,7 @@ help: ## Show this help
 up: ## Start the full local stack (infra + services)
 	docker compose up -d --build
 	@echo ""
-	@printf "$(BOLD)Stack is up:$(RESET)\n"
+	@echo Stack is up:
 	@echo "  change-service      -> http://localhost:8080"
 	@echo "  deploy-orchestrator -> http://localhost:8081"
 	@echo "  Swagger UI          -> http://localhost:8080/swagger-ui.html"
@@ -63,11 +63,11 @@ build: build-backend build-frontend ## Build all
 build-backend: ## Build both backend services (skip tests)
 	cd backend/change-service    && mvn clean package -DskipTests -q
 	cd backend/deploy-orchestrator && mvn clean package -DskipTests -q
-	@printf "$(CYAN)Backend build complete$(RESET)\n"
+	@echo Backend build complete
 
 build-frontend: ## Build frontend for production
 	cd frontend && npm ci && npm run build
-	@printf "$(CYAN)Frontend build complete$(RESET)\n"
+	@echo Frontend build complete
 
 # ── Test ──────────────────────────────────────────────────────────────────────
 test: test-backend test-frontend ## Run all tests

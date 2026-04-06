@@ -19,9 +19,9 @@ export function ChangesPage() {
   const stats = page
     ? {
         total: page.totalElements,
-        prepared: page.content.filter((c) => c.status === 'PREPARED').length,
-        completed: page.content.filter((c) => c.status === 'COMPLETED').length,
-        failed: page.content.filter((c) => c.status === 'FAILED').length,
+        prepared: page.statusSummary?.PREPARED ?? 0,
+        completed: page.statusSummary?.COMPLETED ?? 0,
+        failed: page.statusSummary?.FAILED ?? 0,
       }
     : null
 

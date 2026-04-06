@@ -5,11 +5,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 public interface ListChangesUseCase {
 
-    Page<Result> execute(Query query, Pageable pageable);
+    PageResult execute(Query query, Pageable pageable);
 
     record Query(ChangeStatus status, String componentId) {}
 
@@ -22,4 +23,6 @@ public interface ListChangesUseCase {
             Instant createdAt,
             Instant updatedAt
     ) {}
+
+    record PageResult(Page<Result> page, Map<ChangeStatus, Long> statusSummary) {}
 }

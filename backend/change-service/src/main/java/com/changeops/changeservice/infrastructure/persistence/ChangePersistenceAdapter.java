@@ -17,7 +17,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -85,6 +88,15 @@ public class ChangePersistenceAdapter
                 e.getComponentId(), e.getRequestedBy(), e.getScheduledAt(),
                 e.getStatus(), e.getCorrelationId(),
                 e.getCreatedAt(), e.getUpdatedAt());
+    }
+
+    @Override
+    public Map<ChangeStatus, Long> countGroupedByStatus() {
+        Map<ChangeStatus, Long> result = new EnumMap<>(ChangeStatus.class);
+        Arrays.stream(ChangeStatus.values()).forEach(s -> result.put(s, 0L));
+        changeJpaRepository.countGroupedByStatus()
+                .forEach(row -> result.put((ChangeStatus) row[0], (Long) row[1]));
+        return result;
     }
 
     @Override
