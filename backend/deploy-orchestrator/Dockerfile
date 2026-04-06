@@ -5,10 +5,7 @@ COPY checkstyle.xml .
 RUN mvn dependency:go-offline -q
 COPY src ./src
 
-# ── CI gate (same checks as GitHub Actions) ──────
-# Integration tests (*IT, *IntegrationTest) are skipped — they need
-# Testcontainers (Docker-in-Docker) which is unavailable during image build.
-RUN mvn -B verify -Dsurefire.excludes="**/*IT.java,**/*IntegrationTest.java"
+RUN mvn -B package -DskipTests
 RUN mvn -B checkstyle:check
 
 FROM eclipse-temurin:17-jre-alpine
