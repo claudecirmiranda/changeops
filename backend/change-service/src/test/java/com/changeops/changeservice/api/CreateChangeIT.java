@@ -150,7 +150,13 @@ class CreateChangeIT {
                         .param("page", "0"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray())
-                .andExpect(jsonPath("$.pageable").exists());
+                .andExpect(jsonPath("$.totalElements").isNumber())
+                .andExpect(jsonPath("$.totalPages").isNumber())
+                .andExpect(jsonPath("$.number").value(0))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.first").value(true))
+                .andExpect(jsonPath("$.last").value(true))
+                .andExpect(jsonPath("$.statusSummary").exists());
     }
 
     private ConsumerRecords<String, String> consumeFromKafka(String topic, String expectedKey) {

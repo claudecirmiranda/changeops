@@ -1,7 +1,7 @@
 #!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"
-TIMESTAMP="$(date '+%Y%m%d%H%M')"
+TIMESTAMP="$(date '+%Y%m%d%H%M%S')_$$"
 LOG_DIR="$SCRIPT_DIR/logs/$SCRIPT_NAME"
 LOG_FILE="$LOG_DIR/$TIMESTAMP.txt"
 mkdir -p "$LOG_DIR"
