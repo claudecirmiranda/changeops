@@ -61,11 +61,13 @@ describe('ChangesPage – stat cards', () => {
   })
 
   it('shows Total Changes using totalElements (correct even before fix)', () => {
-    const page = makePageWithSummary(
-      [fakeChange('PREPARED')],
-      100,
-      { PREPARED: 60, COMPLETED: 30, FAILED: 10, DRAFT: 0, CANCELLED: 0 },
-    )
+    const page = makePageWithSummary([fakeChange('PREPARED')], 100, {
+      PREPARED: 60,
+      COMPLETED: 30,
+      FAILED: 10,
+      DRAFT: 0,
+      CANCELLED: 0,
+    })
     useChangesStore.setState({ page })
     render(<ChangesPage />)
     expect(screen.getByText('100')).toBeInTheDocument()
@@ -73,11 +75,13 @@ describe('ChangesPage – stat cards', () => {
 
   it('shows Prepared count from statusSummary (global total, not current page)', () => {
     // Page has 1 PREPARED item but statusSummary reports 30 globally
-    const page = makePageWithSummary(
-      [fakeChange('PREPARED')],
-      100,
-      { PREPARED: 30, COMPLETED: 20, FAILED: 5, DRAFT: 0, CANCELLED: 0 },
-    )
+    const page = makePageWithSummary([fakeChange('PREPARED')], 100, {
+      PREPARED: 30,
+      COMPLETED: 20,
+      FAILED: 5,
+      DRAFT: 0,
+      CANCELLED: 0,
+    })
     useChangesStore.setState({ page })
     render(<ChangesPage />)
 
@@ -88,11 +92,13 @@ describe('ChangesPage – stat cards', () => {
 
   it('shows Completed count from statusSummary (global total, not current page)', () => {
     // Page has 0 COMPLETED items but statusSummary reports 20 globally
-    const page = makePageWithSummary(
-      [fakeChange('PREPARED')],
-      100,
-      { PREPARED: 30, COMPLETED: 20, FAILED: 5, DRAFT: 0, CANCELLED: 0 },
-    )
+    const page = makePageWithSummary([fakeChange('PREPARED')], 100, {
+      PREPARED: 30,
+      COMPLETED: 20,
+      FAILED: 5,
+      DRAFT: 0,
+      CANCELLED: 0,
+    })
     useChangesStore.setState({ page })
     render(<ChangesPage />)
 
@@ -103,11 +109,13 @@ describe('ChangesPage – stat cards', () => {
 
   it('shows Failed count from statusSummary (global total, not current page)', () => {
     // Page has 0 FAILED items but statusSummary reports 5 globally
-    const page = makePageWithSummary(
-      [fakeChange('PREPARED')],
-      100,
-      { PREPARED: 30, COMPLETED: 20, FAILED: 5, DRAFT: 0, CANCELLED: 0 },
-    )
+    const page = makePageWithSummary([fakeChange('PREPARED')], 100, {
+      PREPARED: 30,
+      COMPLETED: 20,
+      FAILED: 5,
+      DRAFT: 0,
+      CANCELLED: 0,
+    })
     useChangesStore.setState({ page })
     render(<ChangesPage />)
 
@@ -117,11 +125,13 @@ describe('ChangesPage – stat cards', () => {
   })
 
   it('shows zero for status counts when statusSummary has all zeros', () => {
-    const page = makePageWithSummary(
-      [],
-      0,
-      { PREPARED: 0, COMPLETED: 0, FAILED: 0, DRAFT: 0, CANCELLED: 0 },
-    )
+    const page = makePageWithSummary([], 0, {
+      PREPARED: 0,
+      COMPLETED: 0,
+      FAILED: 0,
+      DRAFT: 0,
+      CANCELLED: 0,
+    })
     useChangesStore.setState({ page })
     render(<ChangesPage />)
 
