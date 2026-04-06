@@ -256,6 +256,18 @@ components:
           type: boolean
         last:
           type: boolean
+        statusSummary:
+          type: object
+          description: Global count of all changes grouped by status, regardless of applied filters
+          additionalProperties:
+            type: integer
+            format: int64
+          example:
+            PREPARED: 20
+            COMPLETED: 15
+            FAILED: 7
+            DRAFT: 0
+            CANCELLED: 0
 
     ProblemDetail:
       type: object

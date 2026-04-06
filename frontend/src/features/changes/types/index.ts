@@ -48,6 +48,7 @@ export interface PageResponse<T> {
   size: number
   first: boolean
   last: boolean
+  statusSummary?: Partial<Record<ChangeStatus, number>>
 }
 
 export interface ApiError {

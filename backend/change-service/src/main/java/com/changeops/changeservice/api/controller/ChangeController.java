@@ -5,6 +5,7 @@ import com.changeops.changeservice.api.dto.CreateChangeResponse;
 import com.changeops.changeservice.api.dto.ChangeDetailDto;
 import com.changeops.changeservice.api.dto.ChangeDto;
 import com.changeops.changeservice.api.dto.ChangeEventDto;
+import com.changeops.changeservice.api.dto.ChangeListResponse;
 import com.changeops.changeservice.application.port.in.CreateChangeUseCase;
 import com.changeops.changeservice.application.port.in.GetChangeEventsUseCase;
 import com.changeops.changeservice.application.port.in.GetChangeUseCase;
@@ -19,7 +20,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
@@ -99,17 +99,29 @@ public class ChangeController {
 
     @GetMapping
     @Operation(summary = "List changes with optional filters")
-    public ResponseEntity<Page<ChangeDto>> list(
+    public ResponseEntity<ChangeListResponse> list(
             @RequestParam(required = false) ChangeStatus status,
             @RequestParam(required = false) String componentId,
             @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
 
-        Page<ListChangesUseCase.Result> results = listChangesUseCase.execute(
+        ListChangesUseCase.PageResult pageResult = listChangesUseCase.execute(
                 new ListChangesUseCase.Query(status, componentId), pageable);
 
-        return ResponseEntity.ok(results.map(r -> new ChangeDto(
-                r.changeId(), r.title(), r.componentId(),
-                r.status(), r.correlationId(), r.createdAt(), r.updatedAt())));
+        List<ChangeDto> content = pageResult.page().getContent().stream()
+                .map(r -> new ChangeDto(
+                        r.changeId(), r.title(), r.componentId(),
+                        r.status(), r.correlationId(), r.createdAt(), r.updatedAt()))
+                .toList();
+
+        return ResponseEntity.ok(new ChangeListResponse(
+                content,
+                pageResult.page().getTotalElements(),
+                pageResult.page().getTotalPages(),
+                pageResult.page().getNumber(),
+                pageResult.page().getSize(),
+                pageResult.page().isFirst(),
+                pageResult.page().isLast(),
+                pageResult.statusSummary()));
     }
 
     @GetMapping("/{changeId}")

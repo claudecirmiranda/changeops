@@ -21,7 +21,10 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
@@ -116,25 +119,33 @@ class ChangeControllerTest {
                 UUID.randomUUID(), Instant.now(), Instant.now());
 
         when(listChangesUseCase.execute(any(), any()))
-                .thenReturn(new PageImpl<>(List.of(result), PageRequest.of(0, 20), 1));
+                .thenReturn(new ListChangesUseCase.PageResult(
+                        new PageImpl<>(List.of(result), PageRequest.of(0, 20), 1),
+                        buildSummary(1L, 0L, 0L)));
 
         mockMvc.perform(get("/api/v1/changes"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(1)))
                 .andExpect(jsonPath("$.content[0].changeId").value(changeId.toString()))
-                .andExpect(jsonPath("$.content[0].title").value("Deploy v1"));
+                .andExpect(jsonPath("$.content[0].title").value("Deploy v1"))
+                .andExpect(jsonPath("$.statusSummary.PREPARED").value(1))
+                .andExpect(jsonPath("$.statusSummary.COMPLETED").value(0))
+                .andExpect(jsonPath("$.statusSummary.FAILED").value(0));
     }
 
     @Test
     void list_shouldForwardStatusFilterParam() throws Exception {
         when(listChangesUseCase.execute(any(), any()))
-                .thenReturn(new PageImpl<>(List.<ListChangesUseCase.Result>of(), PageRequest.of(0, 20), 0));
+                .thenReturn(new ListChangesUseCase.PageResult(
+                        new PageImpl<>(List.<ListChangesUseCase.Result>of(), PageRequest.of(0, 20), 0),
+                        buildSummary(0L, 0L, 0L)));
 
         mockMvc.perform(get("/api/v1/changes")
                         .param("status", "PREPARED")
                         .param("componentId", "svc-a"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content", hasSize(0)));
+                .andExpect(jsonPath("$.content", hasSize(0)))
+                .andExpect(jsonPath("$.statusSummary").exists());
     }
 
     // ─── GET /api/v1/changes/{changeId} ──────────────────────────────────────
@@ -539,5 +550,14 @@ class ChangeControllerTest {
         mockMvc.perform(post("/api/v1/changes")
                         .content("{\"title\":\"v1\"}"))
                 .andExpect(status().isUnsupportedMediaType());
+    }
+
+    private Map<ChangeStatus, Long> buildSummary(long prepared, long completed, long failed) {
+        Map<ChangeStatus, Long> summary = new EnumMap<>(ChangeStatus.class);
+        Arrays.stream(ChangeStatus.values()).forEach(s -> summary.put(s, 0L));
+        summary.put(ChangeStatus.PREPARED, prepared);
+        summary.put(ChangeStatus.COMPLETED, completed);
+        summary.put(ChangeStatus.FAILED, failed);
+        return summary;
     }
 }

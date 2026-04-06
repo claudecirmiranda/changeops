@@ -166,3 +166,50 @@ public KafkaTemplate<String, Object> defaultKafkaTemplate() { ... } // JsonSeria
 | `docs/test-strategy.md` | Added `DeployEventConsumerTest` in §3.2; updated `DeployEventConsumerIT` in §3.3 with poison pill + changeId scenarios; added 2 rows in §6 RFP table; added full CT-13B manual test case in §7 |
 | `docs/TRACEABILITY.md` | Added 2 rows: poison pill handling (resilience) + pre-condition guard (`existsByChangeId`) |
 | `contracts/asyncapi/events.yml` | Added `changeops.deploy.finished-dlt` channel documenting the DLT topic for deserialization failures and exhausted retries |
+
+---
+
+## Problem 9 — DLT consumer fails to deserialize poison pills with `ErrorHandlingDeserializer` (RESOLVED)
+
+**Observed in E2E (CT-10, CT-11, CT-12, CT-13B, CT-29, CT-31, CT-32, CT-SEC-03):** Multiple E2E scenarios failed because the `@DltHandler` could not deserialize poison pill messages. The DLT handler received `null` values and threw NPE during JSON serialization of `DeployFinishedEvent.isSuccess()`.
+
+**Root cause — two-layer deserialization mismatch:** `ErrorHandlingDeserializer<JsonDeserializer>` captures deserialization failures and delivers `null` to the `@KafkaListener`. But when `@RetryableTopic` reuses the same consumer factory for DLT topics, the inner `JsonDeserializer` fails again on the malformed payload — delivering `null` to the `@DltHandler` as well. Additionally, `DeployFinishedEvent.isSuccess()` followed JavaBean naming convention, causing Jackson to serialize it as a `"success"` field and trigger NPE on the `Boolean` autoboxing.
+
+**Fix — complete serialization overhaul:**
+
+| Component | Before | After |
+|-----------|--------|-------|
+| `KafkaConfig.java` (consumer) | `ErrorHandlingDeserializer<JsonDeserializer>` | `StringDeserializer` |
+| `KafkaConfig.java` (DLT/retry producer) | `@Primary KafkaTemplate<String, Object>` (`JsonSerializer`) | `KafkaTemplate<String, String>` (`StringSerializer`) |
+| `DeployEventConsumer.java` (listener) | `ConsumerRecord<String, DeployFinishedEvent>` | `ConsumerRecord<String, String>` + manual `ObjectMapper.readValue()` |
+| `DeployEventConsumer.java` (DLT handler) | `ConsumerRecord<String, Object>` | `ConsumerRecord<String, String>` |
+| `DeployFinishedEvent.java` | `isSuccess()` | `succeeded()` |
+
+**Additional fixes in the same session:**
+
+| Fix | File | Description |
+|-----|------|-------------|
+| `NoResourceFoundException` → 404 | `GlobalExceptionHandler.java` (change-service) | Actuator `/health` retornava 500 porque Spring 6.2+ lança `NoResourceFoundException` para rotas não encontradas |
+| Actuator hardening | `application.yml` (ambos serviços) | `management.endpoints.enabled-by-default: false` — apenas health e prometheus habilitados |
+| `succeeded()` rename | `DeployFinishedEvent.java`, `ProcessDeployResultService.java` | Quebra a convenção JavaBean para evitar serialização automática como campo `"success"` |
+
+**Files changed:**
+
+| File | What changed |
+|------|-------------|
+| `KafkaConfig.java` | `StringDeserializer` + `StringSerializer`; `@Primary KafkaTemplate<String, String>` |
+| `DeployEventConsumer.java` | `ConsumerRecord<String, String>`, `ObjectMapper` injection, manual JSON parse, `@DltHandler` → `ConsumerRecord<String, String>` |
+| `DeployEventConsumerTest.java` | All 17 tests rewritten for String-based records; 3 new tests (invalid UUID, plain text, blank) |
+| `DeployFinishedEvent.java` | `isSuccess()` → `succeeded()` |
+| `ProcessDeployResultService.java` | `event.isSuccess()` → `event.succeeded()` |
+| `GlobalExceptionHandler.java` (change-service) | `NoResourceFoundException` handler → 404 |
+| `application.yml` (both services) | `management.endpoints.enabled-by-default: false` |
+
+**Validation:**
+
+| Check | Result |
+|-------|--------|
+| Unit tests — deploy-orchestrator | ✅ PASS |
+| Unit tests — change-service | ✅ PASS |
+| Checkstyle — 0 violations | ✅ PASS |
+| E2E — 39/39 scenarios | ✅ PASS |

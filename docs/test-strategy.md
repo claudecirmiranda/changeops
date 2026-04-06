@@ -65,8 +65,11 @@ A estratégia de testes do ChangeOps prioriza **confiança nos fluxos críticos*
 | Classe de Teste | O que cobre |
 |----------------|-------------|
 | `ProcessDeployResultServiceTest` | Orquestração completa: idempotência, checklist, atualização de status, publicação de evento, descarte de duplicatas |
-| `DeployEventConsumerTest` | Null event handling (→ DLT), null payload handling (event não-nulo com payload nulo → DLT), DLT handler counters (String + null + byte[] + payload truncado >500 chars), retry counter por tópico, proteção contra poison pill |
+| `DeployEventConsumerTest` | Null/empty/blank payload handling (→ DLT), JSON parse failure (malformed UUID, plain text → DLT), null payload fields (deployId, changeId, result → DLT), DLT handler counters (String + null + payload truncado >500 chars), retry counter por tópico |
 | `KafkaResultPublisherAdapterTest` | Publicação com sucesso incrementa counter; falha de publicação aciona fallback para DLQ |
+| `PostDeployChecklistServiceTest` | Checklist pós-deploy: cenários all-pass (deploy bem-sucedido) e com falhas (deploy falhou, mensagens individuais) |
+| `ChangeResultTest` | Construção do value object `ChangeResult` (sucesso/falha), transição via `withChecklistFailure`, marcação de `finishedAt` |
+| `HexagonalArchitectureTest` | ArchUnit: domínio isolado de Spring/JPA/Kafka, aplicação sem dependência de infraestrutura |
 
 ### 3.3 Testes de Integração — Backend
 
@@ -76,6 +79,7 @@ A estratégia de testes do ChangeOps prioriza **confiança nos fluxos críticos*
 |----------------|-------------|
 | `CreateChangeIT` | `POST /changes` → persistência → evento no Kafka; validação 400; listagem paginada |
 | `DeployEventConsumerIT` | Consumo de `DeployFinishedEvent` → status COMPLETED/FAILED; idempotência (duplicata sem efeito); persistência de evento na timeline; poison pill (UUID malformado → DLT sem loop infinito); `changeId` inexistente → DLT após retries esgotados |
+| `IdempotencyIntegrationTest` | Idempotência nível 2 (PostgreSQL): inserção única, rejeição de duplicatas, eventos distintos aceitos, independência entre consumers |
 
 **Infra:** PostgreSQL 16-alpine + Confluent Kafka 7.6.0 via `@Container` + `@DynamicPropertySource`.
 
@@ -99,6 +103,7 @@ A estratégia de testes do ChangeOps prioriza **confiança nos fluxos críticos*
 | `ChangeForm.test.tsx` | Renderização de campos, submissão válida com callback, exibição de erros de campo sem limpar formulário |
 | `ChangeList.test.tsx` | Renderização da tabela, estado vazio, seleção de row para timeline, paginação |
 | `ChangeTimeline.test.tsx` | Renderização de eventos com cores por tipo, estado vazio, loading |
+| `ChangesPage.test.tsx` | Cards de estatísticas: total usa `totalElements`, Prepared/Completed/Failed usam `statusSummary` (totais globais, não da página atual); fallback para 0 quando `statusSummary` ausente (backward-compatibility) |
 | `changeService.test.ts` | Chamadas HTTP: create, list, getEvents — mock de axios |
 
 ---
@@ -153,6 +158,10 @@ cd frontend && npm test
 > **Objetivo:** Validar os cenários esperados do sistema com evidências, de forma objetiva e rápida.
 > **Pré-requisito:** Stack rodando (`docker compose up --build -d` ou `make up`). Requer `SPRING_PROFILES_ACTIVE=local` (padrão no docker-compose) — o header `X-User-Id` utilizado nos testes só é aceito nesse perfil.
 > **Ferramenta sugerida:** Postman, Insomnia ou cURL.
+
+> **Scripts automatizados (alternativa ao roteiro manual):**
+> - `wsl bash tests/run_tests.sh` — executa CT-02 a CT-32, CT-SEC-03 a CT-SEC-10 automaticamente
+> - `wsl bash tests/run_rate_tests.sh` — executa CT-SEC-01 e CT-SEC-02 (rate limiting). Separado pois envia ~200 requests POST por cenário, inflando métricas no Prometheus/Grafana.
 
 ### URLs de Referência
 
@@ -689,8 +698,8 @@ Anotar o `changeId` retornado.
 | CT-30 | Kafka: result enum inválido | Evento com `result: "INVALID"` não quebra o consumer; verificar DLT manualmente |
 | CT-31 | Kafka: `{}` direto no tópico | JSON vazio publicado direto no tópico é roteado ao DLT |
 | CT-32 | Kafka: plain text no tópico | Texto não-JSON publicado direto no tópico é roteado ao DLT; health check pós-evento OK |
-| CT-SEC-01 | Rate limiting (101a req) | Response 429 + header `Retry-After` |
-| CT-SEC-02 | X-Forwarded-For spoofing | Request com IP divergente recebe bucket independente — limitação POC documentada |
+| CT-SEC-01 | Rate limiting (101a req) | Response 429 + header `Retry-After`. ⚠️ Script separado: `tests/run_rate_tests.sh` |
+| CT-SEC-02 | X-Forwarded-For spoofing | Request com IP divergente recebe bucket independente — limitação POC documentada. ⚠️ Script separado: `tests/run_rate_tests.sh` |
 | CT-SEC-03 | Actuator sensitive endpoints | `/actuator/env`, `beans`, `heapdump` retornam 404/401/403; `health` e `info` retornam 200 |
 | CT-SEC-04 | Path traversal na URL | Spring normaliza/bloqueia `../../actuator/env` sem vazar dados |
 | CT-SEC-05 | SQL injection em query params | `';DROP TABLE changes;--` não causa 500 nem destrói dados |
@@ -745,8 +754,29 @@ Anotar o `changeId` retornado.
 | `shouldThrowInvalidOrchestratorStateException_whenResultFieldIsNull` | Unit | CT-29 |
 | `shouldIncrementDltCounters_whenDltHandlerReceivesEmptyJsonString` | Unit | CT-31 |
 | `shouldIncrementDltCounters_whenDltHandlerReceivesPlainTextPayload` | Unit | CT-32 |
+| `shouldThrowInvalidOrchestratorStateException_whenJsonContainsInvalidUUID` | Unit | CT-13B |
+| `shouldThrowInvalidOrchestratorStateException_whenValueIsPlainText` | Unit | CT-32 |
+| `shouldThrowInvalidOrchestratorStateException_whenValueIsBlank` | Unit | CT-29 |
 | `shouldNotRethrow_whenPublishResultEventThrows` | Unit | CT-30 |
 | `shouldIncrementEventsConsumedCounter_forEveryNonDuplicateEvent` | Unit | CT-12 |
 | `shouldNotIncrementEventsConsumedCounter_whenEventIsDuplicate` | Unit | CT-12 |
 
 **Bug corrigido:** `DeployEventConsumer` não validava campos internos do payload (`deployId`, `changeId`, `result`). Eventos com sub-campos nulos queimavam 4 tentativas de retry antes de ir para o DLT. Validação explícita adicionada → roteamento direto para DLT via `InvalidOrchestratorStateException`.
+
+### 8.3 deploy-orchestrator — Migração StringDeserializer (Sessão 2)
+
+**Migração `ErrorHandlingDeserializer` → `StringDeserializer`:**
+O `ErrorHandlingDeserializer<JsonDeserializer>` criava um problema em cadeia: quando o `@RetryableTopic` reutilizava o mesmo consumer factory para o tópico DLT, o `JsonDeserializer` interno falhava novamente no payload malformado, causando NPE na serialização do `@DltHandler`. A solução definitiva substituiu toda a camada de deserialização:
+
+- **`KafkaConfig.java`**: `ErrorHandlingDeserializer<JsonDeserializer>` → `StringDeserializer`; `@Primary KafkaTemplate<String, Object>` (JsonSerializer) → `KafkaTemplate<String, String>` (StringSerializer)
+- **`DeployEventConsumer.java`**: `ConsumerRecord<String, DeployFinishedEvent>` → `ConsumerRecord<String, String>`; parse manual via `ObjectMapper.readValue()`; falhas de parse → `InvalidOrchestratorStateException` → DLT (0 retries)
+- **`DeployEventConsumerTest.java`**: Todos os 17 testes reescritos para `ConsumerRecord<String, String>`; 3 novos testes adicionados (UUID inválido, plain text, blank)
+
+**Fix `GlobalExceptionHandler` (change-service):**
+O endpoint `/actuator/health` retornava HTTP 500 porque `NoResourceFoundException` (Spring 6.2+) não tinha handler específico. Adicionado handler → 404 com `ProblemDetail`.
+
+**Hardening de Actuator (ambos serviços):**
+`management.endpoints.enabled-by-default: false` adicionado em ambos `application.yml`. Apenas endpoints explicitamente habilitados (health, prometheus) ficam acessíveis.
+
+**Rename `isSuccess()` → `succeeded()`:**
+`DeployFinishedEvent.isSuccess()` seguia convenção JavaBean → Jackson serializava como campo `"success"` → NPE durante serialização DLT. Renomeado para `succeeded()` para quebrar a convenção e manter o campo como `"succeeded"`.
