@@ -155,6 +155,10 @@ cd frontend && npm test
 > **Pré-requisito:** Stack rodando (`docker compose up --build -d` ou `make up`). Requer `SPRING_PROFILES_ACTIVE=local` (padrão no docker-compose) — o header `X-User-Id` utilizado nos testes só é aceito nesse perfil.
 > **Ferramenta sugerida:** Postman, Insomnia ou cURL.
 
+> **Scripts automatizados (alternativa ao roteiro manual):**
+> - `wsl bash tests/run_tests.sh` — executa CT-02 a CT-32, CT-SEC-03 a CT-SEC-10 automaticamente
+> - `wsl bash tests/run_rate_tests.sh` — executa CT-SEC-01 e CT-SEC-02 (rate limiting). Separado pois envia ~200 requests POST por cenário, inflando métricas no Prometheus/Grafana.
+
 ### URLs de Referência
 
 | Serviço | URL |
@@ -690,8 +694,8 @@ Anotar o `changeId` retornado.
 | CT-30 | Kafka: result enum inválido | Evento com `result: "INVALID"` não quebra o consumer; verificar DLT manualmente |
 | CT-31 | Kafka: `{}` direto no tópico | JSON vazio publicado direto no tópico é roteado ao DLT |
 | CT-32 | Kafka: plain text no tópico | Texto não-JSON publicado direto no tópico é roteado ao DLT; health check pós-evento OK |
-| CT-SEC-01 | Rate limiting (101a req) | Response 429 + header `Retry-After` |
-| CT-SEC-02 | X-Forwarded-For spoofing | Request com IP divergente recebe bucket independente — limitação POC documentada |
+| CT-SEC-01 | Rate limiting (101a req) | Response 429 + header `Retry-After`. ⚠️ Script separado: `tests/run_rate_tests.sh` |
+| CT-SEC-02 | X-Forwarded-For spoofing | Request com IP divergente recebe bucket independente — limitação POC documentada. ⚠️ Script separado: `tests/run_rate_tests.sh` |
 | CT-SEC-03 | Actuator sensitive endpoints | `/actuator/env`, `beans`, `heapdump` retornam 404/401/403; `health` e `info` retornam 200 |
 | CT-SEC-04 | Path traversal na URL | Spring normaliza/bloqueia `../../actuator/env` sem vazar dados |
 | CT-SEC-05 | SQL injection em query params | `';DROP TABLE changes;--` não causa 500 nem destrói dados |

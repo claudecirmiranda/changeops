@@ -1,4 +1,13 @@
 #!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"
+TIMESTAMP="$(date '+%Y%m%d%H%M')"
+LOG_DIR="$SCRIPT_DIR/logs/$SCRIPT_NAME"
+LOG_FILE="$LOG_DIR/$TIMESTAMP.txt"
+mkdir -p "$LOG_DIR"
+exec > >(tee -a "$LOG_FILE") 2>&1
+echo "  LOG $LOG_FILE"
+
 # ──────────────────────────────────────────────────────────────────────────────
 #  Rate Limiting Tests — CT-SEC-01, CT-SEC-02
 #
