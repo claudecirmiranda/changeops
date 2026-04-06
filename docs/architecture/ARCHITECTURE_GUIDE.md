@@ -1023,32 +1023,32 @@ sequenceDiagram
     participant K1 as Kafka<br/>deploy.finished
     participant DEC as DeployEventConsumer
     participant SVC as ProcessDeployResultService
+    participant R0 as Kafka<br/>deploy.finished-retry-0
     participant R1 as Kafka<br/>deploy.finished-retry-1
     participant R2 as Kafka<br/>deploy.finished-retry-2
-    participant R3 as Kafka<br/>deploy.finished-retry-3
     participant DLT as Kafka<br/>deploy.finished-dlt
 
     K1->>DEC: Tentativa 1
     DEC->>SVC: execute(event)
     SVC--xDEC: ❌ ChangeNotFoundException
 
-    Note over DEC,R1: Backoff: 500ms
+    Note over DEC,R0: Backoff: 500ms
+    DEC->>R0: Publica no retry-0
+    R0->>DEC: Tentativa 2
+    DEC->>SVC: execute(event)
+    SVC--xDEC: ❌ ChangeNotFoundException
+    DEC->>DEC: events_retries_total++
+
+    Note over DEC,R1: Backoff: 1000ms
     DEC->>R1: Publica no retry-1
-    R1->>DEC: Tentativa 2
+    R1->>DEC: Tentativa 3
     DEC->>SVC: execute(event)
     SVC--xDEC: ❌ ChangeNotFoundException
     DEC->>DEC: events_retries_total++
 
-    Note over DEC,R2: Backoff: 1000ms
+    Note over DEC,R2: Backoff: 2000ms
     DEC->>R2: Publica no retry-2
-    R2->>DEC: Tentativa 3
-    DEC->>SVC: execute(event)
-    SVC--xDEC: ❌ ChangeNotFoundException
-    DEC->>DEC: events_retries_total++
-
-    Note over DEC,R3: Backoff: 2000ms
-    DEC->>R3: Publica no retry-3
-    R3->>DEC: Tentativa 4 (última)
+    R2->>DEC: Tentativa 4 (última)
     DEC->>SVC: execute(event)
     SVC--xDEC: ❌ ChangeNotFoundException
     DEC->>DEC: events_retries_total++
@@ -1473,9 +1473,9 @@ flowchart TD
 
     subgraph retry["Retry & DLT"]
         direction LR
+        R0{{"deploy.finished<br/>-retry-0"}}
         R1{{"deploy.finished<br/>-retry-1"}}
         R2{{"deploy.finished<br/>-retry-2"}}
-        R3{{"deploy.finished<br/>-retry-3"}}
         DLT{{"deploy.finished<br/>-dlt"}}
         DLQ{{"change.result<br/>-dlt (DLQ)"}}
     end
@@ -1489,10 +1489,10 @@ flowchart TD
     T2 -->|"consume"| DO
     DO -->|"status update"| PG
     DO -->|"publish"| T3
-    DO -.->|"retry"| R1
+    DO -.->|"retry"| R0
+    R0 -.-> R1
     R1 -.-> R2
-    R2 -.-> R3
-    R3 -.->|"esgotado"| DLT
+    R2 -.->|"esgotado"| DLT
     DO -.->|"falha publicação"| DLQ
 
     classDef svc fill:#4338CA,stroke:#6366F1,color:#E0E7FF,stroke-width:2px
@@ -1503,7 +1503,7 @@ flowchart TD
 
     class FE,CS,DO svc
     class T1,T2,T3 topic
-    class R1,R2,R3,DLT,DLQ dlt
+    class R0,R1,R2,DLT,DLQ dlt
     class PG db
     class DS ext
 
@@ -1557,7 +1557,7 @@ public record IntegrationEvent(
 | `changeops.change.prepared` | change-service | — (futuro) | `ChangePreparedEvent` |
 | `changeops.deploy.finished` | Sistema externo | deploy-orchestrator | `DeployFinishedEvent` |
 | `changeops.change.result` | deploy-orchestrator | — (futuro) | `ChangeCompletedEvent` / `ChangeFailedEvent` |
-| `changeops.deploy.finished-retry-N` | Spring Kafka (auto) | deploy-orchestrator | Retry automático |
+| `changeops.deploy.finished-retry-{0,1,2}` | Spring Kafka (auto) | deploy-orchestrator | Retry automático (0-based index) |
 | `changeops.deploy.finished-dlt` | Spring Kafka (auto) | `@DltHandler` | Dead Letter — falhas permanentes |
 | `changeops.change.result-dlt` | deploy-orchestrator | — (manual) | DLQ — falha na publicação do resultado |
 

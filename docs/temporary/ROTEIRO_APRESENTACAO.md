@@ -114,7 +114,7 @@ make publish-deploy-event CHANGE_ID=<id>     # Simula deploy
 
 **Retry + DLT (Seção 9):**
 - `@RetryableTopic`: 4 tentativas, backoff 500ms × 2.0, cap 10s
-- Tópicos `retry-1`, `retry-2`, `retry-3` criados automaticamente
+- Tópicos `retry-0`, `retry-1`, `retry-2` criados automaticamente (0-based index)
 - Após 4 tentativas → `deploy.finished-dlt` — payload disponível no Kafka UI para diagnóstico
 
 **Poison Pill (Seção 10):**
