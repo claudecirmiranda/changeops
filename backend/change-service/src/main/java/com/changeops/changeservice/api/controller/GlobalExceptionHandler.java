@@ -115,8 +115,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ProblemDetail handleNoResourceFound(NoResourceFoundException ex) {
+        String detail = ex.getMessage();
+        if (detail == null) {
+            detail = "Resource not found";
+        }
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(
-                HttpStatus.NOT_FOUND, ex.getMessage());
+                HttpStatus.NOT_FOUND, detail);
         pd.setTitle("Not Found");
         pd.setProperty("timestamp", Instant.now());
         return pd;
