@@ -24,7 +24,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
       "fieldConfig": { "defaults": { "decimals": 0 } },
       "maxDataPoints": 100,
-      "targets": [{ "expr": "sum(increase(changes_created_total[$__range]))", "legendFormat": "Created", "instant": true, "interval": "5s" }]
+      "targets": [{ "expr": "floor(sum(increase(changes_created_total[$__range])))", "legendFormat": "Created", "instant": true, "interval": "5s" }]
     },
     {
       "id": 8,
@@ -33,7 +33,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
       "fieldConfig": { "defaults": { "decimals": 0, "color": { "fixedColor": "green", "mode": "fixed" } } },
       "maxDataPoints": 100,
-      "targets": [{ "expr": "sum(increase(changes_completed_total[$__range]))", "legendFormat": "Completed", "instant": true, "interval": "5s" }]
+      "targets": [{ "expr": "floor(sum(increase(changes_completed_total[$__range])))", "legendFormat": "Completed", "instant": true, "interval": "5s" }]
     },
     {
       "id": 9,
@@ -42,7 +42,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
       "fieldConfig": { "defaults": { "decimals": 0, "color": { "fixedColor": "red", "mode": "fixed" } } },
       "maxDataPoints": 100,
-      "targets": [{ "expr": "sum(increase(changes_failed_total[$__range]))", "legendFormat": "Failed", "instant": true, "interval": "5s" }]
+      "targets": [{ "expr": "floor(sum(increase(changes_failed_total[$__range])))", "legendFormat": "Failed", "instant": true, "interval": "5s" }]
     },
     {
       "id": 10,
@@ -51,7 +51,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
       "fieldConfig": { "defaults": { "decimals": 0, "color": { "fixedColor": "blue", "mode": "fixed" } } },
       "maxDataPoints": 100,
-      "targets": [{ "expr": "sum(increase(changes_created_total[$__range])) - sum(increase(changes_completed_total[$__range])) - sum(increase(changes_failed_total[$__range]))", "legendFormat": "Prepared", "instant": true, "interval": "5s" }]
+      "targets": [{ "expr": "floor(sum(increase(changes_created_total[$__range])) - sum(increase(changes_completed_total[$__range])) - sum(increase(changes_failed_total[$__range])))", "legendFormat": "Prepared", "instant": true, "interval": "5s" }]
     },
     {
       "id": 6,
@@ -67,9 +67,9 @@
         ]
       },
       "targets": [
-        { "expr": "sum(increase(changes_completed_total[$__range]))", "legendFormat": "COMPLETED", "instant": true, "interval": "5s" },
-        { "expr": "sum(increase(changes_failed_total[$__range]))", "legendFormat": "FAILED", "instant": true, "interval": "5s" },
-        { "expr": "sum(increase(changes_created_total[$__range])) - sum(increase(changes_completed_total[$__range])) - sum(increase(changes_failed_total[$__range]))", "legendFormat": "PREPARED", "instant": true, "interval": "5s" }
+        { "expr": "floor(sum(increase(changes_completed_total[$__range])))", "legendFormat": "COMPLETED", "instant": true, "interval": "5s" },
+        { "expr": "floor(sum(increase(changes_failed_total[$__range])))", "legendFormat": "FAILED", "instant": true, "interval": "5s" },
+        { "expr": "floor(sum(increase(changes_created_total[$__range])) - sum(increase(changes_completed_total[$__range])) - sum(increase(changes_failed_total[$__range])))", "legendFormat": "PREPARED", "instant": true, "interval": "5s" }
       ]
     },
     {
@@ -106,7 +106,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 0, "y": 14 },
       "fieldConfig": { "defaults": { "decimals": 0 } },
       "maxDataPoints": 100,
-      "targets": [{ "expr": "sum(increase(events_published_total[$__range]))", "legendFormat": "Published", "instant": true, "interval": "5s" }]
+      "targets": [{ "expr": "floor(sum(increase(events_published_total[$__range])))", "legendFormat": "Published", "instant": true, "interval": "5s" }]
     },
     {
       "id": 3,
@@ -115,7 +115,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 4, "y": 14 },
       "fieldConfig": { "defaults": { "decimals": 0 } },
       "maxDataPoints": 100,
-      "targets": [{ "expr": "sum(increase(events_consumed_total[$__range]))", "legendFormat": "Consumed", "instant": true, "interval": "5s" }]
+      "targets": [{ "expr": "floor(sum(increase(events_consumed_total[$__range])))", "legendFormat": "Consumed", "instant": true, "interval": "5s" }]
     },
     {
       "id": 28,
@@ -124,7 +124,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 8, "y": 14 },
       "fieldConfig": { "defaults": { "color": { "fixedColor": "red", "mode": "fixed" }, "decimals": 0, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } },
       "maxDataPoints": 100,
-      "targets": [{ "expr": "sum(increase(events_failed_total{consumer=\"deploy-orchestrator\"}[$__range])) or vector(0)", "legendFormat": "Failed", "instant": true, "interval": "5s" }]
+      "targets": [{ "expr": "floor(sum(increase(events_failed_total{consumer=\"deploy-orchestrator\"}[$__range])) or vector(0))", "legendFormat": "Failed", "instant": true, "interval": "5s" }]
     },
     {
       "id": 4,
@@ -133,7 +133,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 12, "y": 14 },
       "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" }, "decimals": 0 } },
       "maxDataPoints": 100,
-      "targets": [{ "expr": "sum(increase(events_retries_total[$__range]))", "legendFormat": "Retries", "instant": true, "interval": "5s" }]
+      "targets": [{ "expr": "floor(sum(increase(events_retries_total[$__range])))", "legendFormat": "Retries", "instant": true, "interval": "5s" }]
     },
     {
       "id": 23,
@@ -142,7 +142,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 16, "y": 14 },
       "fieldConfig": { "defaults": { "color": { "fixedColor": "dark-red", "mode": "fixed" }, "decimals": 0 } },
       "maxDataPoints": 100,
-      "targets": [{ "expr": "sum(increase(events_dlt_total[$__range]))", "legendFormat": "DLT", "instant": true, "interval": "5s" }]
+      "targets": [{ "expr": "floor(sum(increase(events_dlt_total[$__range])))", "legendFormat": "DLT", "instant": true, "interval": "5s" }]
     },
     {
       "id": 24,
@@ -151,7 +151,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 20, "y": 14 },
       "fieldConfig": { "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" }, "decimals": 0 } },
       "maxDataPoints": 100,
-      "targets": [{ "expr": "sum(increase(events_discarded_total[$__range]))", "legendFormat": "Discarded", "instant": true, "interval": "5s" }]
+      "targets": [{ "expr": "floor(sum(increase(events_discarded_total[$__range])))", "legendFormat": "Discarded", "instant": true, "interval": "5s" }]
     },
     {
       "id": 7,

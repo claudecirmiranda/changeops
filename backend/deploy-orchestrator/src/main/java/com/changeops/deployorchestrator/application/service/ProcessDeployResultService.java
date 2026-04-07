@@ -33,6 +33,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
     private final Counter changesCompletedCounter;
     private final Counter changesFailedCounter;
     private final Timer orchestrationTimer;
+    private final Counter timelineFailuresCounter;
 
     public ProcessDeployResultService(
             IdempotencyPort idempotencyPort,
@@ -63,6 +64,10 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
         this.orchestrationTimer = Timer.builder("orchestration_duration_seconds")
                 .description("Time to process a DeployFinishedEvent end-to-end")
                 .publishPercentileHistogram()
+                .register(meterRegistry);
+        this.timelineFailuresCounter = Counter.builder("timeline_persistence_failures_total")
+                .tag("service", "deploy-orchestrator")
+                .description("Timeline event persistence failures")
                 .register(meterRegistry);
     }
 
@@ -117,26 +122,36 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             // ── Passo 4: Atualizar status da change + salvar evento ──
             if (changeResult.isSuccess()) {
                 updateChangeStatusPort.markCompleted(payload.changeId());
-                changesCompletedCounter.increment();
                 log.info("Change status updated to COMPLETED: changeId={}", payload.changeId());
-                saveChangeEventPort.save(
-                        payload.changeId(),
-                        "ChangeCompletedEvent",
-                        String.format("{\"changeId\":\"%s\",\"deployId\":\"%s\"}",
-                                payload.changeId(), payload.deployId()),
-                        Instant.now());
+                try {
+                    saveChangeEventPort.save(
+                            payload.changeId(),
+                            "ChangeCompletedEvent",
+                            String.format("{\"changeId\":\"%s\",\"deployId\":\"%s\"}",
+                                    payload.changeId(), payload.deployId()),
+                            Instant.now());
+                } catch (Exception e) {
+                    log.warn("Failed to persist timeline event: changeId={}, eventType=ChangeCompletedEvent",
+                            payload.changeId(), e);
+                    timelineFailuresCounter.increment();
+                }
             } else {
                 updateChangeStatusPort.markFailed(payload.changeId());
-                changesFailedCounter.increment();
                 log.info("Change status updated to FAILED: changeId={}, reason={}",
                         payload.changeId(), changeResult.getFailureReason());
-                saveChangeEventPort.save(
-                        payload.changeId(),
-                        "ChangeFailedEvent",
-                        String.format("{\"changeId\":\"%s\",\"deployId\":\"%s\",\"reason\":\"%s\"}",
-                                payload.changeId(), payload.deployId(),
-                                changeResult.getFailureReason()),
-                        Instant.now());
+                try {
+                    saveChangeEventPort.save(
+                            payload.changeId(),
+                            "ChangeFailedEvent",
+                            String.format("{\"changeId\":\"%s\",\"deployId\":\"%s\",\"reason\":\"%s\"}",
+                                    payload.changeId(), payload.deployId(),
+                                    changeResult.getFailureReason()),
+                            Instant.now());
+                } catch (Exception e) {
+                    log.warn("Failed to persist timeline event: changeId={}, eventType=ChangeFailedEvent",
+                            payload.changeId(), e);
+                    timelineFailuresCounter.increment();
+                }
             }
 
             // ── Passo 5: Idempotência já marcada no Passo 1 ──────────
@@ -145,6 +160,12 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             changeResult.markFinished();
             publishResultEventPort.publish(changeResult);
 
+            // ── Passo 7: Incrementar contadores (after all failable operations) ──
+            if (changeResult.isSuccess()) {
+                changesCompletedCounter.increment();
+            } else {
+                changesFailedCounter.increment();
+            }
             eventsConsumedCounter.increment();
 
         } catch (Exception e) {
