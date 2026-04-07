@@ -20,7 +20,6 @@ import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -100,7 +99,7 @@ public class KafkaConfig {
         props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
         DefaultKafkaProducerFactory<String, String> factory =
                 new DefaultKafkaProducerFactory<>(props, new StringSerializer(), new StringSerializer());
-        factory.setCloseTimeout(Duration.ofSeconds(producerCloseTimeoutSeconds));
+        factory.setPhysicalCloseTimeout(producerCloseTimeoutSeconds);
         return factory;
     }
 
@@ -123,7 +122,7 @@ public class KafkaConfig {
         valueSerializer.setAddTypeInfo(false);
         DefaultKafkaProducerFactory<String, IntegrationEvent> factory =
                 new DefaultKafkaProducerFactory<>(props, new StringSerializer(), valueSerializer);
-        factory.setCloseTimeout(Duration.ofSeconds(producerCloseTimeoutSeconds));
+        factory.setPhysicalCloseTimeout(producerCloseTimeoutSeconds);
         return factory;
     }
 
