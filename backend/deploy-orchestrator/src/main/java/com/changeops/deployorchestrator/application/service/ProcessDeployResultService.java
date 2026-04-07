@@ -145,7 +145,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                             "ChangeFailedEvent",
                             String.format("{\"changeId\":\"%s\",\"deployId\":\"%s\",\"reason\":\"%s\"}",
                                     payload.changeId(), payload.deployId(),
-                                    changeResult.getFailureReason()),
+                                    escapeJson(changeResult.getFailureReason())),
                             Instant.now());
                 } catch (Exception e) {
                     log.warn("Failed to persist timeline event: changeId={}, eventType=ChangeFailedEvent",
@@ -178,5 +178,17 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             MDC.remove("deploy_id");
             MDC.remove("change_id");
         }
+    }
+
+    private static String escapeJson(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 }

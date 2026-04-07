@@ -226,7 +226,7 @@ class ProcessDeployResultServiceTest {
     // ─── Phase 1+2: Counter atomicity + Timeline try-catch resilience ─────────
 
     @Test
-    void shouldNotIncrementCompletedCounter_whenTimelineSaveThrowsException() {
+    void shouldIncrementCompletedCounter_whenTimelineSaveThrowsButIsNonFatal() {
         // After Fix B + Fix C: timeline save failure is caught (try-catch), so
         // execute() completes successfully. Counter is moved after save(), so it fires.
         // Net: counter = 1 (status update committed — correct behavior).
@@ -245,7 +245,7 @@ class ProcessDeployResultServiceTest {
     }
 
     @Test
-    void shouldNotIncrementFailedCounter_whenTimelineSaveThrowsException() {
+    void shouldIncrementFailedCounter_whenTimelineSaveThrowsButIsNonFatal() {
         // Same fix contract for the FAILED path.
         DeployFinishedEvent event = buildEvent("FAILURE");
         when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString()))

@@ -923,7 +923,7 @@ begin_test
 # Generate a ~1MB payload to test if Spring has a body size limit configured
 # Default Tomcat limit is 2MB for multipart; JSON body limit via server.tomcat.max-http-form-content-size
 # Pipe via stdin to avoid ARG_MAX shell limit with large payloads
-LARGE_DESC=$(python3 -c "print('x'*1000000)" 2>/dev/null || printf '%0.s x' {1..1000})
+LARGE_DESC=$(head -c 1000000 /dev/zero | tr '\0' 'x')
 
 resp=$(printf '{"title":"Deploy v1","description":"%s","componentId":"svc-a","requestedBy":"tester","scheduledAt":"2026-09-01T10:00:00Z"}' "$LARGE_DESC" \
   | curl -s -w "\nHTTP:%{http_code}" --max-time 5 -X POST http://localhost:8080/api/v1/changes \
