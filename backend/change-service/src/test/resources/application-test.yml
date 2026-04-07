@@ -1,0 +1,4 @@
+changeops:
+  kafka:
+    producer:
+      close-timeout-seconds: 5

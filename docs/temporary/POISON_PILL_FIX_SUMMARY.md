@@ -87,7 +87,7 @@ String payload = record.value() instanceof byte[]
 | Check | Result |
 |-------|--------|
 | Unit tests — 30 tests | ✅ PASS |
-| Integration tests — 10 tests (DeployEventConsumerIT + IdempotencyIntegrationTest) | ✅ PASS |
+| Integration tests — 10 tests (DeployEventConsumerIT + IdempotencyIT) | ✅ PASS |
 | Checkstyle — 0 violations | ✅ PASS |
 | IDE errors on key Java files | ✅ 0 errors |
 | `docker compose up -d --build` — all backend containers healthy | ✅ PASS |

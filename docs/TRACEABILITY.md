@@ -2,7 +2,7 @@
 
 | Requisito RFP | ADR | Código | Teste | Métrica | Evidência |
 |--------------|-----|--------|-------|---------|-----------|
-| Idempotência comprovada | ADR-002 | `IdempotencyAdapter.java` | `IdempotencyIntegrationTest.java` | `events_discarded_total` | [Link] |
+| Idempotência comprovada | ADR-002 | `IdempotencyAdapter.java` | `IdempotencyIT.java` | `events_discarded_total` | [Link] |
 | Correlation ID ponta a ponta | ADR-004 | `CorrelationIdFilter.java` | `CorrelationIdFilterTest.java` | `http_server_requests_seconds_bucket` | [Link] |
 | Eventos versionados | ADR-003 | `ChangePreparedEvent.java` | `EventSchemaCompatibilityTest.java` (planejado) | `events_schema_version_mismatch_total` (planejado) | [Link] |
 | Retry com backoff | ADR-002 | `DeployEventConsumer.java` (`@RetryableTopic`) | `RetryBehaviorTest.java` (planejado) | `events_retries_total` | [Link] |

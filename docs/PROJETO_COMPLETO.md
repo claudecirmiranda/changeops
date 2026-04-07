@@ -1561,11 +1561,12 @@ class DeployEventConsumerIT {
     @Test void shouldSendToDlt_whenMessageHasMalformedPayload(); // poison pill → DLT sem loop
 }
 
-// IdempotencyIntegrationTest.java — Testcontainers (PostgreSQL 16)
-class IdempotencyIntegrationTest {
-    @Test void tryMarkAsProcessed_returnsTrueFirstTime();
-    @Test void tryMarkAsProcessed_returnsFalseOnDuplicate();
-    @Test void concurrent_insertions_onlyOneSucceeds(); // simula race condition
+// IdempotencyIT.java — Testcontainers (PostgreSQL 16 + Kafka 7.6.0)
+class IdempotencyIT {
+    @Test void shouldMarkEventAsProcessed_onFirstAttempt();
+    @Test void shouldDiscardDuplicateEventWithoutReprocessing();
+    @Test void shouldAllowDifferentEventsForSameConsumer();
+    @Test void shouldTreatDifferentConsumersAsIndependentContexts();
 }
 ```
 

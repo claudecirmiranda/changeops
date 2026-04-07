@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Testcontainers
 @ActiveProfiles("test")
-class IdempotencyIntegrationTest {
+class IdempotencyIT {
 
     @SuppressWarnings("resource")
     @Container

@@ -30,7 +30,7 @@
       "id": 8,
       "title": "Changes - Completed",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
       "fieldConfig": { "defaults": { "decimals": 0, "color": { "fixedColor": "green", "mode": "fixed" } } },
       "maxDataPoints": 100,
       "targets": [{ "expr": "floor(sum(increase(changes_completed_total[$__range])))", "legendFormat": "Completed", "instant": true, "interval": "5s" }]
@@ -39,7 +39,7 @@
       "id": 9,
       "title": "Changes - Failed",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
       "fieldConfig": { "defaults": { "decimals": 0, "color": { "fixedColor": "red", "mode": "fixed" } } },
       "maxDataPoints": 100,
       "targets": [{ "expr": "floor(sum(increase(changes_failed_total[$__range])))", "legendFormat": "Failed", "instant": true, "interval": "5s" }]
@@ -48,7 +48,7 @@
       "id": 10,
       "title": "Changes - Prepared",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
       "fieldConfig": { "defaults": { "decimals": 0, "color": { "fixedColor": "blue", "mode": "fixed" } } },
       "maxDataPoints": 100,
       "targets": [{ "expr": "floor(sum(increase(changes_created_total[$__range])) - sum(increase(changes_completed_total[$__range])) - sum(increase(changes_failed_total[$__range])))", "legendFormat": "Prepared", "instant": true, "interval": "5s" }]

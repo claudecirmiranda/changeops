@@ -140,7 +140,7 @@ echo "  INFO: Docker OK"
 
 # ── Run all integration test suites ──────────────────────────────────────────
 
-run_backend_it "change-service"      "$ROOT_DIR/backend/change-service"
+run_backend_it "change-service" "$ROOT_DIR/backend/change-service"
 run_backend_it "deploy-orchestrator" "$ROOT_DIR/backend/deploy-orchestrator"
 
 # ── Final compiled summary ────────────────────────────────────────────────────

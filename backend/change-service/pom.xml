@@ -186,6 +186,18 @@
         </executions>
       </plugin>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- docker-java 3.3.x reads api.version as a system property.
+               Docker Desktop 4.67.0+ enforces MinAPIVersion=1.40; without
+               this property the forked JVM defaults to v0.0 and gets HTTP 400. -->
+          <systemPropertyVariables>
+            <api.version>1.44</api.version>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+      <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
         <configuration>
