@@ -111,8 +111,8 @@ check "CT-SEC-01" "429" "$code" "101st request returns 429 Too Many Requests"
 echo "$body" | grep -q 'Too Many Requests' && pass_msg "CT-SEC-01" "body contains 'Too Many Requests'" \
   || fail_msg "CT-SEC-01" "body missing 'Too Many Requests'"
 
-# Verify Retry-After header
-retry_after=$(curl -s -I -X POST http://localhost:8080/api/v1/changes \
+# Verify Retry-After header (use -D - to dump headers; -I is unreliable for POST)
+retry_after=$(curl -s -D - -o /dev/null -X POST http://localhost:8080/api/v1/changes \
   -H "Content-Type: application/json" \
   -H "X-Forwarded-For: 33.33.33.01" \
   -d '{}' | grep -i 'retry-after' | head -1)

@@ -88,7 +88,7 @@ run_backend_unit() {
     echo "  --- $svc_name: run=$run  failures=$failures  errors=$errors  skipped=$skipped ---"
   else
     echo ""
-    echo "  WARN: could not parse Maven test summary for $svc_name"
+    echo "  WARN: no unit tests found or could not parse Maven test summary for $svc_name"
   fi
 
   if [ "$exit_code" -eq 0 ]; then
@@ -130,7 +130,55 @@ run_frontend_unit() {
   echo "  UNIT TESTS: frontend (Vitest)"
   echo "========================================"
 
-  (cd "$ROOT_DIR/frontend" && npm test 2>&1) | tee "$tmp_out"
+  # Resolve npm for non-interactive shells (WSL, CI)
+  # Use NPM_BIN variable so Windows .exe binaries (e.g. Volta) are supported in bash
+  local NPM_BIN
+  NPM_BIN="$(command -v npm 2>/dev/null)"
+
+  if [ -z "$NPM_BIN" ]; then
+    # 1. nvm (Linux/Mac)
+    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+    [ -s "/usr/share/nvm/init-nvm.sh" ] && . "/usr/share/nvm/init-nvm.sh"
+    NPM_BIN="$(command -v npm 2>/dev/null)"
+  fi
+
+  if [ -z "$NPM_BIN" ]; then
+    # 2. Explicit nvm use (sometimes auto-use doesn't run)
+    declare -f nvm > /dev/null 2>&1 && { nvm use default 2>/dev/null || nvm use node 2>/dev/null; }
+    NPM_BIN="$(command -v npm 2>/dev/null)"
+  fi
+
+  if [ -z "$NPM_BIN" ]; then
+    # 3. Scan nvm versions directory for npm binary (Linux path)
+    if [ -d "$NVM_DIR/versions/node" ]; then
+      _nvm_npm="$(find "$NVM_DIR/versions/node" -maxdepth 3 -name "npm" -type f 2>/dev/null | tail -1)"
+      [ -n "$_nvm_npm" ] && NPM_BIN="$_nvm_npm"
+    fi
+  fi
+
+  if [ -z "$NPM_BIN" ]; then
+    # 4. Windows interop (WSL): check for npm.exe from Volta / standard nodejs install
+    for _win_dir in \
+      "/mnt/c/Program Files/Volta" \
+      "/mnt/c/Program Files/nodejs" \
+      "/mnt/c/Program Files (x86)/nodejs"; do
+      if [ -x "$_win_dir/npm.exe" ]; then
+        NPM_BIN="$_win_dir/npm.exe"
+        break
+      fi
+    done
+  fi
+
+  if [ -z "$NPM_BIN" ]; then
+    echo "  ERROR: npm not found in PATH. Install Node.js via nvm or ensure npm is in PATH."
+    OVERALL_EXIT=1
+    echo "  RESULT [frontend]: FAILED (npm not found)"
+    rm -f "$tmp_out"
+    return
+  fi
+
+  (cd "$ROOT_DIR/frontend" && "$NPM_BIN" test 2>&1) | tee "$tmp_out"
   FRONTEND_EXIT="${PIPESTATUS[0]}"
 
   # Parse "Test Files  X passed (Y)" or "Test Files  Z failed, X passed (Y)"
@@ -195,6 +243,7 @@ run_frontend_unit
 
 BACKEND_TOTAL_PASSED=$((BACKEND_TOTAL_RUN - BACKEND_TOTAL_FAILURES - BACKEND_TOTAL_ERRORS))
 BACKEND_TOTAL_ISSUES=$((BACKEND_TOTAL_FAILURES + BACKEND_TOTAL_ERRORS))
+TOTAL_SERVICES=$((BACKEND_SERVICES_PASSED + BACKEND_SERVICES_FAILED))
 FRONTEND_TESTS_TOTAL=$((FRONTEND_TESTS_PASSED + FRONTEND_TESTS_FAILED))
 FRONTEND_FILES_TOTAL=$((FRONTEND_TEST_FILES_PASSED + FRONTEND_TEST_FILES_FAILED))
 
@@ -205,7 +254,7 @@ echo "  $(date '+%Y-%m-%d %H:%M:%S')"
 echo "============================================================"
 echo ""
 echo "  ── BACKEND ──────────────────────────────────────────────"
-echo "  Services passed : $BACKEND_SERVICES_PASSED / $((BACKEND_SERVICES_PASSED + BACKEND_SERVICES_FAILED))"
+echo "  Services passed : $BACKEND_SERVICES_PASSED / $TOTAL_SERVICES"
 [ "$BACKEND_SERVICES_FAILED" -gt 0 ] && \
   echo "  Services failed : $BACKEND_SERVICES_FAILED  [$BACKEND_FAILED_SERVICES]"
 echo "  Tests run       : $BACKEND_TOTAL_RUN"

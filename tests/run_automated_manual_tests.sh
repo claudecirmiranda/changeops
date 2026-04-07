@@ -236,12 +236,17 @@ begin_test
 DEPLOY_ID_08=$(newuuid)
 EVENT_08='{"eventType":"DeployFinishedEvent","version":"1.0","correlationId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","occurredAt":"2026-03-26T12:00:00Z","payload":{"deployId":"'"$DEPLOY_ID_08"'","changeId":"'"$CHANGE_ID_CT01"'","result":"SUCCESS","executedAt":"2026-03-26T12:00:00Z"}}'
 echo "$EVENT_08" | docker exec -i changeops-kafka kafka-console-producer --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
-echo "  INFO evento publicado, aguardando 3s..."
-sleep 3
-resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT01")
-body=$(echo "$resp" | head -n -1)
-code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
-status_val=$(echo "$body" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+echo "  INFO evento publicado, aguardando ate 15s para status=COMPLETED..."
+status_val=""
+code=""
+for _i in $(seq 1 15); do
+  sleep 1
+  resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT01")
+  body=$(echo "$resp" | head -n -1)
+  code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
+  status_val=$(echo "$body" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+  [ "$status_val" = "COMPLETED" ] && break
+done
 check "CT-10" "200" "$code" "GET retorna 200"
 check "CT-10" "COMPLETED" "$status_val" "status mudou para COMPLETED"
 
@@ -917,11 +922,13 @@ echo "============================================================"
 begin_test
 # Generate a ~1MB payload to test if Spring has a body size limit configured
 # Default Tomcat limit is 2MB for multipart; JSON body limit via server.tomcat.max-http-form-content-size
-LARGE_DESC=$(python3 -c "print('x'*1000000)" 2>/dev/null || printf 'x%.0s' {1..1000})
+# Pipe via stdin to avoid ARG_MAX shell limit with large payloads
+LARGE_DESC=$(python3 -c "print('x'*1000000)" 2>/dev/null || printf '%0.s x' {1..1000})
 
-resp=$(curl -s -w "\nHTTP:%{http_code}" --max-time 5 -X POST http://localhost:8080/api/v1/changes \
-  -H "Content-Type: application/json" \
-  -d "{\"title\":\"Deploy v1\",\"description\":\"${LARGE_DESC}\",\"componentId\":\"svc-a\",\"requestedBy\":\"tester\",\"scheduledAt\":\"2026-09-01T10:00:00Z\"}")
+resp=$(printf '{"title":"Deploy v1","description":"%s","componentId":"svc-a","requestedBy":"tester","scheduledAt":"2026-09-01T10:00:00Z"}' "$LARGE_DESC" \
+  | curl -s -w "\nHTTP:%{http_code}" --max-time 5 -X POST http://localhost:8080/api/v1/changes \
+      -H "Content-Type: application/json" \
+      --data-binary @-)
 code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
 [ "$code" = "400" ] || [ "$code" = "413" ] \
   && pass_msg "CT-SEC-07" "Large body rejected with $code (validation or size limit enforced)" \
