@@ -4,8 +4,6 @@ package com.changeops.deployorchestrator.infrastructure.persistence;
 import com.changeops.deployorchestrator.application.port.out.SaveChangeEventPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -19,7 +17,6 @@ public class ChangeEventAdapter implements SaveChangeEventPort {
 
     @Override
     @SuppressWarnings("null")
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void save(UUID changeId, String eventType, String payload, Instant occurredAt) {
         ChangeEventEntity event = ChangeEventEntity.builder()
                 .eventId(UUID.randomUUID())

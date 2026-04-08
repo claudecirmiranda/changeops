@@ -85,20 +85,20 @@ fail_msg() {
   CURRENT_TEST_FAILED=1
 }
 
-# NOTA: Este script automatiza os cenários CT-02 a CT-14.
-# CT-01 (Health Check) e CT-15 (Frontend) são intencionalmente não automatizados:
-#   - CT-01: verificação de saúde (health check) deve ser feita manualmente antes de executar
-#   - CT-15: validação de frontend requer interação visual no browser
+# NOTE: This script automates scenarios CT-02 to CT-14.
+# CT-01 (Health Check) and CT-15 (Frontend) are intentionally not automated:
+#   - CT-01: health check must be run manually before executing
+#   - CT-15: frontend validation requires visual interaction in the browser
 
 echo ""
 echo "========================================"
-echo "  CT-02: Criar mudança com dados válidos"
+echo "  CT-02: Create change with valid data"
 echo "========================================"
 begin_test
 resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/changes \
   -H "Content-Type: application/json" \
   -H "X-User-Id: tester-001" \
-  -d '{"title":"Deploy payment-service v3.0","description":"Upgrade do gateway de pagamento","componentId":"payment-service","requestedBy":"tester-001","scheduledAt":"2026-06-01T10:00:00Z"}')
+  -d '{"title":"Deploy payment-service v3.0","description":"Payment gateway upgrade","componentId":"payment-service","requestedBy":"tester-001","scheduledAt":"2026-06-01T10:00:00Z"}')
 body=$(echo "$resp" | head -n -1)
 code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
 CHANGE_ID_CT01=$(echo "$body" | grep -o '"changeId":"[^"]*"' | cut -d'"' -f4)
@@ -113,21 +113,21 @@ end_test "CT-02"
 
 echo ""
 echo "========================================"
-echo "  CT-03: Campo obrigatório ausente (sem title)"
+echo "  CT-03: Required field missing (no title)"
 echo "========================================"
 begin_test
 resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/changes \
   -H "Content-Type: application/json" \
-  -d '{"description":"Teste de validação","componentId":"auth-service","requestedBy":"tester-001","scheduledAt":"2026-06-01T10:00:00Z"}')
+  -d '{"description":"Validation test","componentId":"auth-service","requestedBy":"tester-001","scheduledAt":"2026-06-01T10:00:00Z"}')
 body=$(echo "$resp" | head -n -1)
 code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
 check "CT-03" "400" "$code" "HTTP 400 Bad Request"
-echo "$body" | grep -q '"title"' && echo "  INFO body contém field validation" || echo "  WARN body sem field detail"
+echo "$body" | grep -q '"title"' && echo "  INFO body contains field validation" || echo "  WARN body missing field detail"
 end_test "CT-03"
 
 echo ""
 echo "========================================"
-echo "  CT-04: Data no passado"
+echo "  CT-04: Past date"
 echo "========================================"
 begin_test
 resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/changes \
@@ -136,41 +136,41 @@ resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/cha
 body=$(echo "$resp" | head -n -1)
 code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
 check "CT-04" "400" "$code" "HTTP 400 Bad Request (past date)"
-echo "$body" | grep -q 'scheduledAt\|future' && echo "  INFO body menciona scheduledAt" || echo "  WARN body sem scheduledAt detail"
+echo "$body" | grep -q 'scheduledAt\|future' && echo "  INFO body mentions scheduledAt" || echo "  WARN body missing scheduledAt detail"
 end_test "CT-04"
 
 echo ""
 echo "========================================"
-echo "  CT-05: Listar mudanças com paginação"
+echo "  CT-05: List changes with pagination"
 echo "========================================"
 begin_test
 resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes?status=PREPARED&page=0&size=5")
 body=$(echo "$resp" | head -n -1)
 code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
 check "CT-05" "200" "$code" "HTTP 200 OK"
-echo "$body" | grep -q '"content"' && echo "  INFO body tem content[]" || fail_msg "CT-05" "sem content"
-echo "$body" | grep -q '"totalElements"' && echo "  INFO tem totalElements" || fail_msg "CT-05" "sem totalElements"
-echo "$body" | grep -q '"totalPages"' && echo "  INFO tem totalPages" || fail_msg "CT-05" "sem totalPages"
+echo "$body" | grep -q '"content"' && echo "  INFO body has content[]" || fail_msg "CT-05" "missing content"
+echo "$body" | grep -q '"totalElements"' && echo "  INFO has totalElements" || fail_msg "CT-05" "missing totalElements"
+echo "$body" | grep -q '"totalPages"' && echo "  INFO has totalPages" || fail_msg "CT-05" "missing totalPages"
 end_test "CT-05"
 
 echo ""
 echo "========================================"
-echo "  CT-06: Consultar mudança por ID"
+echo "  CT-06: Get change by ID"
 echo "========================================"
 begin_test
 resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT01")
 body=$(echo "$resp" | head -n -1)
 code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
 check "CT-06" "200" "$code" "HTTP 200 OK"
-echo "$body" | grep -q '"title"' && echo "  INFO body tem title" || fail_msg "CT-06" "sem title"
-echo "$body" | grep -q '"description"' && echo "  INFO body tem description" || fail_msg "CT-06" "sem description"
-echo "$body" | grep -q '"componentId"' && echo "  INFO body tem componentId" || fail_msg "CT-06" "sem componentId"
-echo "$body" | grep -q '"scheduledAt"' && echo "  INFO body tem scheduledAt" || fail_msg "CT-06" "sem scheduledAt"
+echo "$body" | grep -q '"title"' && echo "  INFO body has title" || fail_msg "CT-06" "missing title"
+echo "$body" | grep -q '"description"' && echo "  INFO body has description" || fail_msg "CT-06" "missing description"
+echo "$body" | grep -q '"componentId"' && echo "  INFO body has componentId" || fail_msg "CT-06" "missing componentId"
+echo "$body" | grep -q '"scheduledAt"' && echo "  INFO body has scheduledAt" || fail_msg "CT-06" "missing scheduledAt"
 end_test "CT-06"
 
 echo ""
 echo "========================================"
-echo "  CT-07: Consultar ID inexistente"
+echo "  CT-07: Query non-existent ID"
 echo "========================================"
 begin_test
 resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes/00000000-0000-0000-0000-000000000000")
@@ -180,51 +180,51 @@ end_test "CT-07"
 
 echo ""
 echo "========================================"
-echo "  CT-08: Consultar timeline de eventos"
+echo "  CT-08: Query event timeline"
 echo "========================================"
 begin_test
 resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT01/events")
 body=$(echo "$resp" | head -n -1)
 code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
 check "CT-08" "200" "$code" "HTTP 200 OK"
-echo "$body" | grep -q 'ChangePreparedEvent' && echo "  INFO contém ChangePreparedEvent" || fail_msg "CT-08" "sem ChangePreparedEvent"
-echo "$body" | grep -q '"eventId"' && echo "  INFO tem eventId" || fail_msg "CT-08" "sem eventId"
-echo "$body" | grep -q '"occurredAt"' && echo "  INFO tem occurredAt" || fail_msg "CT-08" "sem occurredAt"
+echo "$body" | grep -q 'ChangePreparedEvent' && echo "  INFO contains ChangePreparedEvent" || fail_msg "CT-08" "missing ChangePreparedEvent"
+echo "$body" | grep -q '"eventId"' && echo "  INFO has eventId" || fail_msg "CT-08" "missing eventId"
+echo "$body" | grep -q '"occurredAt"' && echo "  INFO has occurredAt" || fail_msg "CT-08" "missing occurredAt"
 end_test "CT-08"
 
 echo ""
 echo "========================================"
-echo "  CT-09: Mudança permanece PREPARED sem evento de deploy"
+echo "  CT-09: Change remains PREPARED without a deploy event"
 echo "========================================"
 begin_test
 CHANGE_ID_CT15=""
 resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/changes \
   -H "Content-Type: application/json" \
   -H "X-User-Id: tester-001" \
-  -d '{"title":"Deploy inventory-service v1.5","description":"Rollout de nova versão do serviço de inventário","componentId":"inventory-service","requestedBy":"tester-001","scheduledAt":"2026-09-01T10:00:00Z"}')
+  -d '{"title":"Deploy inventory-service v1.5","description":"New version rollout for inventory service","componentId":"inventory-service","requestedBy":"tester-001","scheduledAt":"2026-09-01T10:00:00Z"}')
 body=$(echo "$resp" | head -n -1)
 code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
 CHANGE_ID_CT15=$(echo "$body" | grep -o '"changeId":"[^"]*"' | cut -d'"' -f4)
 check "CT-09" "201" "$code" "HTTP 201 Created"
 [ -n "$CHANGE_ID_CT15" ] && echo "  INFO changeId=$CHANGE_ID_CT15" || fail_msg "CT-09" "no changeId"
 
-echo "  INFO aguardando 5s sem publicar nenhum evento de deploy..."
+echo "  INFO waiting 5s without publishing any deploy event..."
 sleep 5
 
 resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT15")
 body=$(echo "$resp" | head -n -1)
 code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
 status_val=$(echo "$body" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
-check "CT-09" "200" "$code" "GET retorna 200"
-check "CT-09" "PREPARED" "$status_val" "status permanece PREPARED"
+check "CT-09" "200" "$code" "GET returns 200"
+check "CT-09" "PREPARED" "$status_val" "status remains PREPARED"
 
 timeline=$(curl -s "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT15/events")
 count=$(echo "$timeline" | grep -o 'ChangePreparedEvent' | wc -l)
 completed_count=$(echo "$timeline" | grep -o 'ChangeCompletedEvent' | wc -l)
 failed_count=$(echo "$timeline" | grep -o 'ChangeFailedEvent' | wc -l)
-check "CT-09" "1" "$count" "timeline contém exatamente 1 ChangePreparedEvent"
-check "CT-09" "0" "$completed_count" "timeline sem ChangeCompletedEvent"
-check "CT-09" "0" "$failed_count" "timeline sem ChangeFailedEvent"
+check "CT-09" "1" "$count" "timeline contains exactly 1 ChangePreparedEvent"
+check "CT-09" "0" "$completed_count" "timeline has no ChangeCompletedEvent"
+check "CT-09" "0" "$failed_count" "timeline has no ChangeFailedEvent"
 end_test "CT-09"
 
 echo ""
@@ -232,11 +232,11 @@ echo "========================================"
 echo "  CT-10: Deploy SUCCESS -> COMPLETED"
 echo "========================================"
 begin_test
-# Publicar DeployFinishedEvent SUCCESS via kafka-console-producer
+# Publish DeployFinishedEvent SUCCESS via kafka-console-producer
 DEPLOY_ID_08=$(newuuid)
 EVENT_08='{"eventType":"DeployFinishedEvent","version":"1.0","correlationId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","occurredAt":"2026-03-26T12:00:00Z","payload":{"deployId":"'"$DEPLOY_ID_08"'","changeId":"'"$CHANGE_ID_CT01"'","result":"SUCCESS","executedAt":"2026-03-26T12:00:00Z"}}'
 echo "$EVENT_08" | docker exec -i changeops-kafka kafka-console-producer --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
-echo "  INFO evento publicado, aguardando ate 15s para status=COMPLETED..."
+echo "  INFO event published, waiting up to 15s for status=COMPLETED..."
 status_val=""
 code=""
 for _i in $(seq 1 15); do
@@ -247,14 +247,14 @@ for _i in $(seq 1 15); do
   status_val=$(echo "$body" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
   [ "$status_val" = "COMPLETED" ] && break
 done
-check "CT-10" "200" "$code" "GET retorna 200"
-check "CT-10" "COMPLETED" "$status_val" "status mudou para COMPLETED"
+check "CT-10" "200" "$code" "GET returns 200"
+check "CT-10" "COMPLETED" "$status_val" "status changed to COMPLETED"
 
-# Verifica timeline
+# Verify timeline
 resp=$(curl -s "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT01/events")
-echo "$resp" | grep -q 'ChangeCompletedEvent' && echo "  INFO timeline tem ChangeCompletedEvent" || echo "  FAIL sem ChangeCompletedEvent na timeline"
-echo "$resp" | grep -q 'ChangeCompletedEvent' && echo "  INFO timeline tem ChangeCompletedEvent" || fail_msg "CT-10" "sem ChangeCompletedEvent na timeline"
-echo "$resp" | grep -q 'ChangePreparedEvent' && echo "  INFO timeline tem ChangePreparedEvent" || fail_msg "CT-10" "sem ChangePreparedEvent"
+echo "$resp" | grep -q 'ChangeCompletedEvent' && echo "  INFO timeline has ChangeCompletedEvent" || echo "  FAIL missing ChangeCompletedEvent in timeline"
+echo "$resp" | grep -q 'ChangeCompletedEvent' && echo "  INFO timeline has ChangeCompletedEvent" || fail_msg "CT-10" "missing ChangeCompletedEvent in timeline"
+echo "$resp" | grep -q 'ChangePreparedEvent' && echo "  INFO timeline has ChangePreparedEvent" || fail_msg "CT-10" "missing ChangePreparedEvent"
 end_test "CT-10"
 
 echo ""
@@ -262,10 +262,10 @@ echo "========================================"
 echo "  CT-11: Deploy FAILURE -> FAILED"
 echo "========================================"
 begin_test
-# Criar nova mudança para CT-11
+# Create new change for CT-11
 resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/changes \
   -H "Content-Type: application/json" \
-  -d '{"title":"Deploy order-service v2.0","description":"Teste de falha no deploy","componentId":"order-service","requestedBy":"tester-001","scheduledAt":"2026-07-01T10:00:00Z"}')
+  -d '{"title":"Deploy order-service v2.0","description":"Deploy failure test","componentId":"order-service","requestedBy":"tester-001","scheduledAt":"2026-07-01T10:00:00Z"}')
 body=$(echo "$resp" | head -n -1)
 CHANGE_ID_CT09=$(echo "$body" | grep -o '"changeId":"[^"]*"' | cut -d'"' -f4)
 echo "  INFO changeId CT-11=$CHANGE_ID_CT09"
@@ -273,25 +273,25 @@ echo "  INFO changeId CT-11=$CHANGE_ID_CT09"
 DEPLOY_ID_09=$(newuuid)
 EVENT_09='{"eventType":"DeployFinishedEvent","version":"1.0","correlationId":"f1f2f3f4-f5f6-f7f8-f9fa-fbfcfdfeff00","occurredAt":"2026-03-26T12:10:00Z","payload":{"deployId":"'"$DEPLOY_ID_09"'","changeId":"'"$CHANGE_ID_CT09"'","result":"FAILURE","executedAt":"2026-03-26T12:10:00Z"}}'
 echo "$EVENT_09" | docker exec -i changeops-kafka kafka-console-producer --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
-echo "  INFO evento FAILURE publicado, aguardando 3s..."
+echo "  INFO FAILURE event published, waiting 3s..."
 sleep 3
 resp=$(curl -s -w "\nHTTP:%{http_code}" "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT09")
 body=$(echo "$resp" | head -n -1)
 status_val=$(echo "$body" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
-check "CT-11" "FAILED" "$status_val" "status mudou para FAILED"
+check "CT-11" "FAILED" "$status_val" "status changed to FAILED"
 
 resp=$(curl -s "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT09/events")
-echo "$resp" | grep -q 'ChangeFailedEvent' && echo "  INFO timeline tem ChangeFailedEvent" || fail_msg "CT-11" "sem ChangeFailedEvent na timeline"
+echo "$resp" | grep -q 'ChangeFailedEvent' && echo "  INFO timeline has ChangeFailedEvent" || fail_msg "CT-11" "missing ChangeFailedEvent in timeline"
 end_test "CT-11"
 
 echo ""
 echo "========================================"
-echo "  CT-12: Idempotência"
+echo "  CT-12: Idempotency"
 echo "========================================"
 begin_test
 resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/changes \
   -H "Content-Type: application/json" \
-  -d '{"title":"Deploy idempotency-service v1.0","description":"Teste de idempotência","componentId":"idempotency-service","requestedBy":"tester-001","scheduledAt":"2026-07-01T10:00:00Z"}')
+  -d '{"title":"Deploy idempotency-service v1.0","description":"Idempotency test","componentId":"idempotency-service","requestedBy":"tester-001","scheduledAt":"2026-07-01T10:00:00Z"}')
 body=$(echo "$resp" | head -n -1)
 CHANGE_ID_CT10=$(echo "$body" | grep -o '"changeId":"[^"]*"' | cut -d'"' -f4)
 echo "  INFO changeId CT-12=$CHANGE_ID_CT10"
@@ -299,52 +299,52 @@ echo "  INFO changeId CT-12=$CHANGE_ID_CT10"
 DEPLOY_ID_10=$(newuuid)
 EVENT_10='{"eventType":"DeployFinishedEvent","version":"1.0","correlationId":"c1c2c3c4-c5c6-c7c8-c9ca-cbcccdcecfc0","occurredAt":"2026-03-26T12:20:00Z","payload":{"deployId":"'"$DEPLOY_ID_10"'","changeId":"'"$CHANGE_ID_CT10"'","result":"SUCCESS","executedAt":"2026-03-26T12:20:00Z"}}'
 
-# Publicar 1a vez
+# Publish 1st time
 echo "$EVENT_10" | docker exec -i changeops-kafka kafka-console-producer --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
 sleep 3
 status_after1=$(curl -s "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT10" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
-check "CT-12" "COMPLETED" "$status_after1" "1a vez: status=COMPLETED"
+check "CT-12" "COMPLETED" "$status_after1" "1st attempt: status=COMPLETED"
 
-# Publicar exato mesmo evento 2a vez
+# Publish the exact same event a 2nd time
 echo "$EVENT_10" | docker exec -i changeops-kafka kafka-console-producer --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
 sleep 3
 status_after2=$(curl -s "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT10" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
-check "CT-12" "COMPLETED" "$status_after2" "2a vez: status permanece COMPLETED"
+check "CT-12" "COMPLETED" "$status_after2" "2nd attempt: status remains COMPLETED"
 
-# Verifica que não duplicou eventos
+# Verify that events were not duplicated
 timeline=$(curl -s "http://localhost:8080/api/v1/changes/$CHANGE_ID_CT10/events")
 count=$(echo "$timeline" | grep -o 'ChangeCompletedEvent' | wc -l)
-check "CT-12" "1" "$count" "apenas 1 ChangeCompletedEvent na timeline (sem duplicata)"
+check "CT-12" "1" "$count" "exactly 1 ChangeCompletedEvent in timeline (no duplicate)"
 end_test "CT-12"
 
 echo ""
 echo "========================================"
-echo "  CT-13: DLT (changeId inexistente)"
+echo "  CT-13: DLT (non-existent changeId)"
 echo "========================================"
 begin_test
 EVENT_11='{"eventType":"DeployFinishedEvent","version":"1.0","correlationId":"deadbeef-dead-beef-dead-beefdeadbeef","occurredAt":"2026-03-26T12:30:00Z","payload":{"deployId":"cc000000-0000-0000-0000-000000000001","changeId":"00000000-0000-0000-0000-000000000099","result":"SUCCESS","executedAt":"2026-03-26T12:30:00Z"}}'
 echo "$EVENT_11" | docker exec -i changeops-kafka kafka-console-producer --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
-echo "  INFO evento DLT publicado (changeId inexistente)"
-echo "  INFO aguardando 15s para retries + DLT..."
+echo "  INFO DLT event published (non-existent changeId)"
+echo "  INFO waiting 15s for retries + DLT..."
 sleep 15
-# Verifica se topic DLT existe e tem mensagens
+# Verify if DLT topic exists and has messages
 dlt_count=$(docker exec changeops-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic changeops.deploy.finished-dlt --from-beginning --max-messages 10 --timeout-ms 5000 2>/dev/null | wc -l)
-[ "$dlt_count" -gt 0 ] && pass_msg "CT-13" "mensagem chegou no DLT Kafka (count=$dlt_count)" || fail_msg "CT-13" "nenhuma mensagem no DLT Kafka"
+[ "$dlt_count" -gt 0 ] && pass_msg "CT-13" "message arrived in Kafka DLT (count=$dlt_count)" || fail_msg "CT-13" "no messages in Kafka DLT"
 
-# Verifica se o counter events_dlt_total foi incrementado no deploy-orchestrator
+# Verify that events_dlt_total counter was incremented in deploy-orchestrator
 dlt_metric=$(curl -s http://localhost:8081/actuator/prometheus | grep '^events_dlt_total' | grep -v '#' | awk '{print $2}' | head -1)
 dlt_int=$(echo "$dlt_metric" | grep -o '^[0-9]*' | head -1)
-[ -n "$dlt_int" ] && [ "$dlt_int" -gt 0 ] && pass_msg "CT-13" "events_dlt_total=$dlt_metric (counter incrementado)" || fail_msg "CT-13" "events_dlt_total=${dlt_metric:-0} (counter não incrementado)"
+[ -n "$dlt_int" ] && [ "$dlt_int" -gt 0 ] && pass_msg "CT-13" "events_dlt_total=$dlt_metric (counter incremented)" || fail_msg "CT-13" "events_dlt_total=${dlt_metric:-0} (counter not incremented)"
 end_test "CT-13"
 
 echo ""
 echo "========================================"
-echo "  CT-13B: Poison pill (UUID malformado no payload)"
+echo "  CT-13B: Poison pill (malformed UUID in payload)"
 echo "========================================"
 begin_test
 POISON_DEPLOY_ID=$(newuuid)
 
-# Captura valores ANTES de publicar o poison pill para validar o delta
+# Capture counter values BEFORE publishing the poison pill to validate the delta
 dlt_before=$(curl -s http://localhost:8081/actuator/prometheus \
   | grep '^events_dlt_total' | grep -v '#' | awk '{print $2}' | head -1)
 dlt_before_int=$(echo "${dlt_before:-0}" | awk '{printf "%d", $1}')
@@ -355,97 +355,97 @@ failed_before_int=$(echo "${failed_before:-0}" | awk '{printf "%d", $1}')
 EVENT_POISON="{\"eventType\":\"DeployFinishedEvent\",\"version\":\"1.0\",\"correlationId\":\"f10f409d-2eee-4053-82f2-80fac03fd65b\",\"occurredAt\":\"2026-03-23T11:42:00Z\",\"payload\":{\"deployId\":\"${POISON_DEPLOY_ID}\",\"changeId\":\"e69a604a-d54b-4915-9504-c7c28685d52411\",\"result\":\"SUCCESS\",\"executedAt\":\"2026-03-23T11:42:00Z\"}}"
 echo "$EVENT_POISON" | docker exec -i changeops-kafka kafka-console-producer \
   --bootstrap-server localhost:9092 --topic changeops.deploy.finished 2>/dev/null
-echo "  INFO poison pill publicado (changeId UUID invalido), aguardando 15s para retries + DLT..."
+echo "  INFO poison pill published (invalid UUID changeId), waiting 15s for retries + DLT..."
 sleep 15
 
-# Verifica que a mensagem chegou no DLT (sem loop infinito).
-# Usa --max-messages 200 para evitar falso negativo quando o topico ja tem muitas mensagens de reruns.
-# Filtra pelo POISON_DEPLOY_ID unico gerado neste run para garantir que é esta mensagem.
+# Verify that the message arrived in the DLT (no infinite retry loop).
+# Uses --max-messages 200 to avoid false negatives when the topic already has many messages from reruns.
+# Filters by the unique POISON_DEPLOY_ID generated in this run to confirm it is this message.
 dlt_poison=$(docker exec changeops-kafka kafka-console-consumer \
   --bootstrap-server localhost:9092 --topic changeops.deploy.finished-dlt \
   --from-beginning --max-messages 200 --timeout-ms 5000 2>/dev/null \
   | grep "$POISON_DEPLOY_ID" | wc -l)
 [ "$dlt_poison" -gt 0 ] \
-  && pass_msg "CT-13B" "poison pill roteado para DLT (count=$dlt_poison)" \
-  || fail_msg "CT-13B" "poison pill NAO chegou no DLT"
+  && pass_msg "CT-13B" "poison pill routed to DLT (count=$dlt_poison)" \
+  || fail_msg "CT-13B" "poison pill did NOT reach DLT"
 
-# Verifica que o consumer ainda processa mensagens normais apos o poison pill
+# Verify that the consumer still processes normal messages after the poison pill
 resp=$(curl -s -w "\nHTTP:%{http_code}" -X POST http://localhost:8080/api/v1/changes \
   -H "Content-Type: application/json" -H "X-User-Id: tester-001" \
-  -d '{"title":"Deploy post-poison v1.0","description":"Teste apos poison pill","componentId":"poison-svc","requestedBy":"tester-001","scheduledAt":"2026-09-01T10:00:00Z"}')
+  -d '{"title":"Deploy post-poison v1.0","description":"Test after poison pill","componentId":"poison-svc","requestedBy":"tester-001","scheduledAt":"2026-09-01T10:00:00Z"}')
 code=$(echo "$resp" | tail -1 | sed 's/HTTP://')
 [ "$code" = "201" ] \
-  && pass_msg "CT-13B" "change criada com sucesso apos poison pill" \
-  || fail_msg "CT-13B" "falha ao criar change apos poison pill (HTTP $code)"
+  && pass_msg "CT-13B" "change created successfully after poison pill" \
+  || fail_msg "CT-13B" "failed to create change after poison pill (HTTP $code)"
 
-# Valida delta das metricas (after > before) para evitar falso positivo
-# caso CT-13 ja tenha incrementado os contadores antes deste teste.
+# Validate metric delta (after > before) to prevent false positive
+# in case CT-13 already incremented the counters before this test.
 dlt_after=$(curl -s http://localhost:8081/actuator/prometheus \
   | grep '^events_dlt_total' | grep -v '#' | awk '{print $2}' | head -1)
 dlt_after_int=$(echo "${dlt_after:-0}" | awk '{printf "%d", $1}')
 [ "$dlt_after_int" -gt "$dlt_before_int" ] \
-  && pass_msg "CT-13B" "events_dlt_total=$dlt_after (incrementado em relacao a $dlt_before_int)" \
-  || fail_msg "CT-13B" "events_dlt_total=${dlt_after:-0} (nao incrementado em relacao a $dlt_before_int)"
+  && pass_msg "CT-13B" "events_dlt_total=$dlt_after (incremented relative to $dlt_before_int)" \
+  || fail_msg "CT-13B" "events_dlt_total=${dlt_after:-0} (not incremented relative to $dlt_before_int)"
 
 failed_after=$(curl -s http://localhost:8081/actuator/prometheus \
   | grep '^events_failed_total' | grep -v '#' | awk '{print $2}' | head -1)
 failed_after_int=$(echo "${failed_after:-0}" | awk '{printf "%d", $1}')
 [ "$failed_after_int" -gt "$failed_before_int" ] \
-  && pass_msg "CT-13B" "events_failed_total=$failed_after (incrementado em relacao a $failed_before_int)" \
-  || fail_msg "CT-13B" "events_failed_total=${failed_after:-0} (nao incrementado em relacao a $failed_before_int)"
+  && pass_msg "CT-13B" "events_failed_total=$failed_after (incremented relative to $failed_before_int)" \
+  || fail_msg "CT-13B" "events_failed_total=${failed_after:-0} (not incremented relative to $failed_before_int)"
 
-# Verifica que NAO ficou em processed_events
+# Verify that the poison pill was NOT recorded in processed_events
 no_processed=$(docker exec changeops-postgres psql -U changeops -d changeops -t \
   -c "SELECT COUNT(*) FROM processed_events WHERE event_id = '${POISON_DEPLOY_ID}'" \
   2>/dev/null | tr -d ' ')
-check "CT-13B" "0" "$no_processed" "poison pill NAO registrado em processed_events"
+check "CT-13B" "0" "$no_processed" "poison pill NOT recorded in processed_events"
 end_test "CT-13B"
 
 echo ""
 echo "========================================"
-echo "  CT-14: Observabilidade (Prometheus)"
+echo "  CT-14: Observability (Prometheus)"
 echo "========================================"
 begin_test
 prom=$(curl -s http://localhost:9090/api/v1/query --data-urlencode 'query=changes_created_total')
-echo "$prom" | grep -q '"result"' && echo "  INFO Prometheus respondeu" || echo "  FAIL Prometheus sem resposta"
+echo "$prom" | grep -q '"result"' && echo "  INFO Prometheus responded" || echo "  FAIL Prometheus no response"
 val=$(echo "$prom" | grep -o '"value":\[[^]]*\]' | head -1 | grep -o '[0-9]*\.[0-9]*"' | tr -d '"')
-[ -n "$val" ] && echo "  INFO changes_created_total=$val" || echo "  WARN sem valor de changes_created_total"
+[ -n "$val" ] && echo "  INFO changes_created_total=$val" || echo "  WARN missing value for changes_created_total"
 
 prom2=$(curl -s http://localhost:9090/api/v1/query --data-urlencode 'query=events_published_total')
 val2=$(echo "$prom2" | grep -o '"value":\[[^]]*\]' | head -1 | grep -o '[0-9.]*"' | tail -1 | tr -d '"')
-[ -n "$val2" ] && echo "  INFO events_published_total=$val2" || echo "  WARN sem valor de events_published_total"
+[ -n "$val2" ] && echo "  INFO events_published_total=$val2" || echo "  WARN missing value for events_published_total"
 
-# Verifica métricas do deploy-orchestrator diretamente via actuator (porta 8081)
+# Verify deploy-orchestrator metrics directly via actuator (port 8081)
 echo "  --- deploy-orchestrator (actuator) ---"
 prom_orch=$(curl -s http://localhost:8081/actuator/prometheus)
 
 echo "$prom_orch" | grep -q 'events_consumed_total' \
-  && pass_msg "CT-14" "events_consumed_total exposto" \
-  || fail_msg "CT-14" "events_consumed_total ausente"
+  && pass_msg "CT-14" "events_consumed_total exposed" \
+  || fail_msg "CT-14" "events_consumed_total absent"
 
 echo "$prom_orch" | grep -q 'events_failed_total' \
-  && pass_msg "CT-14" "events_failed_total exposto" \
-  || fail_msg "CT-14" "events_failed_total ausente"
+  && pass_msg "CT-14" "events_failed_total exposed" \
+  || fail_msg "CT-14" "events_failed_total absent"
 
 dlt_prom=$(echo "$prom_orch" | grep '^events_dlt_total' | grep -v '#' | awk '{print $2}' | head -1)
 dlt_prom_int=$(echo "$dlt_prom" | grep -o '^[0-9]*' | head -1)
 [ -n "$dlt_prom_int" ] && [ "$dlt_prom_int" -gt 0 ] \
-  && pass_msg "CT-14" "events_dlt_total=$dlt_prom (> 0 após CT-13)" \
-  || fail_msg "CT-14" "events_dlt_total=${dlt_prom:-0} (esperado > 0)"
+  && pass_msg "CT-14" "events_dlt_total=$dlt_prom (> 0 after CT-13)" \
+  || fail_msg "CT-14" "events_dlt_total=${dlt_prom:-0} (expected > 0)"
 
 discarded_prom=$(echo "$prom_orch" | grep '^events_discarded_total' | grep -v '#' | awk '{print $2}' | head -1)
-[ -n "$discarded_prom" ] && echo "  INFO events_discarded_total=$discarded_prom" || echo "  WARN events_discarded_total ausente"
+[ -n "$discarded_prom" ] && echo "  INFO events_discarded_total=$discarded_prom" || echo "  WARN events_discarded_total absent"
 end_test "CT-14"
 
 echo ""
 echo "========================================"
-echo "  RESUMO FINAL"
+echo "  PARTIAL SUMMARY"
 echo "========================================"
-echo "  CENÁRIOS TOTAL  : $((TEST_PASS+TEST_FAIL))"
-echo "  CENÁRIOS PASSARAM: $TEST_PASS"
-echo "  CENÁRIOS FALHARAM: $TEST_FAIL"
-[ "$TEST_FAIL" -gt 0 ] && echo "  CENÁRIOS COM FALHA: $FAILED_TESTS"
-echo "  ASSERTS FALHARAM: $ASSERT_FAIL"
+echo "  SCENARIOS TOTAL  : $((TEST_PASS+TEST_FAIL))"
+echo "  SCENARIOS PASSED : $TEST_PASS"
+echo "  SCENARIOS FAILED : $TEST_FAIL"
+[ "$TEST_FAIL" -gt 0 ] && echo "  FAILING SCENARIOS: $FAILED_TESTS"
+echo "  ASSERTIONS FAILED: $ASSERT_FAIL"
 echo ""
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -819,8 +819,8 @@ end_test "CT-32"
 
 echo ""
 echo "============================================================"
-echo "  CT-SEC-01 e CT-SEC-02: Rate Limiting"
-echo "  Execute separadamente: wsl bash tests/run_rate_tests.sh"
+echo "  CT-SEC-01 and CT-SEC-02: Rate Limiting"
+echo "  Run separately: wsl bash tests/run_rate_tests.sh"
 echo "============================================================"
 
 echo ""
@@ -999,16 +999,16 @@ end_test "CT-SEC-10"
 
 echo ""
 echo "========================================"
-echo "  RESUMO FINAL COMPLETO"
+echo "  FINAL SUMMARY"
 echo "========================================"
-echo "  CENÁRIOS TOTAL   : $((TEST_PASS+TEST_FAIL+TEST_SKIP))"
-echo "  CENÁRIOS PASSARAM: $TEST_PASS"
-echo "  CENÁRIOS FALHARAM: $TEST_FAIL"
-echo "  CENÁRIOS IGNORADOS: $TEST_SKIP"
-[ "$TEST_FAIL" -gt 0 ] && echo "  CENÁRIOS COM FALHA: $FAILED_TESTS"
-[ "$TEST_SKIP" -gt 0 ] && echo "  CENÁRIOS IGNORADOS: $SKIPPED_TESTS"
-echo "  ASSERTS FALHARAM : $ASSERT_FAIL"
+echo "  SCENARIOS TOTAL  : $((TEST_PASS+TEST_FAIL+TEST_SKIP))"
+echo "  SCENARIOS PASSED : $TEST_PASS"
+echo "  SCENARIOS FAILED : $TEST_FAIL"
+echo "  SCENARIOS SKIPPED: $TEST_SKIP"
+[ "$TEST_FAIL" -gt 0 ] && echo "  FAILING SCENARIOS: $FAILED_TESTS"
+[ "$TEST_SKIP" -gt 0 ] && echo "  SKIPPED SCENARIOS: $SKIPPED_TESTS"
+echo "  ASSERTIONS FAILED: $ASSERT_FAIL"
 echo ""
-[ "$TEST_FAIL" -eq 0 ] && echo "  TODOS OS CENÁRIOS PASSARAM!" || echo "  ATENÇÃO: $TEST_FAIL CENÁRIO(S) FALHARAM"
-echo "  DICA: testes de rate limiting -> wsl bash tests/run_rate_tests.sh"
+[ "$TEST_FAIL" -eq 0 ] && echo "  ALL SCENARIOS PASSED!" || echo "  WARNING: $TEST_FAIL SCENARIO(S) FAILED"
+echo "  TIP: rate limiting tests -> wsl bash tests/run_rate_tests.sh"
 echo ""
