@@ -3,7 +3,7 @@
 #  Usage: make <target>
 # ─────────────────────────────────────────────────────────────────────────────
 
-.PHONY: help up down clean-stack clean-artifacts clean-test-logs clean-vscode-test-results restart logs \
+.PHONY: help up down clean-stack clean-artifacts restart logs \
         build build-backend build-frontend \
         test test-backend test-frontend \
         lint lint-backend lint-frontend \
@@ -151,14 +151,6 @@ publish-deploy-event: ## Publish a DeployFinishedEvent (SUCCESS) to Kafka
 	echo "Published deployId=$$DEPLOY_ID for changeId=$$CHANGE_ID"
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
-clean-test-logs: ## Remove local test logs and report folders (Windows only — requires PowerShell)
-	@command -v powershell >/dev/null 2>&1 || { echo "This target requires PowerShell (Windows only). On Linux/macOS, delete these directories manually: backend/*/target/surefire-reports backend/*/target/failsafe-reports frontend/test-results tests/logs"; exit 0; }
-	powershell -NoProfile -Command "$$paths = @('backend/change-service/target/surefire-reports', 'backend/change-service/target/failsafe-reports', 'backend/deploy-orchestrator/target/surefire-reports', 'backend/deploy-orchestrator/target/failsafe-reports', 'frontend/test-results', 'frontend/playwright-report', 'tests/logs'); $$removed = $$false; foreach ($$path in $$paths) { if (Test-Path $$path) { Remove-Item -LiteralPath $$path -Recurse -Force; Write-Host \"Removed $$path\"; $$removed = $$true } }; if (-not $$removed) { Write-Host 'No local test logs/results found.' }"
-
-clean-vscode-test-results: ## Clear VS Code Testing history for this workspace (Windows only — requires PowerShell)
-	@command -v powershell >/dev/null 2>&1 || { echo "This target requires PowerShell (Windows only). On Linux/macOS, VS Code test history is not stored in the same location."; exit 0; }
-	-powershell -NoProfile -Command "$$p = (Get-Location).Path; $$workspaceUri = 'file:///' + ($$p.Substring(0,1).ToLower() + $$p.Substring(1) -replace '\\\\', '/' -replace ':', '%3A'); $$roots = @(\"$$env:APPDATA\\Code\\User\\workspaceStorage\", \"$$env:APPDATA\\Code - Insiders\\User\\workspaceStorage\"); $$removed = $$false; foreach ($$root in $$roots) { if (-not (Test-Path $$root)) { continue }; Get-ChildItem $$root -Directory | ForEach-Object { $$meta = Join-Path $$_.FullName 'workspace.json'; if (-not (Test-Path $$meta)) { return }; $$content = Get-Content $$meta -Raw; if ($$content -notlike \"*$$workspaceUri*\") { return }; $$target = Join-Path $$_.FullName 'testResults'; if (Test-Path $$target) { Remove-Item -LiteralPath $$target -Recurse -Force -ErrorAction SilentlyContinue; if (-not (Test-Path $$target)) { Write-Host \"Removed $$target\"; $$removed = $$true } else { Write-Host \"WARNING: Could not fully remove $$target - close VS Code and retry.\"; $$removed = $$true } } } }; if (-not $$removed) { Write-Host 'No VS Code test history found for this workspace.' }"
-
 clean-artifacts: ## Remove build artifacts
 	cd backend/change-service      && mvn clean -q
 	cd backend/deploy-orchestrator && mvn clean -q

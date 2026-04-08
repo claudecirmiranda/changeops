@@ -595,8 +595,6 @@ make kafka-topics          # List topics
 make kafka-reset-state     # Clear Kafka/Zookeeper state (Cluster ID mismatch fix)
 
 make install-frontend      # npm install in frontend/
-make clean-test-logs       # Remove local test logs / Surefire / Failsafe / Vitest report folders
-make clean-vscode-test-results  # Clear VS Code Testing history for this workspace (PowerShell)
 make clean-all             # Remove build artifacts + stop containers (clean-artifacts + clean-stack)
 ```
 
