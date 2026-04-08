@@ -8,6 +8,7 @@ import com.changeops.deployorchestrator.application.port.out.UpdateChangeStatusP
 import com.changeops.deployorchestrator.application.service.PostDeployChecklistService;
 import com.changeops.deployorchestrator.application.service.ProcessDeployResultService;
 import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,7 +69,8 @@ class ProcessDeployResultServiceUnavailabilityTest {
                 updateChangeStatusPort,
                 publishResultEventPort,
                 saveChangeEventPort,
-                meterRegistry);
+                meterRegistry,
+                new ObjectMapper());
     }
 
     // ─── DB unavailable at pre-condition check (existsByChangeId) ────────────
