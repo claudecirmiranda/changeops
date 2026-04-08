@@ -19,7 +19,8 @@
 
   <properties>
     <java.version>17</java.version>
-    <testcontainers.version>1.19.6</testcontainers.version>
+    <junit-jupiter.version>5.11.4</junit-jupiter.version>
+    <testcontainers.version>1.20.4</testcontainers.version>
     <archunit.version>1.2.1</archunit.version>
   </properties>
 
@@ -99,19 +100,16 @@
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>junit-jupiter</artifactId>
-      <version>${testcontainers.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>postgresql</artifactId>
-      <version>${testcontainers.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>kafka</artifactId>
-      <version>${testcontainers.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

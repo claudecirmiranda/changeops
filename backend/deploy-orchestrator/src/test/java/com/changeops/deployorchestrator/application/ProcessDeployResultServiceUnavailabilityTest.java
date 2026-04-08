@@ -40,7 +40,6 @@ import static org.mockito.Mockito.when;
  * re-thrown by the outer catch block, which allows {@code @RetryableTopic} to
  * schedule retries and ultimately route to the DLT when exhausted.
  */
-@SuppressWarnings("null")
 @ExtendWith(MockitoExtension.class)
 class ProcessDeployResultServiceUnavailabilityTest {
 

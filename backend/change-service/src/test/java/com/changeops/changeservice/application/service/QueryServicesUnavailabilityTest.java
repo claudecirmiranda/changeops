@@ -27,7 +27,6 @@ import static org.mockito.Mockito.when;
  * <p>All tests verify that port exceptions propagate to the caller without being swallowed,
  * allowing the REST layer's {@code GlobalExceptionHandler} to map them to 500 responses.
  */
-@SuppressWarnings("null")
 @ExtendWith(MockitoExtension.class)
 class QueryServicesUnavailabilityTest {
 

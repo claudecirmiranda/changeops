@@ -44,7 +44,6 @@ import static org.mockito.Mockito.when;
  * independently. Refer to the Transactional Outbox roadmap item (Phase 2) for
  * the long-term fix to the DB-commit / Kafka-publish coupling.
  */
-@SuppressWarnings("null")
 @ExtendWith(MockitoExtension.class)
 class CreateChangeServiceUnavailabilityTest {
 

@@ -27,7 +27,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
     private final PostDeployChecklistService checklistService;
     private final UpdateChangeStatusPort updateChangeStatusPort;
     private final PublishResultEventPort publishResultEventPort;
-    private final SaveChangeEventPort saveChangeEventPort; // ← aqui, junto aos outros campos
+    private final SaveChangeEventPort saveChangeEventPort;
     private final Counter eventsConsumedCounter;
     private final Counter eventsDiscardedCounter;
     private final Counter changesCompletedCounter;
@@ -40,13 +40,13 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             PostDeployChecklistService checklistService,
             UpdateChangeStatusPort updateChangeStatusPort,
             PublishResultEventPort publishResultEventPort,
-            SaveChangeEventPort saveChangeEventPort, // ← adicionar no construtor
+            SaveChangeEventPort saveChangeEventPort,
             MeterRegistry meterRegistry) {
         this.idempotencyPort = idempotencyPort;
         this.checklistService = checklistService;
         this.updateChangeStatusPort = updateChangeStatusPort;
         this.publishResultEventPort = publishResultEventPort;
-        this.saveChangeEventPort = saveChangeEventPort; // ← atribuir
+        this.saveChangeEventPort = saveChangeEventPort;
         this.eventsConsumedCounter = Counter.builder("events_consumed_total")
                 .tag("type", "DeployFinishedEvent")
                 .description("Total DeployFinishedEvents consumed")
@@ -94,21 +94,21 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                         "changeId not found in database, will retry. changeId=" + payload.changeId());
             }
 
-            // ── Passo 1: Verificação atômica de idempotência + marcação ──
+            // ── Step 1: Atomic idempotency check + mark ──
             if (!idempotencyPort.tryMarkAsProcessed(payload.deployId(), "deploy-orchestrator")) {
                 eventsDiscardedCounter.increment();
                 log.warn("Event already processed, discarding: deployId={}", payload.deployId());
                 return;
             }
 
-            // ── Passo 2: Checklist pós-deploy ──────────────────────────────────
+            // ── Step 2: Post-deploy checklist ──────────────────────────────────
             PostDeployChecklistService.ChecklistResult checklist =
                     checklistService.execute(
                             payload.changeId(),
                             payload.deployId(),
                             event.succeeded());
 
-            // ── Passo 3: Construir resultado ──────────────────────────────────
+            // ── Step 3: Build result ──────────────────────────────────
             ChangeResult changeResult = ChangeResult.from(
                     payload.changeId(),
                     payload.deployId(),
@@ -119,7 +119,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                 changeResult.withChecklistFailure(checklist.failureReason());
             }
 
-            // ── Passo 4: Atualizar status da change + salvar evento ──
+            // ── Step 4: Update change status + save timeline event ──
             if (changeResult.isSuccess()) {
                 updateChangeStatusPort.markCompleted(payload.changeId());
                 log.info("Change status updated to COMPLETED: changeId={}", payload.changeId());
@@ -154,13 +154,13 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                 }
             }
 
-            // ── Passo 5: Idempotência já marcada no Passo 1 ──────────
+            // ── Step 5: Idempotency already marked in Step 1 ──────────
 
-            // ── Passo 6: Publicar evento de resultado ─────────────────────────
+            // ── Step 6: Publish result event ──────────────────────────────────
             changeResult.markFinished();
             publishResultEventPort.publish(changeResult);
 
-            // ── Passo 7: Incrementar contadores (after all failable operations) ──
+            // ── Step 7: Increment counters (after all failable operations) ──
             if (changeResult.isSuccess()) {
                 changesCompletedCounter.increment();
             } else {

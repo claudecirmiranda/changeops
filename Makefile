@@ -3,7 +3,7 @@
 #  Usage: make <target>
 # ─────────────────────────────────────────────────────────────────────────────
 
-.PHONY: help up down clean-stack clean-artifacts restart logs \
+.PHONY: help up down clean-stack clean-artifacts clean-test-logs restart logs \
         build build-backend build-frontend \
         test test-backend test-frontend \
         lint lint-backend lint-frontend \
@@ -41,6 +41,9 @@ down: ## Stop and remove all containers (preserves data volumes)
 
 clean-stack: ## Stop and remove everything INCLUDING data volumes
 	docker compose down -v
+
+clean-vscode-test-results: ## Clear VS Code Test Runner results (does NOT delete script logs)
+	pwsh -Command "$$appdata = $$env:APPDATA; $$testResultsPath = Get-ChildItem -Path '$$appdata\Code\User\workspaceStorage' -Directory -ErrorAction SilentlyContinue | Where-Object { Test-Path '$$_.FullName\testResults' } | Select-Object -First 1 | ForEach-Object { $$_.FullName + '\testResults' }; if ($$testResultsPath) { Remove-Item -Path '$$testResultsPath\*' -Force -ErrorAction SilentlyContinue; Write-Host 'VS Code Test Runner results cleared' } else { Write-Host 'No test results found' }"
 
 restart: ## Restart all services
 	docker compose restart
