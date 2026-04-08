@@ -76,3 +76,8 @@ docker-compose.override.yml
 *.swp
 *~
 *.tmp
+
+# =========================
+# Testcontainers (local/dev only)
+# =========================
+**/testcontainers.properties
