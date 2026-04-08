@@ -4,6 +4,10 @@
     "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx1G -Xms100m -Xlog:disable -javaagent:C:\\Users\\raoni.carchereri\\.m2\\repository\\org\\projectlombok\\lombok\\1.18.30\\lombok-1.18.30.jar",
     "java.test.config": {
         "preLaunchTask": "ensure-docker-running",
-        "vmArgs": ["-Ddocker.host=npipe:////./pipe/dockerDesktopLinuxEngine"]
+        "vmArgs": ["-Ddocker.host=npipe:////./pipe/dockerDesktopLinuxEngine", "-Dapi.version=1.44"],
+        "env": {
+            "DOCKER_HOST": "npipe:////./pipe/dockerDesktopLinuxEngine",
+            "TESTCONTAINERS_RYUK_DISABLED": "true"
+        }
     }
 }
