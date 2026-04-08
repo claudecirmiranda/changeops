@@ -334,7 +334,7 @@ Every new request handler, Kafka listener, or scheduled job must populate MDC **
 
 **Counters (per service, exposed at `/actuator/prometheus`):**
 - `changes_created_total{service="change-service"}` — Total changes created (change-service)
-- `timeline_persistence_failures_total{service="deploy-orchestrator"}` — Timeline event persistence failures in orchestration (deploy-orchestrator)
+- `timeline_persistence_failures_total{service="<service>"}` — Timeline event persistence failures (emitted by both `change-service` and `deploy-orchestrator`)
 - `changes_completed_total{service="deploy-orchestrator"}` — Changes transitioned to COMPLETED (deploy-orchestrator)
 - `changes_failed_total{service="deploy-orchestrator"}` — Changes transitioned to FAILED (deploy-orchestrator)
 - `events_published_total{type="<eventType>"}` — Events published by type (both services)

@@ -2927,7 +2927,7 @@ flowchart LR
 | `events_retries_total` | Counter | deploy-orchestrator | Total de hops de retry |
 | `events_dlt_total` | Counter | deploy-orchestrator | Eventos encaminhados para DLT |
 | `events_failed_total` | Counter | deploy-orchestrator | Eventos que falharam permanentemente |
-| `timeline_persistence_failures_total` | Counter | change-service | Falhas na persistência da timeline |
+| `timeline_persistence_failures_total` | Counter | change-service, deploy-orchestrator | Falhas na persistência da timeline (tags `service="change-service"` e `service="deploy-orchestrator"`) |
 | `orchestration_duration_seconds` | Histogram | deploy-orchestrator | Latência ponta a ponta do processamento |
 | `http_server_requests_seconds` | Histogram | change-service | Latência de requisições REST |
 

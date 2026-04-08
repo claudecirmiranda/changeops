@@ -7,6 +7,7 @@ import com.changeops.deployorchestrator.application.service.ProcessDeployResultS
 import com.changeops.deployorchestrator.application.service.PostDeployChecklistService;
 import com.changeops.deployorchestrator.application.port.out.PublishResultEventPort;
 import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,8 +51,9 @@ class ProcessDeployResultServiceTest {
                 new PostDeployChecklistService(),
                 updateChangeStatusPort,
                 publishResultEventPort,
-                saveChangeEventPort,          // ← adicionar
-                meterRegistry);
+                saveChangeEventPort,
+                meterRegistry,
+                new ObjectMapper());
         when(updateChangeStatusPort.existsByChangeId(any())).thenReturn(true);
     }
 

@@ -250,7 +250,7 @@ make test-backend-it     # Integração com Testcontainers (requer Docker)
 make test-frontend       # Vitest
 
 # Scripts de teste consolidados (alternativa WSL)
-# wsl bash tests/run_unity_tests.sh          # unit — backend (*Test) + frontend (Vitest)
+# wsl bash tests/run_unit_tests.sh           # unit — backend (*Test) + frontend (Vitest)
 # wsl bash tests/run_integration_tests.sh    # integração — Testcontainers (requer Docker)
 # wsl bash tests/run_automated_manual_tests.sh  # cenários CT-02..CT-32, CT-SEC-03..CT-SEC-10
 # wsl bash tests/run_rate_tests.sh           # rate limiting CT-SEC-01, CT-SEC-02

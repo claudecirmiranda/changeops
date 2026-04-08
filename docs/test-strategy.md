@@ -138,7 +138,7 @@ cd frontend && npm test
 
 ```bash
 # Unit tests: backend (Maven *Test) + frontend (Vitest)
-wsl bash tests/run_unity_tests.sh
+wsl bash tests/run_unit_tests.sh
 
 # Integration tests: Testcontainers — Docker obrigatório
 wsl bash tests/run_integration_tests.sh

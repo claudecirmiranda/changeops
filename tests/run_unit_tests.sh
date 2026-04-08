@@ -1,12 +1,12 @@
 #!/bin/bash
 # ──────────────────────────────────────────────────────────────────────────────
-#  run_unity_tests.sh — Run all unit tests (backend + frontend)
+#  run_unit_tests.sh — Run all unit tests (backend + frontend)
 #
 #  Backend (Maven):  files matching **/*Test (excludes *IT classes)
 #  Frontend (Vitest): npm test (vitest run --coverage)
 #
 #  Usage:
-#    wsl bash tests/run_unity_tests.sh
+#    wsl bash tests/run_unit_tests.sh
 # ──────────────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"

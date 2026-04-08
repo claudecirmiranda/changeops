@@ -8,12 +8,16 @@ import com.changeops.deployorchestrator.application.port.out.UpdateChangeStatusP
 import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
 import com.changeops.deployorchestrator.domain.exception.ChangeNotFoundException;
 import com.changeops.deployorchestrator.domain.model.ChangeResult;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
@@ -34,6 +38,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
     private final Counter changesFailedCounter;
     private final Timer orchestrationTimer;
     private final Counter timelineFailuresCounter;
+    private final ObjectMapper objectMapper;
 
     public ProcessDeployResultService(
             IdempotencyPort idempotencyPort,
@@ -41,7 +46,8 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             UpdateChangeStatusPort updateChangeStatusPort,
             PublishResultEventPort publishResultEventPort,
             SaveChangeEventPort saveChangeEventPort,
-            MeterRegistry meterRegistry) {
+            MeterRegistry meterRegistry,
+            ObjectMapper objectMapper) {
         this.idempotencyPort = idempotencyPort;
         this.checklistService = checklistService;
         this.updateChangeStatusPort = updateChangeStatusPort;
@@ -69,6 +75,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                 .tag("service", "deploy-orchestrator")
                 .description("Timeline event persistence failures")
                 .register(meterRegistry);
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -127,8 +134,7 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                     saveChangeEventPort.save(
                             payload.changeId(),
                             "ChangeCompletedEvent",
-                            String.format("{\"changeId\":\"%s\",\"deployId\":\"%s\"}",
-                                    payload.changeId(), payload.deployId()),
+                            buildTimelinePayload(payload.changeId(), payload.deployId(), null),
                             Instant.now());
                 } catch (Exception e) {
                     log.warn("Failed to persist timeline event: changeId={}, eventType=ChangeCompletedEvent",
@@ -143,9 +149,8 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                     saveChangeEventPort.save(
                             payload.changeId(),
                             "ChangeFailedEvent",
-                            String.format("{\"changeId\":\"%s\",\"deployId\":\"%s\",\"reason\":\"%s\"}",
-                                    payload.changeId(), payload.deployId(),
-                                    escapeJson(changeResult.getFailureReason())),
+                            buildTimelinePayload(payload.changeId(), payload.deployId(),
+                                    changeResult.getFailureReason()),
                             Instant.now());
                 } catch (Exception e) {
                     log.warn("Failed to persist timeline event: changeId={}, eventType=ChangeFailedEvent",
@@ -180,15 +185,18 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
         }
     }
 
-    private static String escapeJson(String value) {
-        if (value == null) {
-            return "";
+    private String buildTimelinePayload(java.util.UUID changeId, java.util.UUID deployId, String reason) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("changeId", changeId.toString());
+        payload.put("deployId", deployId.toString());
+        if (reason != null) {
+            payload.put("reason", reason);
         }
-        return value
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
+        try {
+            return objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize timeline payload, falling back to simple format", e);
+            return String.format("{\"changeId\":\"%s\",\"deployId\":\"%s\"}", changeId, deployId);
+        }
     }
 }
