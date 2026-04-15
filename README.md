@@ -234,9 +234,13 @@ Nenhuma configuração manual é necessária — o projeto já inclui `.prettier
 ```bash
 # Ciclo de vida
 make up                  # Sobe toda a stack
+                         # Alternativa sem make: docker compose up -d --build
 make down                # Para e remove containers
+                         # Alternativa sem make: docker compose down -v  (limpa volumes — evita erros na subida do Kafka)
 make restart             # Reinicia serviços
+                         # Alternativa sem make: docker compose restart [service]
 make logs                # Tail de todos os logs
+                         # Alternativa sem make: docker logs [container] --follow
 
 # Build
 make build-backend       # mvn clean package (ambos os serviços)
@@ -272,4 +276,8 @@ curl http://localhost:8081/actuator/health
 curl http://localhost:8080/actuator/prometheus | grep changes_
 docker compose logs change-service --follow
 docker compose logs deploy-orchestrator --follow
+
+# Nota: todos os comandos `make` são atalhos para operações Docker/Maven/npm definidas no Makefile.
+# Caso o make não esteja disponível no ambiente (ex: Windows sem WSL), os comandos equivalentes
+# via docker compose podem ser usados diretamente, conforme indicado nas alternativas acima.
 ```
