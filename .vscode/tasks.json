@@ -2,6 +2,17 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "ensure-docker-running",
+			"type": "shell",
+			"command": "docker info > /dev/null 2>&1 && echo 'Docker is running' || echo 'Docker is not running'",
+			"isBackground": false,
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "silent",
+				"panel": "shared"
+			}
+		},
+		{
 			"label": "test-all-backend",
 			"type": "shell",
 			"command": "cd backend/change-service && mvn test && cd ../deploy-orchestrator && mvn test",
@@ -15,18 +26,6 @@
 			"command": "cd backend/deploy-orchestrator && mvn -B checkstyle:check",
 			"isBackground": false,
 			"group": "test"
-		},
-		{
-			"label": "checkstyle-deploy-orchestrator",
-			"type": "shell",
-			"command": "cd backend/deploy-orchestrator && mvn -B checkstyle:check",
-			"isBackground": false
-		},
-		{
-			"label": "checkstyle-deploy-orchestrator",
-			"type": "shell",
-			"command": "cd backend/deploy-orchestrator && mvn -B checkstyle:check",
-			"isBackground": false
 		}
 	]
 }
