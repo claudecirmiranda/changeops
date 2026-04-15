@@ -21,8 +21,8 @@ import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.kafka.ConfluentKafkaContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
@@ -50,7 +50,7 @@ class DeployEventConsumerIT {
     static PostgreSQLContainer<?> postgres = createPostgresContainer();
 
     @Container
-    static KafkaContainer kafka = createKafkaContainer();
+    static ConfluentKafkaContainer kafka = createKafkaContainer();
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
@@ -274,7 +274,7 @@ class DeployEventConsumerIT {
     }
 
     @SuppressWarnings("all")
-    private static KafkaContainer createKafkaContainer() {
-        return new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.0"));
+    private static ConfluentKafkaContainer createKafkaContainer() {
+        return new ConfluentKafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.0"));
     }
 }

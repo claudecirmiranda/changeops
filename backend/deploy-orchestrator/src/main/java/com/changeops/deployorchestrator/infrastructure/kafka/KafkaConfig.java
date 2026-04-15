@@ -42,6 +42,9 @@ public class KafkaConfig {
     @Value("${changeops.kafka.default-replication-factor:1}")
     private int replicationFactor;
 
+    @Value("${changeops.kafka.producer.close-timeout-seconds:30}")
+    private int producerCloseTimeoutSeconds;
+
     private final ObjectMapper objectMapper;
 
     public KafkaConfig(ObjectMapper objectMapper) {
@@ -94,7 +97,10 @@ public class KafkaConfig {
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ProducerConfig.ACKS_CONFIG, "all");
         props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
-        return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), new StringSerializer());
+        DefaultKafkaProducerFactory<String, String> factory =
+                new DefaultKafkaProducerFactory<>(props, new StringSerializer(), new StringSerializer());
+        factory.setPhysicalCloseTimeout(producerCloseTimeoutSeconds);
+        return factory;
     }
 
     @Primary
@@ -114,7 +120,10 @@ public class KafkaConfig {
         props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
         JsonSerializer<IntegrationEvent> valueSerializer = new JsonSerializer<>(objectMapper);
         valueSerializer.setAddTypeInfo(false);
-        return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), valueSerializer);
+        DefaultKafkaProducerFactory<String, IntegrationEvent> factory =
+                new DefaultKafkaProducerFactory<>(props, new StringSerializer(), valueSerializer);
+        factory.setPhysicalCloseTimeout(producerCloseTimeoutSeconds);
+        return factory;
     }
 
     @Bean

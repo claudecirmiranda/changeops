@@ -7,6 +7,7 @@ import com.changeops.deployorchestrator.application.service.ProcessDeployResultS
 import com.changeops.deployorchestrator.application.service.PostDeployChecklistService;
 import com.changeops.deployorchestrator.application.port.out.PublishResultEventPort;
 import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,8 +51,9 @@ class ProcessDeployResultServiceTest {
                 new PostDeployChecklistService(),
                 updateChangeStatusPort,
                 publishResultEventPort,
-                saveChangeEventPort,          // ← adicionar
-                meterRegistry);
+                saveChangeEventPort,
+                meterRegistry,
+                new ObjectMapper());
         when(updateChangeStatusPort.existsByChangeId(any())).thenReturn(true);
     }
 
@@ -220,6 +222,67 @@ class ProcessDeployResultServiceTest {
         assertThat(meterRegistry.counter("events_consumed_total", "type", "DeployFinishedEvent").count())
                 .isEqualTo(0.0);
         assertThat(meterRegistry.counter("events_discarded_total", "reason", "duplicate").count())
+                .isEqualTo(1.0);
+    }
+
+    // ─── Phase 1+2: Counter atomicity + Timeline try-catch resilience ─────────
+
+    @Test
+    void shouldIncrementCompletedCounter_whenTimelineSaveThrowsButIsNonFatal() {
+        // After Fix B + Fix C: timeline save failure is caught (try-catch), so
+        // execute() completes successfully. Counter is moved after save(), so it fires.
+        // Net: counter = 1 (status update committed — correct behavior).
+        DeployFinishedEvent event = buildEvent("SUCCESS");
+        when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString()))
+                .thenReturn(true);
+        doThrow(new RuntimeException("DB constraint violation on timeline save"))
+                .when(saveChangeEventPort).save(any(), any(), any(), any());
+
+        service.execute(event);  // Must not throw — timeline failure is non-fatal after Fix C
+
+        assertThat(meterRegistry.counter("changes_completed_total").count())
+                .as("Counter should increment — timeline failure is non-fatal after fix")
+                .isEqualTo(1.0);
+        verify(updateChangeStatusPort).markCompleted(event.payload().changeId());
+    }
+
+    @Test
+    void shouldIncrementFailedCounter_whenTimelineSaveThrowsButIsNonFatal() {
+        // Same fix contract for the FAILED path.
+        DeployFinishedEvent event = buildEvent("FAILURE");
+        when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString()))
+                .thenReturn(true);
+        doThrow(new RuntimeException("DB constraint violation on timeline save"))
+                .when(saveChangeEventPort).save(any(), any(), any(), any());
+
+        service.execute(event);  // Must not throw — timeline failure is non-fatal after Fix C
+
+        assertThat(meterRegistry.counter("changes_failed_total").count())
+                .as("Counter should increment — timeline failure is non-fatal after fix")
+                .isEqualTo(1.0);
+        verify(updateChangeStatusPort).markFailed(event.payload().changeId());
+    }
+
+    @Test
+    void shouldCompleteSuccessfully_whenTimelineSaveThrows_butStatusUpdateSucceeds() {
+        // Fix C: timeline save failure is caught and logged; main business flow completes.
+        // Fix B: counter is moved after save, so it fires after the (caught) exception.
+        DeployFinishedEvent event = buildEvent("SUCCESS");
+        when(idempotencyPort.tryMarkAsProcessed(eq(event.payload().deployId()), anyString()))
+                .thenReturn(true);
+        doThrow(new RuntimeException("Timeline DB constraint violation"))
+                .when(saveChangeEventPort).save(any(), any(), any(), any());
+
+        // Should NOT throw — timeline failure must be swallowed
+        service.execute(event);
+
+        // Status update must have happened
+        verify(updateChangeStatusPort).markCompleted(event.payload().changeId());
+        // Result event must still be published
+        verify(publishResultEventPort).publish(argThat(r -> r.isSuccess()));
+        // Counter must be incremented exactly once
+        assertThat(meterRegistry.counter("changes_completed_total").count()).isEqualTo(1.0);
+        assertThat(meterRegistry.counter("events_consumed_total", "type", "DeployFinishedEvent").count())
                 .isEqualTo(1.0);
     }
 

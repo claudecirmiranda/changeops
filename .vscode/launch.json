@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "change-service",
+            "request": "launch",
+            "mainClass": "com.changeops.changeservice.ChangeServiceApplication",
+            "projectName": "change-service"
+        },
+        {
+            "type": "java",
+            "name": "deploy-orchestrator",
+            "request": "launch",
+            "mainClass": "com.changeops.deployorchestrator.DeployOrchestratorApplication",
+            "projectName": "deploy-orchestrator"
+        }
+    ]
+}

@@ -8,12 +8,16 @@ import com.changeops.deployorchestrator.application.port.out.UpdateChangeStatusP
 import com.changeops.deployorchestrator.domain.event.DeployFinishedEvent;
 import com.changeops.deployorchestrator.domain.exception.ChangeNotFoundException;
 import com.changeops.deployorchestrator.domain.model.ChangeResult;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
@@ -27,25 +31,28 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
     private final PostDeployChecklistService checklistService;
     private final UpdateChangeStatusPort updateChangeStatusPort;
     private final PublishResultEventPort publishResultEventPort;
-    private final SaveChangeEventPort saveChangeEventPort; // ← aqui, junto aos outros campos
+    private final SaveChangeEventPort saveChangeEventPort;
     private final Counter eventsConsumedCounter;
     private final Counter eventsDiscardedCounter;
     private final Counter changesCompletedCounter;
     private final Counter changesFailedCounter;
     private final Timer orchestrationTimer;
+    private final Counter timelineFailuresCounter;
+    private final ObjectMapper objectMapper;
 
     public ProcessDeployResultService(
             IdempotencyPort idempotencyPort,
             PostDeployChecklistService checklistService,
             UpdateChangeStatusPort updateChangeStatusPort,
             PublishResultEventPort publishResultEventPort,
-            SaveChangeEventPort saveChangeEventPort, // ← adicionar no construtor
-            MeterRegistry meterRegistry) {
+            SaveChangeEventPort saveChangeEventPort,
+            MeterRegistry meterRegistry,
+            ObjectMapper objectMapper) {
         this.idempotencyPort = idempotencyPort;
         this.checklistService = checklistService;
         this.updateChangeStatusPort = updateChangeStatusPort;
         this.publishResultEventPort = publishResultEventPort;
-        this.saveChangeEventPort = saveChangeEventPort; // ← atribuir
+        this.saveChangeEventPort = saveChangeEventPort;
         this.eventsConsumedCounter = Counter.builder("events_consumed_total")
                 .tag("type", "DeployFinishedEvent")
                 .description("Total DeployFinishedEvents consumed")
@@ -64,6 +71,11 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                 .description("Time to process a DeployFinishedEvent end-to-end")
                 .publishPercentileHistogram()
                 .register(meterRegistry);
+        this.timelineFailuresCounter = Counter.builder("timeline_persistence_failures_total")
+                .tag("service", "deploy-orchestrator")
+                .description("Timeline event persistence failures")
+                .register(meterRegistry);
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -89,21 +101,21 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                         "changeId not found in database, will retry. changeId=" + payload.changeId());
             }
 
-            // ── Passo 1: Verificação atômica de idempotência + marcação ──
+            // ── Step 1: Atomic idempotency check + mark ──
             if (!idempotencyPort.tryMarkAsProcessed(payload.deployId(), "deploy-orchestrator")) {
                 eventsDiscardedCounter.increment();
                 log.warn("Event already processed, discarding: deployId={}", payload.deployId());
                 return;
             }
 
-            // ── Passo 2: Checklist pós-deploy ──────────────────────────────────
+            // ── Step 2: Post-deploy checklist ──────────────────────────────────
             PostDeployChecklistService.ChecklistResult checklist =
                     checklistService.execute(
                             payload.changeId(),
                             payload.deployId(),
                             event.succeeded());
 
-            // ── Passo 3: Construir resultado ──────────────────────────────────
+            // ── Step 3: Build result ──────────────────────────────────
             ChangeResult changeResult = ChangeResult.from(
                     payload.changeId(),
                     payload.deployId(),
@@ -114,37 +126,51 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
                 changeResult.withChecklistFailure(checklist.failureReason());
             }
 
-            // ── Passo 4: Atualizar status da change + salvar evento ──
+            // ── Step 4: Update change status + save timeline event ──
             if (changeResult.isSuccess()) {
                 updateChangeStatusPort.markCompleted(payload.changeId());
-                changesCompletedCounter.increment();
                 log.info("Change status updated to COMPLETED: changeId={}", payload.changeId());
-                saveChangeEventPort.save(
-                        payload.changeId(),
-                        "ChangeCompletedEvent",
-                        String.format("{\"changeId\":\"%s\",\"deployId\":\"%s\"}",
-                                payload.changeId(), payload.deployId()),
-                        Instant.now());
+                try {
+                    saveChangeEventPort.save(
+                            payload.changeId(),
+                            "ChangeCompletedEvent",
+                            buildTimelinePayload(payload.changeId(), payload.deployId(), null),
+                            Instant.now());
+                } catch (Exception e) {
+                    log.warn("Failed to persist timeline event: changeId={}, eventType=ChangeCompletedEvent",
+                            payload.changeId(), e);
+                    timelineFailuresCounter.increment();
+                }
             } else {
                 updateChangeStatusPort.markFailed(payload.changeId());
-                changesFailedCounter.increment();
                 log.info("Change status updated to FAILED: changeId={}, reason={}",
                         payload.changeId(), changeResult.getFailureReason());
-                saveChangeEventPort.save(
-                        payload.changeId(),
-                        "ChangeFailedEvent",
-                        String.format("{\"changeId\":\"%s\",\"deployId\":\"%s\",\"reason\":\"%s\"}",
-                                payload.changeId(), payload.deployId(),
-                                changeResult.getFailureReason()),
-                        Instant.now());
+                try {
+                    saveChangeEventPort.save(
+                            payload.changeId(),
+                            "ChangeFailedEvent",
+                            buildTimelinePayload(payload.changeId(), payload.deployId(),
+                                    changeResult.getFailureReason()),
+                            Instant.now());
+                } catch (Exception e) {
+                    log.warn("Failed to persist timeline event: changeId={}, eventType=ChangeFailedEvent",
+                            payload.changeId(), e);
+                    timelineFailuresCounter.increment();
+                }
             }
 
-            // ── Passo 5: Idempotência já marcada no Passo 1 ──────────
+            // ── Step 5: Idempotency already marked in Step 1 ──────────
 
-            // ── Passo 6: Publicar evento de resultado ─────────────────────────
+            // ── Step 6: Publish result event ──────────────────────────────────
             changeResult.markFinished();
             publishResultEventPort.publish(changeResult);
 
+            // ── Step 7: Increment counters (after all failable operations) ──
+            if (changeResult.isSuccess()) {
+                changesCompletedCounter.increment();
+            } else {
+                changesFailedCounter.increment();
+            }
             eventsConsumedCounter.increment();
 
         } catch (Exception e) {
@@ -156,6 +182,21 @@ public class ProcessDeployResultService implements ProcessDeployResultUseCase {
             MDC.remove("correlation_id");
             MDC.remove("deploy_id");
             MDC.remove("change_id");
+        }
+    }
+
+    private String buildTimelinePayload(java.util.UUID changeId, java.util.UUID deployId, String reason) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("changeId", changeId.toString());
+        payload.put("deployId", deployId.toString());
+        if (reason != null) {
+            payload.put("reason", reason);
+        }
+        try {
+            return objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize timeline payload, falling back to simple format", e);
+            return String.format("{\"changeId\":\"%s\",\"deployId\":\"%s\"}", changeId, deployId);
         }
     }
 }

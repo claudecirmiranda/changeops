@@ -79,7 +79,11 @@ docker-compose.override.yml
 .github/copilot-instructions.md
 
 # =========================
+# Testcontainers (local/dev only)
+# =========================
+**/testcontainers.properties
+
+# =========================
 # Configurações locais de máquina
 # =========================
-**/src/test/resources/testcontainers.properties
 .vscode/settings.json

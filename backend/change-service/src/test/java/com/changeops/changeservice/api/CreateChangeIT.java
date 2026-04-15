@@ -12,8 +12,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.kafka.ConfluentKafkaContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
@@ -41,7 +41,7 @@ class CreateChangeIT {
     static PostgreSQLContainer<?> postgres = createPostgresContainer();
 
     @Container
-    static KafkaContainer kafka = createKafkaContainer();
+    static ConfluentKafkaContainer kafka = createKafkaContainer();
 
     @org.springframework.test.context.DynamicPropertySource
     static void configureProperties(org.springframework.test.context.DynamicPropertyRegistry registry) {
@@ -182,7 +182,7 @@ class CreateChangeIT {
     }
 
     @SuppressWarnings("all")
-    private static KafkaContainer createKafkaContainer() {
-        return new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.0"));
+    private static ConfluentKafkaContainer createKafkaContainer() {
+        return new ConfluentKafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.0"));
     }
 }

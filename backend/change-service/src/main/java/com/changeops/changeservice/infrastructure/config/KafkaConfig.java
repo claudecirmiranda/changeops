@@ -30,6 +30,9 @@ public class KafkaConfig {
     @Value("${changeops.kafka.default-replication-factor:1}")
     private int replicationFactor;
 
+    @Value("${changeops.kafka.producer.close-timeout-seconds:30}")
+    private int producerCloseTimeoutSeconds;
+
     private final ObjectMapper objectMapper;
 
     public KafkaConfig(ObjectMapper objectMapper) {
@@ -46,7 +49,10 @@ public class KafkaConfig {
         props.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1);
         JsonSerializer<IntegrationEvent> valueSerializer = new JsonSerializer<>(objectMapper);
         valueSerializer.setAddTypeInfo(false);
-        return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), valueSerializer);
+        DefaultKafkaProducerFactory<String, IntegrationEvent> factory =
+                new DefaultKafkaProducerFactory<>(props, new StringSerializer(), valueSerializer);
+        factory.setPhysicalCloseTimeout(producerCloseTimeoutSeconds);
+        return factory;
     }
 
     @Bean
