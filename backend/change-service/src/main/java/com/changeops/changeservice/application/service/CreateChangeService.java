@@ -40,6 +40,7 @@ public class CreateChangeService implements CreateChangeUseCase {
                 .description("Total changes created")
                 .register(meterRegistry);
         this.timelineFailuresCounter = Counter.builder("timeline_persistence_failures_total")
+                .tag("service", "change-service")
                 .description("Number of times event timeline persistence failed")
                 .register(meterRegistry);
     }
