@@ -334,7 +334,7 @@ Every new request handler, Kafka listener, or scheduled job must populate MDC **
 
 **Counters (per service, exposed at `/actuator/prometheus`):**
 - `changes_created_total{service="change-service"}` — Total changes created (change-service)
-- `timeline_persistence_failures_total{service="change-service"}` — Timeline event persistence failures (change-service)
+- `timeline_persistence_failures_total{service="<service>"}` — Timeline event persistence failures (emitted by both `change-service` and `deploy-orchestrator`)
 - `changes_completed_total{service="deploy-orchestrator"}` — Changes transitioned to COMPLETED (deploy-orchestrator)
 - `changes_failed_total{service="deploy-orchestrator"}` — Changes transitioned to FAILED (deploy-orchestrator)
 - `events_published_total{type="<eventType>"}` — Events published by type (both services)
@@ -361,6 +361,16 @@ Every new request handler, Kafka listener, or scheduled job must populate MDC **
 Scrape config: Prometheus configuration file prometheus.yml (interval 5s, targets at change-service:8080 and deploy-orchestrator:8081)
 
 Visualization: Grafana dashboard `changeops.json` at http://localhost:3001 (admin/changeops)
+
+### Log Aggregation — Loki + Promtail
+
+**Loki** (grafana/loki:2.9.0) aggregates structured JSON logs from all Docker containers:
+- Promtail scrapes container stdout/stderr from `/var/lib/docker/containers` and forwards to Loki
+- Grafana is provisioned with a Loki datasource out of the box — no manual configuration needed
+- Query logs via Grafana Explore: `{container_name="changeops-change-service"}` or `{container_name="changeops-deploy-orchestrator"}`
+- Loki API available at http://localhost:3100
+
+**Restart policy:** Both `loki` and `promtail` services use `restart: unless-stopped` in docker-compose.yml.
 
 ---
 
@@ -572,6 +582,8 @@ make lint-frontend         # ESLint
 make lint-frontend-fix     # ESLint --fix (auto-fix)
 
 make logs                  # Tail logs (change-service + deploy-orchestrator)
+make logs-cs               # Tail change-service logs only
+make logs-do               # Tail deploy-orchestrator logs only
 make ps                    # Container status (docker compose ps)
 
 make smoke                 # Create a change via curl (test Flow 1)
@@ -581,6 +593,9 @@ make db-shell              # Interactive psql
 make kafka-shell           # bash into Kafka container
 make kafka-topics          # List topics
 make kafka-reset-state     # Clear Kafka/Zookeeper state (Cluster ID mismatch fix)
+
+make install-frontend      # npm install in frontend/
+make clean-all             # Remove build artifacts + stop containers (clean-artifacts + clean-stack)
 ```
 
 **Do not use raw Docker commands:** Always prefer `make <target>` — it encapsulates local context.
@@ -598,6 +613,7 @@ make kafka-reset-state     # Clear Kafka/Zookeeper state (Cluster ID mismatch fi
 | Kafka UI | http://localhost:8090 | 8090 |
 | Prometheus | http://localhost:9090 | 9090 |
 | Grafana | http://localhost:3001 | 3001 (admin/changeops) |
+| Loki | http://localhost:3100 | 3100 |
 | PostgreSQL | localhost:5432 (changeops/changeops) | 5432 |
 
 ---
@@ -723,8 +739,12 @@ More details: ROADMAP.md
 ### Logs & Correlation
 
 ```bash
-# 1. Search by correlation_id in console/Grafana:
+# 1. Search by correlation_id in console:
 make logs | grep "abc123"
+
+# Or query structured logs in Grafana Explore (http://localhost:3001 → Explore → Loki):
+# {container_name="changeops-change-service"} |= "abc123"
+# {container_name="changeops-deploy-orchestrator"} |= "abc123"
 
 # 2. Kafka UI (http://localhost:8090) to inspect topics
 make kafka-topics
@@ -738,6 +758,7 @@ SELECT * FROM processed_events WHERE event_id = 'dep-001';
 
 # 4. Prometheus/Grafana (http://localhost:3001):
 # Query: changes_created_total{service="change-service"}
+# Grafana dashboard: Changes, Events, API Latency, Kafka Listener/Producer latency panels
 ```
 
 ### Full Manual Smoke Test

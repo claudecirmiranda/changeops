@@ -157,7 +157,7 @@ void shouldDiscardDuplicateEventWithoutReprocessing() {
 
 | Requisito | Status | Evidência |
 |-----------|--------|-----------|
-| "Idempotência comprovada com testes" | ✅ Atendido | `IdempotencyIntegrationTest.shouldDiscardDuplicateEventWithoutReprocessing()` com verificação de métrica |
+| "Idempotência comprovada com testes" | ✅ Atendido | `IdempotencyIT.shouldDiscardDuplicateEventWithoutReprocessing()` com verificação de métrica |
 | "Processamento at-most-once de eventos" | ✅ Atendido | `ON CONFLICT DO NOTHING` atômico garante que evento é processado no máximo uma vez |
 | "Métricas para monitoramento de duplicatas" | ✅ Atendido | Métrica `events_discarded_total{reason="duplicate"}` exposta via Prometheus |
 | "Estratégia de cleanup para dados temporários" | ✅ Atendido | Job `@Scheduled` em `IdempotencyCleanupService.java` com propriedade configurável |

@@ -79,7 +79,7 @@ A estratégia de testes do ChangeOps prioriza **confiança nos fluxos críticos*
 |----------------|-------------|
 | `CreateChangeIT` | `POST /changes` → persistência → evento no Kafka; validação 400; listagem paginada |
 | `DeployEventConsumerIT` | Consumo de `DeployFinishedEvent` → status COMPLETED/FAILED; idempotência (duplicata sem efeito); persistência de evento na timeline; poison pill (UUID malformado → DLT sem loop infinito); `changeId` inexistente → DLT após retries esgotados |
-| `IdempotencyIntegrationTest` | Idempotência nível 2 (PostgreSQL): inserção única, rejeição de duplicatas, eventos distintos aceitos, independência entre consumers |
+| `IdempotencyIT` | Idempotência nível 2 (PostgreSQL): inserção única, rejeição de duplicatas, eventos distintos aceitos, independência entre consumers |
 
 **Infra:** PostgreSQL 16-alpine + Confluent Kafka 7.6.0 via `@Container` + `@DynamicPropertySource`.
 
@@ -134,7 +134,23 @@ cd frontend && npm test
 # Task: test-all-backend
 ```
 
-**Pré-requisitos para testes de integração:** Docker daemon rodando (Testcontainers precisa de acesso ao Docker).
+**Scripts shell consolidados (alternativa via WSL):**
+
+```bash
+# Unit tests: backend (Maven *Test) + frontend (Vitest)
+wsl bash tests/run_unit_tests.sh
+
+# Integration tests: Testcontainers — Docker obrigatório
+wsl bash tests/run_integration_tests.sh
+
+# Cenários manuais automatizados CT-02..CT-32, CT-SEC-03..CT-SEC-10 (stack rodando)
+wsl bash tests/run_automated_manual_tests.sh
+
+# Rate limiting CT-SEC-01 e CT-SEC-02 (~200 requests por cenário — separado para não inflar métricas)
+wsl bash tests/run_rate_tests.sh
+```
+
+**Pré-requisitos para testes de integração:** Docker daemon rodando (Testcontainers precisa de acesso ao Docker). Docker Desktop 4.67+ é suportado; a propriedade `api.version=1.44` já está configurada no Surefire de ambos os `pom.xml`.
 
 ---
 
@@ -160,7 +176,7 @@ cd frontend && npm test
 > **Ferramenta sugerida:** Postman, Insomnia ou cURL.
 
 > **Scripts automatizados (alternativa ao roteiro manual):**
-> - `wsl bash tests/run_tests.sh` — executa CT-02 a CT-32, CT-SEC-03 a CT-SEC-10 automaticamente
+> - `wsl bash tests/run_automated_manual_tests.sh` — executa CT-02 a CT-32, CT-SEC-03 a CT-SEC-10 automaticamente
 > - `wsl bash tests/run_rate_tests.sh` — executa CT-SEC-01 e CT-SEC-02 (rate limiting). Separado pois envia ~200 requests POST por cenário, inflando métricas no Prometheus/Grafana.
 
 ### URLs de Referência

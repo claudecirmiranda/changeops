@@ -552,6 +552,67 @@ class ChangeControllerTest {
                 .andExpect(status().isUnsupportedMediaType());
     }
 
+    // ─── Service unavailability → 500 ProblemDetail ──────────────────────────
+
+    @Test
+    void create_shouldReturn500_whenDatabaseIsUnavailable() throws Exception {
+        when(createChangeUseCase.execute(any()))
+                .thenThrow(new RuntimeException("DB connection lost"));
+
+        String body = """
+                {
+                  "title": "Deploy v1",
+                  "componentId": "svc-a",
+                  "requestedBy": "user-001",
+                  "scheduledAt": "%s"
+                }""".formatted(Instant.now().plus(1, ChronoUnit.DAYS));
+
+        mockMvc.perform(post("/api/v1/changes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.title").value("Internal Server Error"))
+                .andExpect(jsonPath("$.detail").value("An unexpected error occurred"))
+                .andExpect(jsonPath("$.status").value(500));
+    }
+
+    @Test
+    void list_shouldReturn500_whenDatabaseIsUnavailable() throws Exception {
+        when(listChangesUseCase.execute(any(), any()))
+                .thenThrow(new RuntimeException("DB connection lost"));
+
+        mockMvc.perform(get("/api/v1/changes"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.title").value("Internal Server Error"))
+                .andExpect(jsonPath("$.status").value(500));
+    }
+
+    @Test
+    void getById_shouldReturn500_whenDatabaseIsUnavailable() throws Exception {
+        UUID changeId = UUID.randomUUID();
+        when(getChangeUseCase.execute(changeId))
+                .thenThrow(new RuntimeException("DB connection lost"));
+
+        mockMvc.perform(get("/api/v1/changes/" + changeId))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.title").value("Internal Server Error"))
+                .andExpect(jsonPath("$.status").value(500));
+    }
+
+    @Test
+    void getEvents_shouldReturn500_whenDatabaseIsUnavailable() throws Exception {
+        UUID changeId = UUID.randomUUID();
+        when(getChangeEventsUseCase.execute(changeId))
+                .thenThrow(new RuntimeException("DB connection lost"));
+
+        mockMvc.perform(get("/api/v1/changes/" + changeId + "/events"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.title").value("Internal Server Error"))
+                .andExpect(jsonPath("$.status").value(500));
+    }
+
+    // ─── Helper ───────────────────────────────────────────────────────────────
+
     private Map<ChangeStatus, Long> buildSummary(long prepared, long completed, long failed) {
         Map<ChangeStatus, Long> summary = new EnumMap<>(ChangeStatus.class);
         Arrays.stream(ChangeStatus.values()).forEach(s -> summary.put(s, 0L));

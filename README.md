@@ -36,7 +36,7 @@ O ChangeOps cobre dois fluxos complementares:
 │  │  changes  |  change_events  |  processed_events               │    │
 │  └───────────────────────────────────────────────────────────────┘    │
 │                                                                       │
-│  Kafka :9092  ·  Kafka UI :8090  ·  Prometheus :9090  ·  Grafana :3001│
+│  Kafka :9092  ·  Kafka UI :8090  ·  Prometheus :9090  ·  Loki :3100  ·  Grafana :3001│
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -57,7 +57,7 @@ Documentação detalhada:
 | **Frontend** | React 18, TypeScript, Zustand, Axios, Tailwind CSS, Vitest |
 | **Mensageria** | Apache Kafka (Confluent 7.6), tópicos versionados, produtor idempotente |
 | **Persistência** | PostgreSQL 16 com JSONB para payloads de eventos |
-| **Observabilidade** | Micrometer + Prometheus, Grafana (dashboard pré-provisionado), Logback JSON |
+| **Observabilidade** | Micrometer + Prometheus, Grafana (dashboard pré-provisionado), Logback JSON, Loki + Promtail (agregação de logs estruturados) |
 | **Infra** | Docker Compose com healthchecks em todos os serviços, Makefile com 20+ targets |
 
 Stack e versões completas: [docs/PROJETO_COMPLETO.md](docs/PROJETO_COMPLETO.md)
@@ -88,10 +88,13 @@ Isso sobe toda a stack. Aguarde todos os serviços ficarem `healthy` (`docker co
 | Kafka UI | http://localhost:8090 |
 | Prometheus | http://localhost:9090 |
 | **Grafana** | http://localhost:3001 (`admin` / `changeops`) |
+| Loki | http://localhost:3100 |
 
 > **Swagger UI** — ambos os serviços expõem sua documentação interativa: [change-service](http://localhost:8080/swagger-ui.html) (`:8080`) e [deploy-orchestrator](http://localhost:8081/swagger-ui.html) (`:8081`). O contrato estático está em [contracts/openapi/change-service.yml](contracts/openapi/change-service.yml).
 
-> **Grafana** — o dashboard **ChangeOps** é carregado automaticamente na inicialização, sem configuração manual. Exibe métricas ao vivo: changes criadas, eventos publicados/consumidos/falhos, latência de API (p95), distribuição de status.
+> **Grafana** — o dashboard **ChangeOps** é carregado automaticamente na inicialização, sem configuração manual. Exibe métricas ao vivo: changes criadas, eventos publicados/consumidos/falhos, latência de API (p95), latência Kafka listener/producer (p95), distribuição de status.
+
+> **Loki** — os logs estruturados JSON de todos os containers são coletados pelo Promtail e disponibilizados no Grafana Explore. Query: `{container_name="changeops-change-service"} |= "correlation_id"`. API disponível em http://localhost:3100.
 
 ---
 
@@ -145,7 +148,7 @@ Idempotência atômica via `INSERT INTO processed_events ON CONFLICT DO NOTHING`
 
 ### Observabilidade
 
-Logs estruturados em JSON com campos `correlation_id`, `change_id`, `deploy_id` em todos os serviços. Métricas customizadas via Micrometer: `changes_created_total`, `events_published_total`, `events_consumed_total`, `events_failed_total`, latência de API (histograma). Dashboard Grafana pré-provisionado — zero configuração manual.
+Logs estruturados em JSON com campos `correlation_id`, `change_id`, `deploy_id` em todos os serviços. Métricas customizadas via Micrometer: `changes_created_total`, `events_published_total`, `events_consumed_total`, `events_failed_total`, `timeline_persistence_failures_total`, latência de API e orquestração (histograma). Loki + Promtail para agregação centralizada de logs — consultável via Grafana Explore sem configuração manual. Dashboard Grafana pré-provisionado com painel Kafka Listener/Producer latency.
 
 → [docs/PROJETO_COMPLETO.md §7](docs/PROJETO_COMPLETO.md)
 
@@ -178,7 +181,8 @@ Decisões deliberadas com justificativa e caminho de evolução documentados: ba
 | [ADR-003](docs/adr/ADR-003-eventos-dominio-vs-integracao.md) | Separação explícita entre eventos de domínio e integração |
 | [ADR-004](docs/adr/ADR-004-atualizacao-status-frontend.md) | HTTP Polling (5s) — simples, robusto, migrável para SSE sem mudança de interface |
 | [ADR-005](docs/adr/ADR-005-estrutura-pacotes.md) | Arquitetura Hexagonal — dependência unidirecional, testabilidade máxima |
-
+| [ADR-006](docs/adr/ADR-006-checklist-pos-deploy.md) | Checklist Pós-Deploy como Contrato de Integração Simulado |
+| [ADR-007](docs/adr/ADR-007-autenticacao-em-ambiente-de-desenvolvimento.md) | Autenticação em Ambiente de Desenvolvimento |
 ---
 
 ## Contratos
@@ -199,8 +203,6 @@ Decisões deliberadas com justificativa e caminho de evolução documentados: ba
 | **Fase 2 — Hardening** | Transactional Outbox, OAuth2/PKCE + Keycloak, OpenTelemetry distributed tracing, TTL em `processed_events` |
 | **Fase 3 — Escala** | Kubernetes + Helm, Kafka multi-partition, Circuit Breaker (Resilience4j), read replicas PostgreSQL |
 | **Fase 4 — Enterprise** | Multi-tenancy (RLS), audit log imutável, GDPR/LGPD (pseudonimização, erasure API) |
-
-→ [docs/ROADMAP.md](docs/ROADMAP.md) — detalhamento completo por fase
 
 ---
 
@@ -232,9 +234,13 @@ Nenhuma configuração manual é necessária — o projeto já inclui `.prettier
 ```bash
 # Ciclo de vida
 make up                  # Sobe toda a stack
+                         # Alternativa sem make: docker compose up -d --build
 make down                # Para e remove containers
+                         # Alternativa sem make: docker compose down -v  (limpa volumes — evita erros na subida do Kafka)
 make restart             # Reinicia serviços
+                         # Alternativa sem make: docker compose restart [service]
 make logs                # Tail de todos os logs
+                         # Alternativa sem make: docker logs [container] --follow
 
 # Build
 make build-backend       # mvn clean package (ambos os serviços)
@@ -246,6 +252,12 @@ make test-backend-unit   # Unitários rápidos (sem Docker)
 make test-backend-it     # Integração com Testcontainers (requer Docker)
 make test-frontend       # Vitest
 
+# Scripts de teste consolidados (alternativa WSL)
+# wsl bash tests/run_unit_tests.sh           # unit — backend (*Test) + frontend (Vitest)
+# wsl bash tests/run_integration_tests.sh    # integração — Testcontainers (requer Docker)
+# wsl bash tests/run_automated_manual_tests.sh  # cenários CT-02..CT-32, CT-SEC-03..CT-SEC-10
+# wsl bash tests/run_rate_tests.sh           # rate limiting CT-SEC-01, CT-SEC-02
+
 # Qualidade
 make lint                # Checkstyle + eslint
 
@@ -253,7 +265,10 @@ make lint                # Checkstyle + eslint
 make db-shell            # psql na instância local
 make kafka-topics        # Lista tópicos Kafka
 make kafka-shell         # Shell do container Kafka
-make clean               # Remove artefatos de build
+make logs-cs             # Logs do change-service
+make logs-do             # Logs do deploy-orchestrator
+make clean-test-logs     # Remove relatórios de teste locais (surefire/failsafe/vitest)
+make clean-all           # Remove artefatos de build + para containers
 
 # Diagnóstico
 curl http://localhost:8080/actuator/health
@@ -261,4 +276,8 @@ curl http://localhost:8081/actuator/health
 curl http://localhost:8080/actuator/prometheus | grep changes_
 docker compose logs change-service --follow
 docker compose logs deploy-orchestrator --follow
+
+# Nota: todos os comandos `make` são atalhos para operações Docker/Maven/npm definidas no Makefile.
+# Caso o make não esteja disponível no ambiente (ex: Windows sem WSL), os comandos equivalentes
+# via docker compose podem ser usados diretamente, conforme indicado nas alternativas acima.
 ```
