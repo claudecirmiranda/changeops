@@ -204,8 +204,6 @@ Decisões deliberadas com justificativa e caminho de evolução documentados: ba
 | **Fase 3 — Escala** | Kubernetes + Helm, Kafka multi-partition, Circuit Breaker (Resilience4j), read replicas PostgreSQL |
 | **Fase 4 — Enterprise** | Multi-tenancy (RLS), audit log imutável, GDPR/LGPD (pseudonimização, erasure API) |
 
-→ [docs/ROADMAP.md](docs/ROADMAP.md) — detalhamento completo por fase
-
 ---
 
 ## Desenvolvimento
