@@ -178,7 +178,8 @@ Decisões deliberadas com justificativa e caminho de evolução documentados: ba
 | [ADR-003](docs/adr/ADR-003-eventos-dominio-vs-integracao.md) | Separação explícita entre eventos de domínio e integração |
 | [ADR-004](docs/adr/ADR-004-atualizacao-status-frontend.md) | HTTP Polling (5s) — simples, robusto, migrável para SSE sem mudança de interface |
 | [ADR-005](docs/adr/ADR-005-estrutura-pacotes.md) | Arquitetura Hexagonal — dependência unidirecional, testabilidade máxima |
-
+| [ADR-006](docs/adr/ADR-006-checklist-pos-deploy.md) | Checklist Pós-Deploy como Contrato de Integração Simulado |
+| [ADR-007](docs/adr/ADR-007-autenticacao-em-ambiente-de-desenvolvimento.md) | Autenticação em Ambiente de Desenvolvimento |
 ---
 
 ## Contratos
